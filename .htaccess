@@ -1,0 +1,53 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS (production only — disable on localhost)
+    RewriteCond %{HTTP_HOST} !^localhost$ [NC]
+    RewriteCond %{HTTP_HOST} !^127\.0\.0\.1$
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Block access to sensitive directories and files
+    RewriteRule ^(scripts|config|logs|database|vendor|api|app)(/|$) - [F,L]
+
+    # Remove index.php from URL
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/index.php?/$1 [L]
+</IfModule>
+
+# Block dot files (.env, .git, .htpasswd, etc.)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block direct access to PHP files in sensitive directories
+<FilesMatch "\.(php|phtml|php3|php4|php5|phar)$">
+    <If "%{REQUEST_URI} =~ m|^/(scripts|config|logs|database|vendor|api|app)/|">
+        <IfModule mod_authz_core.c>
+            Require all denied
+        </IfModule>
+    </If>
+</FilesMatch>
+
+# Set Content-Type for JSON
+<FilesMatch "\.json$">
+    Header set Content-Type "application/json"
+</FilesMatch>
+
+# Disable directory listing
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# Set correct MIME types
+AddType application/javascript js
+AddType text/css css
+AddType image/svg+xml svg svgz
+AddEncoding gzip svgz

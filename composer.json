@@ -1,0 +1,48 @@
+{
+    "name": "smartsys/erp",
+    "description": "نظام الإدارة المتكامل الحل الأمثل لإدارة جميع جوانب عملك بكفاءة وسهولة.",
+    "type": "project",
+    "require": {
+        "slim/slim": "^4.0",
+        "slim/psr7": "^1.6",
+        "vlucas/phpdotenv": "^5.6",
+        "firebase/php-jwt": "^6.11",
+        "dompdf/dompdf": "^2.0",
+        "phpgangsta/googleauthenticator": "dev-master",
+        "pusher/pusher-php-server": "^7.2",
+        "monolog/monolog": "^2.11",
+        "phpmailer/phpmailer": "^6.10",
+        "pimple/pimple": "^3.5",
+        "php-di/php-di": "^7.1",
+        "nikic/php-parser": "^5.7",
+        "stripe/stripe-php": "^19.4",
+        "paypal/rest-api-sdk-php": "^1.6",
+        "sentry/sentry": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "api/v1/src/",
+            "App\\Handlers\\": "api/v1/handlers/",
+            "App\\Middleware\\": "api/v1/middleware/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "post-install-cmd": [
+            "php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ]
+    },
+    "config": {
+        "platform": {
+            "php": "8.0.30"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6"
+    }
+}

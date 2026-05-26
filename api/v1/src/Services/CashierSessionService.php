@@ -1,0 +1,569 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use PDO;
+use Throwable;
+use DateTimeImmutable;
+use App\Services\MonologHandler;
+use App\Repositories\SettingsRepository;
+
+/**
+ * Thrown by CashierSessionService on business-rule violations.
+ * Carries HTTP code + specific audit event name/context for the handler to log.
+ */
+class SessionDeniedException extends \RuntimeException
+{
+    public function __construct(
+        string $message,
+        public readonly int    $httpCode,
+        public readonly string $auditEvent,
+        public readonly array  $auditContext = []
+    ) {
+        parent::__construct($message, $httpCode);
+    }
+}
+
+/**
+ * CashierSessionService
+ *
+ * Domain logic for cashier session lifecycle, extracted from SessionsHandler:
+ *   - openSession()   — validation, locking, shift auto-create, INSERT
+ *   - closeSession()  — UPDATE + audit snapshot
+ *
+ * Read helpers (buildSessionSummary, getSessionTransactions, getSessionTypeLabel,
+ * resolveSessionType, checkAndCloseInactiveAdminSessions) are also provided here
+ * so the handler stays thin.
+ */
+class CashierSessionService
+{
+    private const ADMIN_SESSION_TIMEOUT_HOURS = 12;
+
+    private PDO $db;
+    private SettingsRepository $settings;
+    private $logger;
+
+    public function __construct(PDO $db)
+    {
+        $this->db       = $db;
+        $this->settings = new SettingsRepository($db);
+        $this->logger   = MonologHandler::getInstance('sessions');
+    }
+
+    // =========================================================================
+    // Public API
+    // =========================================================================
+
+    /**
+     * Open a new cashier session.
+     *
+     * @return array ['session_id', 'session_type', 'session_type_label', 'shift_id', 'auto_closed']
+     * @throws SessionDeniedException on business-rule violation (handler logs audit with full context)
+     * @throws \Exception on unexpected DB error
+     */
+    public function openSession(int $tenantId, array $data, ?int $jwtUserId, ?int $jwtRoleId): array
+    {
+        $lockAcquired         = false;
+        $terminalLockAcquired = false;
+        $lockName             = null;
+        $terminalLockName     = null;
+
+        try {
+            $branchId    = $data['branch_id']          ?? null;
+            $notes       = $data['notes']              ?? null;
+            $deviceId    = $data['device_id']          ?? null;
+            $deviceName  = $data['device_name']        ?? null;
+            $terminalId  = $data['terminal_id']        ?? null;
+            $shiftId     = $data['shift_id']           ?? null;
+            $openingCash = isset($data['opening_cash_amount']) ? (float) $data['opening_cash_amount'] : 0.0;
+
+            $this->logger->debug('Session open attempt', [
+                'tenant_id' => $tenantId, 'time' => date('Y-m-d H:i:s'),
+            ]);
+
+            $allowOverride = (int) $this->settings->get($tenantId, 'pos.sessions.allow_manager_override', '0') === 1;
+            $isAdmin       = in_array((int) $jwtRoleId, [1, 2], true);
+            if ($isAdmin) $allowOverride = true;
+
+            $cashierId = $data['cashier_id'] ?? $jwtUserId;
+            if ($cashierId && $jwtUserId && $cashierId != $jwtUserId && !$allowOverride) {
+                $cashierId = $jwtUserId;
+            }
+
+            $this->logger->debug('Session user info', [
+                'tenant_id' => $tenantId, 'user_id' => $jwtUserId, 'role_id' => $jwtRoleId,
+            ]);
+
+            if (!$cashierId) {
+                throw new SessionDeniedException(
+                    'مطلوب معرف الكاشير (cashier_id).',
+                    400, 'pos_session_open_denied_missing_cashier',
+                    ['user_id' => $jwtUserId, 'reason' => 'missing_cashier_id', 'branch_id' => $branchId, 'role_id' => $jwtRoleId]
+                );
+            }
+
+            // Parse enforced roles
+            $rawEnforce   = (string) ($this->settings->get($tenantId, 'pos.sessions.enforce_for_roles', '') ?? '');
+            $enforceRoles = [];
+            if ($rawEnforce !== '') {
+                $trim = trim($rawEnforce);
+                if (str_starts_with($trim, '[')) {
+                    $decoded = json_decode($trim, true);
+                    if (is_array($decoded)) $enforceRoles = array_map('intval', $decoded);
+                } else {
+                    $enforceRoles = array_map('intval', array_filter(array_map('trim', explode(',', $trim))));
+                }
+            }
+            $isEnforced = in_array((int) $jwtRoleId, $enforceRoles, true);
+
+            $this->logger->debug('Session enforcement settings', [
+                'tenant_id'      => $tenantId,
+                'raw_setting'    => $rawEnforce,
+                'enforced_roles' => $enforceRoles,
+                'is_enforced'    => $isEnforced,
+                'user_role_id'   => $jwtRoleId,
+            ]);
+
+            if (!$branchId && $isEnforced) {
+                throw new SessionDeniedException(
+                    'مطلوب معرف المخزن (branch_id) لهذا الدور وفق الإعدادات.',
+                    400, 'pos_session_open_denied_missing_branch',
+                    ['user_id' => $jwtUserId, 'reason' => 'missing_branch_id',
+                     'cashier_id' => $cashierId, 'role_id' => $jwtRoleId, 'enforced' => true]
+                );
+            }
+
+            if (!$terminalId) {
+                throw new SessionDeniedException(
+                    'مطلوب اختيار جهاز نقطة البيع (terminal_id) لفتح الجلسة.',
+                    400, 'pos_session_open_denied_missing_terminal',
+                    ['user_id' => $jwtUserId, 'cashier_id' => $cashierId]
+                );
+            }
+
+            // Validate terminal
+            $terminalStmt = $this->db->prepare(
+                "SELECT id, tenant_id, branch_id, status FROM terminals WHERE id = ? AND tenant_id = ? LIMIT 1"
+            );
+            $terminalStmt->execute([(int) $terminalId, $tenantId]);
+            $terminal = $terminalStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$terminal) {
+                throw new SessionDeniedException(
+                    'الترمينال المحدد غير موجود أو لا يتبع هذا المستأجر.',
+                    400, 'pos_session_open_denied_invalid_terminal',
+                    ['terminal_id' => $terminalId]
+                );
+            }
+            if (($terminal['status'] ?? 'inactive') !== 'active') {
+                throw new SessionDeniedException(
+                    'لا يمكن فتح جلسة على جهاز نقطة بيع غير نشط.',
+                    400, 'pos_session_open_denied_inactive_terminal',
+                    ['terminal_id' => $terminalId, 'status' => $terminal['status'] ?? 'unknown']
+                );
+            }
+
+            $terminalBranchId = $terminal['branch_id'] !== null ? (int) $terminal['branch_id'] : null;
+            if ($branchId === null && $terminalBranchId !== null) {
+                $branchId = $terminalBranchId;
+            } elseif ($branchId !== null && $terminalBranchId !== null && (int) $branchId !== $terminalBranchId) {
+                throw new SessionDeniedException(
+                    'المخزن المحدد لا يطابق المخزن المرتبط بجهاز نقطة البيع.',
+                    400, 'pos_session_open_denied_branch_mismatch',
+                    ['branch_id' => $branchId, 'terminal_branch_id' => $terminalBranchId]
+                );
+            }
+
+            $sessionType = $this->resolveSessionType($tenantId, $data['session_type'] ?? null);
+
+            // Acquire distributed lock (cashier+branch+day)
+            $lockName = sprintf(
+                'tenant:%d:wh:%s:cashier:%d:date:%s',
+                $tenantId,
+                $branchId === null ? 'null' : (string)(int)$branchId,
+                (int)$cashierId,
+                (new DateTimeImmutable('now'))->format('Y-m-d')
+            );
+            $lockResult = $this->db->query("SELECT GET_LOCK(" . $this->db->quote($lockName) . ", 5)");
+            $lockAcquired = ((int) $lockResult->fetchColumn() === 1);
+            if (!$lockAcquired) {
+                throw new SessionDeniedException(
+                    'النظام مشغول بمعالجة جلسة أخرى لنفس الكاشير/المخزن الآن. حاول مرة أخرى بعد لحظات.',
+                    403, 'pos_session_open_lock_busy',
+                    ['reason' => 'lock_busy', 'lock' => $lockName, 'cashier_id' => $cashierId, 'branch_id' => $branchId]
+                );
+            }
+
+            // Acquire terminal lock
+            $terminalLockName = sprintf(
+                'tenant:%d:terminal:%d:date:%s',
+                $tenantId, (int)$terminalId,
+                (new DateTimeImmutable('now'))->format('Y-m-d')
+            );
+            $termLockResult = $this->db->query("SELECT GET_LOCK(" . $this->db->quote($terminalLockName) . ", 5)");
+            $terminalLockAcquired = ((int) $termLockResult->fetchColumn() === 1);
+            if (!$terminalLockAcquired) {
+                throw new SessionDeniedException(
+                    'لا يمكن فتح جلسة أخرى على نفس جهاز نقطة البيع في هذه اللحظة. حاول مرة أخرى بعد لحظات.',
+                    403, 'pos_session_open_terminal_lock_busy',
+                    ['reason' => 'terminal_lock_busy', 'terminal_id' => $terminalId,
+                     'lock' => $terminalLockName, 'cashier_id' => $cashierId, 'branch_id' => $branchId]
+                );
+            }
+
+            // Daily limit check
+            $mode       = strtolower((string) ($this->settings->get($tenantId, 'pos.sessions.mode', '') ?? ''));
+            $dailyLimit = match ($mode) {
+                'one_per_day'   => 1,
+                'two_per_day'   => 2,
+                'three_per_day' => 3,
+                default         => null,
+            };
+
+            if ($dailyLimit !== null && $branchId !== null) {
+                $countStmt = $this->db->prepare(
+                    "SELECT COUNT(*) FROM cashier_sessions
+                     WHERE tenant_id = ? AND branch_id = ? AND cashier_id = ?
+                       AND DATE(start_time) = DATE(NOW())"
+                );
+                $countStmt->execute([$tenantId, $branchId, $cashierId]);
+                $todayCount = (int) $countStmt->fetchColumn();
+                if ($todayCount >= $dailyLimit && !$allowOverride) {
+                    throw new SessionDeniedException(
+                        'تم الوصول إلى الحد الأقصى لعدد جلسات الكاشير المسموح بها لهذا المخزن اليوم.',
+                        403, 'pos_session_open_denied_limit',
+                        ['user_id' => $jwtUserId, 'reason' => 'daily_limit_reached',
+                         'mode' => $mode, 'daily_limit' => $dailyLimit, 'today_count' => $todayCount,
+                         'cashier_id' => $cashierId, 'branch_id' => $branchId, 'role_id' => $jwtRoleId]
+                    );
+                }
+            }
+
+            // Check no open session for same cashier+branch
+            if ($branchId !== null) {
+                $chk = $this->db->prepare(
+                    "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND branch_id = ? AND cashier_id = ? AND status = 'open' LIMIT 1"
+                );
+                $chk->execute([$tenantId, $branchId, $cashierId]);
+            } else {
+                $chk = $this->db->prepare(
+                    "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND branch_id IS NULL AND cashier_id = ? AND status = 'open' LIMIT 1"
+                );
+                $chk->execute([$tenantId, $cashierId]);
+            }
+            if ($chk->fetch()) {
+                throw new SessionDeniedException(
+                        'توجد جلسة مفتوحة مسبقًا لهذا الكاشير في هذا المخزن.',
+                        403, 'pos_session_open_denied_already_open',
+                        ['user_id' => $jwtUserId, 'reason' => 'already_open_session',
+                         'cashier_id' => $cashierId, 'branch_id' => $branchId, 'role_id' => $jwtRoleId]
+                    );
+            }
+
+            // Auto-create shift if needed
+            if ($branchId !== null && $terminalId !== null) {
+                $shiftStmt = $this->db->prepare(
+                    "SELECT id FROM cashier_shifts
+                     WHERE tenant_id = ? AND branch_id = ? AND terminal_id = ? AND status = 'open'
+                     ORDER BY start_time DESC LIMIT 1"
+                );
+                $shiftStmt->execute([(int)$tenantId, (int)$branchId, (int)$terminalId]);
+                $openShift = $shiftStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($openShift && isset($openShift['id'])) {
+                    $shiftId = (int)$openShift['id'];
+                } else {
+                    $this->db->prepare("
+                        INSERT INTO cashier_shifts
+                            (tenant_id, branch_id, terminal_id, cashier_id,
+                             start_time, opening_cash_amount, status, notes,
+                             created_by, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, NOW(), ?, 'open', 'auto', ?, NOW(), NOW())
+                    ")->execute([
+                        (int)$tenantId, (int)$branchId, (int)$terminalId, $cashierId,
+                        $openingCash, $jwtUserId ?: $cashierId,
+                    ]);
+                    $shiftId = (int)$this->db->lastInsertId();
+                    $this->logger->info('Auto-created shift for session', [
+                        'tenant_id' => $tenantId, 'shift_id' => $shiftId,
+                        'terminal_id' => $terminalId, 'branch_id' => $branchId,
+                    ]);
+                }
+            }
+
+            // Check no open session on same terminal
+            if ($terminalId !== null) {
+                $termChk = $this->db->prepare(
+                    "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND terminal_id = ? AND status = 'open' LIMIT 1"
+                );
+                $termChk->execute([$tenantId, $terminalId]);
+                if ($termChk->fetch()) {
+                    throw new SessionDeniedException(
+                        'يوجد بالفعل جلسة مفتوحة على جهاز نقطة البيع المحدد. يجب إغلاقها قبل فتح جلسة جديدة.',
+                        403, 'pos_session_open_denied_terminal_in_use',
+                        ['reason' => 'terminal_already_in_use', 'terminal_id' => $terminalId,
+                         'cashier_id' => $cashierId, 'branch_id' => $branchId]
+                    );
+                }
+            }
+
+            // INSERT session
+            $createdBy = $jwtUserId ?: $cashierId;
+            $this->db->prepare("
+                INSERT INTO cashier_sessions (
+                    tenant_id, cashier_id, device_id, device_name, session_type,
+                    start_time, opening_cash_amount, status, created_by,
+                    branch_id, terminal_id, shift_id, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 'open', ?, ?, ?, ?, ?, NOW(), NOW())
+            ")->execute([
+                $tenantId, $cashierId, $deviceId, $deviceName, $sessionType,
+                $openingCash, $createdBy, $branchId, $terminalId, $shiftId, $notes,
+            ]);
+            $sessionId       = (int)$this->db->lastInsertId();
+            $finalSessionType = $sessionType;
+
+            // Upgrade to admin session for admin users
+            if ($isAdmin && $sessionType !== 'admin') {
+                $this->db->prepare(
+                    "UPDATE cashier_sessions SET session_type = 'admin' WHERE id = ? AND tenant_id = ?"
+                )->execute([$sessionId, $tenantId]);
+                $finalSessionType = 'admin';
+                $this->logger->info('Session converted to admin session', [
+                    'tenant_id' => $tenantId, 'session_id' => $sessionId, 'user_id' => $jwtUserId,
+                ]);
+            }
+
+            $this->logger->info('Session created successfully', [
+                'tenant_id' => $tenantId, 'session_id' => $sessionId,
+                'cashier_id' => $cashierId, 'session_type' => $finalSessionType, 'created_by' => $createdBy,
+            ]);
+
+            return [
+                'session_id'         => $sessionId,
+                'session_type'       => $finalSessionType,
+                'session_type_label' => $this->getSessionTypeLabel($finalSessionType),
+                'shift_id'           => $shiftId,
+                'auto_closed'        => $isAdmin,
+            ];
+        } finally {
+            if ($lockAcquired && $lockName !== null) {
+                try { $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($lockName) . ")"); } catch (Throwable $e) {}
+            }
+            if ($terminalLockAcquired && $terminalLockName !== null) {
+                try { $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($terminalLockName) . ")"); } catch (Throwable $e) {}
+            }
+        }
+    }
+
+    /**
+     * Close a cashier session.
+     *
+     * @return array  merged summary + closing details
+     * @throws \Exception on validation error
+     */
+    public function closeSession(
+        int    $tenantId,
+        int    $sessionId,
+        float  $closingCash,
+        ?int   $closedBy,
+        ?string $varianceReason
+    ): array {
+        $stmt = $this->db->prepare(
+            "SELECT id FROM cashier_sessions WHERE id = ? AND tenant_id = ? AND status = 'open'"
+        );
+        $stmt->execute([$sessionId, $tenantId]);
+        if (!$stmt->fetch()) {
+            throw new SessionDeniedException(
+                'لم يتم العثور على جلسة مفتوحة.',
+                403, 'pos_session_close_not_found',
+                ['session_id' => $sessionId]
+            );
+        }
+
+        $summaryBefore = $this->buildSessionSummary($tenantId, $sessionId);
+        $expected      = (float) ($summaryBefore['calculated']['expected_cash'] ?? 0);
+        $variance      = $closingCash - $expected;
+
+        // Normalise variance reason
+        if (
+            $varianceReason === '-- اختر سبب الفرق --' ||
+            $varianceReason === '' ||
+            (is_string($varianceReason) && trim($varianceReason) === '')
+        ) {
+            $varianceReason = null;
+        } elseif (is_string($varianceReason)) {
+            $varianceReason = trim($varianceReason) ?: null;
+        }
+
+        $this->db->prepare("
+            UPDATE cashier_sessions
+            SET status = 'closed', end_time = NOW(),
+                closing_cash_amount = ?, closed_by = ?,
+                variance_reason = ?, updated_at = NOW()
+            WHERE id = ? AND tenant_id = ?
+        ")->execute([$closingCash, $closedBy, $varianceReason, $sessionId, $tenantId]);
+
+        $summary = $this->buildSessionSummary($tenantId, $sessionId);
+
+        // حقول الإغلاق مُضافة بشكل صريح (لأغراض الـ audit وسهولة الاستعلام)
+        return array_merge($summary, [
+            'closing' => [
+                'closing_cash_amount' => $closingCash,
+                'expected_cash'       => $expected,
+                'variance'            => $variance,
+                'variance_reason'     => $varianceReason,
+                'closed_at'           => (new DateTimeImmutable('now'))->format('Y-m-d H:i:s'),
+                'closed_by'           => $closedBy,
+            ],
+        ]);
+    }
+
+    // =========================================================================
+    // Shared Read Helpers (used by Handler for current, summary, listSessions)
+    // =========================================================================
+
+    public function buildSessionSummary(int $tenantId, int $sessionId): array
+    {
+        $transactions = $this->getSessionTransactions($tenantId, $sessionId);
+
+        $cashIn  = 0.0;
+        $cashOut = 0.0;
+        foreach ($transactions as $tx) {
+            if (in_array($tx['type'], ['income', 'return_receipt', 'sale', 'deposit'], true)) {
+                $cashIn += (float)$tx['amount'];
+            } elseif (in_array($tx['type'], ['expense', 'return_payment', 'purchase', 'withdrawal'], true)) {
+                $cashOut += (float)$tx['amount'];
+            }
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(s.net_total_amount + COALESCE(s.tax_amount, 0)), 0) AS total_sales
+             FROM sales s WHERE s.tenant_id = ? AND s.session_id = ? AND s.status != 'cancelled'"
+        );
+        $stmt->execute([$tenantId, $sessionId]);
+        $totalSales = (float)$stmt->fetchColumn();
+
+        $stmt = $this->db->prepare(
+            "SELECT opening_cash_amount, closing_cash_amount, variance_reason,
+                    branch_id, cashier_id, status, start_time, end_time,
+                    session_type, device_id, device_name, terminal_id, shift_id, closed_by
+             FROM cashier_sessions WHERE id = ? AND tenant_id = ?"
+        );
+        $stmt->execute([$sessionId, $tenantId]);
+        $session = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($session) {
+            $session['session_type_label'] = $this->getSessionTypeLabel($session['session_type'] ?? 'manual');
+            if (!empty($session['closed_by'])) {
+                $u = $this->db->prepare("SELECT name FROM users WHERE id = ? AND tenant_id = ?");
+                $u->execute([$session['closed_by'], $tenantId]);
+                $session['closed_by_name'] = $u->fetchColumn() ?: 'مستخدم غير معروف';
+            }
+        }
+
+        $openingBalance = $session ? (float)$session['opening_cash_amount'] : 0.0;
+        $closingBalance = ($session && isset($session['closing_cash_amount']))
+            ? (float)$session['closing_cash_amount'] : null;
+
+        if (!empty($session['variance_reason']) && $cashOut == 0 && $closingBalance !== null) {
+            $expectedWithoutVariance = $openingBalance + $cashIn;
+            $cashOut = max(0, $expectedWithoutVariance - $closingBalance);
+        }
+
+        $expectedCash   = $openingBalance + $cashIn - $cashOut;
+        $varianceAmount = $closingBalance !== null ? $closingBalance - $expectedCash : null;
+
+        return [
+            'session'     => $session ?: null,
+            'totals'      => ['payments' => $totalSales, 'cash_in' => $cashIn, 'cash_out' => $cashOut, 'total_sales' => $totalSales],
+            'calculated'  => ['expected_cash' => $expectedCash, 'variance_amount' => $varianceAmount, 'opening_balance' => $openingBalance, 'closing_balance' => $closingBalance],
+            'transactions' => $transactions,
+        ];
+    }
+
+    public function getSessionTransactions(int $tenantId, int $sessionId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, type, amount, reference_type, reference_id, notes, created_at, created_by
+             FROM cash_transactions
+             WHERE tenant_id = ? AND session_id = ? ORDER BY created_at ASC"
+        );
+        $stmt->execute([$tenantId, $sessionId]);
+        $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $userIds = array_filter(array_unique(array_column($transactions, 'created_by')));
+        $users   = [];
+        if (!empty($userIds)) {
+            $ph       = implode(',', array_fill(0, count($userIds), '?'));
+            $uStmt    = $this->db->prepare("SELECT id, name FROM users WHERE id IN ($ph) AND tenant_id = ?");
+            $uStmt->execute(array_merge($userIds, [$tenantId]));
+            $users = array_column($uStmt->fetchAll(PDO::FETCH_ASSOC), 'name', 'id');
+        }
+        foreach ($transactions as &$tx) {
+            $tx['created_by_name'] = $users[$tx['created_by']] ?? 'System';
+            $tx['amount']          = (float)$tx['amount'];
+        }
+        unset($tx);
+        return $transactions;
+    }
+
+    public function getSessionTypeLabel(?string $type): string
+    {
+        return match (strtolower((string)$type)) {
+            'daily'   => 'جلسة يومية',
+            'morning' => 'جلسة صباحية',
+            'evening' => 'جلسة مسائية',
+            'admin'   => 'جلسة إدارية',
+            default   => 'جلسة يدوية',
+        };
+    }
+
+    public function checkAndCloseInactiveAdminSessions(int $tenantId): void
+    {
+        try {
+            $stmt = $this->db->prepare("
+                UPDATE cashier_sessions
+                SET status = 'closed', end_time = NOW(),
+                    closing_cash_amount = opening_cash_amount,
+                    closed_by = created_by, updated_at = NOW()
+                WHERE tenant_id = ? AND session_type = 'admin' AND status = 'open'
+                  AND TIMESTAMPDIFF(HOUR, updated_at, NOW()) >= ?
+            ");
+            $stmt->execute([$tenantId, self::ADMIN_SESSION_TIMEOUT_HOURS]);
+
+            if ($stmt->rowCount() > 0) {
+                $this->logger->info('Inactive admin sessions closed', [
+                    'tenant_id' => $tenantId,
+                    'count'     => $stmt->rowCount(),
+                ]);
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('Error closing inactive admin sessions', ['message' => $e->getMessage()]);
+        }
+    }
+
+    // =========================================================================
+    // Private Helpers
+    // =========================================================================
+
+    private function resolveSessionType(int $tenantId, ?string $requestedType = null): string
+    {
+        $mode   = strtolower((string) ($this->settings->get($tenantId, 'pos.sessions.mode', 'manual') ?? 'manual'));
+        $cutoff = (string) ($this->settings->get($tenantId, 'pos.sessions.period_cutoff', '15:00') ?? '15:00');
+        $cutoff = preg_match('/^\d{2}:\d{2}$/', $cutoff) ? $cutoff : '15:00';
+
+        if ($mode === 'daily') return 'daily';
+
+        if ($mode === 'morning' || $mode === 'evening') {
+            $now             = new DateTimeImmutable('now');
+            [$hour, $minute] = array_map('intval', explode(':', $cutoff));
+            $cutoffTime      = $now->setTime($hour, $minute, 0);
+            return $now < $cutoffTime ? 'morning' : 'evening';
+        }
+
+        $req = strtolower((string)$requestedType);
+        return in_array($req, ['manual', 'morning', 'evening', 'daily'], true) ? $req : 'manual';
+    }
+}

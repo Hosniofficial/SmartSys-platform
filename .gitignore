@@ -1,0 +1,104 @@
+# SMARTSYS ERP - Git Ignore Rules
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+.env.backup
+
+# Dependencies
+/vendor/
+/node_modules/
+composer.lock
+package-lock.json
+
+# Logs
+/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+/tmp/
+/temp/
+*.tmp
+*.cache
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Build outputs
+/dist/
+/build/
+*.min.js
+*.min.css
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Database backups (keep repo clean - use external storage)
+*.sql
+*.sql.gz
+
+# Local development
+.local/
+.testing/
+
+# Node dev files
+/erp-frontend/node_modules/
+/erp-frontend/dist/
+/erp-frontend/
+
+# PHP specific
+.phpunit.result.cache
+coverage/
+.coverage
+
+# Uploads and dynamic files
+/public/uploads/
+/api/public/uploads/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Keep production config but not local overrides
+.env.production.local
+.env.staging
+
+# Git
+.git/
+.gitkeep!
+
+# CI/CD
+.github/workflows/secrets.yml
+.gitlab-ci.yml.bak
+
+# Never commit these files
+secretsfile.txt
+private_key.pem
+*.p12
+
+# Misc
+package.json.bak
+composer.json.bak
