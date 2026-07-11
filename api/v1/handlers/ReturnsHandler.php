@@ -698,7 +698,7 @@ class ReturnsHandler extends BaseHandler
         if ($this->db->inTransaction()) $this->db->rollBack();
         $this->logger->error('Return creation failed', ['message' => $e->getMessage(), 'tenant_id' => $tenantId]);
         $msg = $e->getMessage();
-        if (strpos($msg, 'لا يمكن') !== false || strpos($msg, 'لا يمكن') !== false) {
+        if (strpos($msg, 'لا يمكن') !== false || strpos($msg, 'فشل') !== false) {
             return $this->errorResponse($response, $msg, 400);
         }
         return $this->errorResponse($response, 'فشل في إنشاء المرتجع', 400);

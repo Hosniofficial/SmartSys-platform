@@ -5,7 +5,6 @@ namespace App\Handlers;
 use PDO;
 use Exception;
 use DateTime;
-use App\Handlers\AuditHandler;
 use App\Services\MonologHandler;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;

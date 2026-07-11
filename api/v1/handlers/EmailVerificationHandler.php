@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Handlers;
 
-use PDO;
 use Exception;
 use App\Services\MonologHandler;
 use App\Services\EmailVerificationService;

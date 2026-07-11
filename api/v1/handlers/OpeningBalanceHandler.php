@@ -7,7 +7,6 @@ namespace App\Handlers;
 use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use App\Services\AccountingService;
 use App\Services\MonologHandler;
 use App\Services\CostCenter\CostCenterService;
 
@@ -59,6 +58,10 @@ class OpeningBalanceHandler extends BaseHandler
                     return $row;
                 }
             } catch (\Throwable $e) {
+                $this->logger->warning('Error searching for branch by code', [
+                    'code' => $code,
+                    'message' => $e->getMessage()
+                ]);
                 continue;
             }
         }
@@ -206,7 +209,7 @@ class OpeningBalanceHandler extends BaseHandler
 
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename=\"opening_balance_template.csv\"')
+            ->withHeader('Content-Disposition', 'attachment; filename="opening_balance_template.csv"')
             ->withStatus(200);
     }
 
@@ -438,6 +441,9 @@ class OpeningBalanceHandler extends BaseHandler
             try {
                 $this->db->setAttribute(PDO::ATTR_AUTOCOMMIT, 0);
             } catch (\Throwable $e) {
+                $this->logger->warning('Failed to set autocommit', [
+                    'message' => $e->getMessage()
+                ]);
             }
 
             if (!$this->db->inTransaction()) {

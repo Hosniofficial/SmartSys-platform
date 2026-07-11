@@ -9,7 +9,6 @@ use Throwable;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\MonologHandler;
-use App\Services\AccountingService;
 
 class AdvancedReportsHandler extends BaseHandler
 {

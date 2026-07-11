@@ -943,7 +943,7 @@ class InventoryHandler extends BaseHandler
                 'serials' => $serials
             ]);
         } catch (\Throwable $e) {
-            $this->logger->error('Error getting product batches', [
+            $this->logger->error('فشل في جلب بيانات الدفعات', [
                 'error' => $e->getMessage(),
                 'tenant_id' => $tenantId,
                 'product_id' => $productId,

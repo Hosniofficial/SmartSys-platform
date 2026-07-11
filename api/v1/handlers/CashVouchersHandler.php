@@ -18,8 +18,8 @@ use DateTime;
 
 class CashVouchersHandler extends BaseHandler
 {
-    private $costCenterService;
-    private $balanceCalcService;
+    private CostCenterService $costCenterService;
+    private BalanceCalculationService $balanceCalcService;
 
     public function __construct($db)
     {
@@ -35,7 +35,7 @@ class CashVouchersHandler extends BaseHandler
             $tenantId = $this->extractTenantId($request);
             if (!$tenantId) {
                 $this->logger->warning('Cash vouchers list - missing tenant ID');
-                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID)', 403);
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
             }
 
             $filters = $this->normalizeListFilters($request->getQueryParams());
@@ -131,7 +131,7 @@ class CashVouchersHandler extends BaseHandler
         }
     }
 
-    public function get(Request $request, Response $response, array $args)
+    public function get(Request $request, Response $response, array $args): Response
     {
         try {
             $tenantId = $this->extractTenantId($request);
@@ -187,7 +187,7 @@ class CashVouchersHandler extends BaseHandler
         }
     }
 
-    public function create(Request $request, Response $response)
+    public function create(Request $request, Response $response): Response
     {
         $tenantId       = null;
         $userId         = null;
@@ -325,11 +325,11 @@ class CashVouchersHandler extends BaseHandler
         }
     }
 
-    public function update(Request $request, Response $response, array $args)
+    public function update(Request $request, Response $response, array $args): Response
     {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
-            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID)', 403);
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
         }
 
         $id = isset($args['id']) ? (int) $args['id'] : 0;
@@ -486,7 +486,7 @@ class CashVouchersHandler extends BaseHandler
         }
     }
 
-    public function delete(Request $request, Response $response, array $args)
+    public function delete(Request $request, Response $response, array $args): Response
     {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {

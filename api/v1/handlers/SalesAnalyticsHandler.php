@@ -177,6 +177,9 @@ class SalesAnalyticsHandler extends BaseHandler
                 }
                 $cogsTotal = round($cogsTotal, 2);
             } catch (\Throwable $e) {
+                $this->logger->warning('Error computing COGS for daily summary', [
+                    'message' => $e->getMessage()
+                ]);
                 $cogsTotal = 0.0;
             }
 
@@ -246,6 +249,10 @@ class SalesAnalyticsHandler extends BaseHandler
                     $costing = new CostingService($this->db);
                     $saleCogs = (float) $costing->computeCOGSForSale($tenantId, $saleId, $saleDate);
                 } catch (\Throwable $e) {
+                    $this->logger->warning('Error computing COGS for individual sale', [
+                        'sale_id' => $saleId,
+                        'message' => $e->getMessage()
+                    ]);
                     $saleCogs = 0.0;
                 }
                 
@@ -538,7 +545,12 @@ class SalesAnalyticsHandler extends BaseHandler
                 $stmt = $this->db->prepare("SELECT s.branch_id as pos_id, b.name as pos_name, SUM(si.quantity * si.sale_price) as amount FROM sales s LEFT JOIN branches b ON b.id = s.branch_id AND (b.tenant_id = s.tenant_id OR b.tenant_id IS NULL) JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id WHERE " . implode(' AND ', $posWhere) . $pkFilter . " GROUP BY s.branch_id, b.name");
                 $stmt->execute($paymentKind ? array_merge($posParams, [$paymentKind]) : $posParams);
                 $byPos = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            } catch (\Throwable $e) { $byPos = []; }
+            } catch (\Throwable $e) {
+                $this->logger->warning('Error fetching sales by POS', [
+                    'message' => $e->getMessage()
+                ]);
+                $byPos = [];
+            }
 
             // Latest transactions
             $latestTx = [];
@@ -570,7 +582,12 @@ class SalesAnalyticsHandler extends BaseHandler
                     }
                 }
                 unset($tx);
-            } catch (\Throwable $e) { $latestTx = []; }
+            } catch (\Throwable $e) {
+                $this->logger->warning('Error fetching latest transactions', [
+                    'message' => $e->getMessage()
+                ]);
+                $latestTx = [];
+            }
 
             // Period COGS
             $cogsTotal = 0.0;
@@ -613,7 +630,12 @@ class SalesAnalyticsHandler extends BaseHandler
                     $cogsTotal += $c;
                 }
                 $cogsTotal = round($cogsTotal, 2);
-            } catch (\Throwable $e) { $cogsTotal = 0.0; }
+            } catch (\Throwable $e) {
+                $this->logger->warning('Error computing COGS in analyzeSales', [
+                    'message' => $e->getMessage()
+                ]);
+                $cogsTotal = 0.0;
+            }
 
             // Returns COGS
             // ✅ Single batch query instead of one query per return (N+1 fix)
@@ -654,7 +676,12 @@ class SalesAnalyticsHandler extends BaseHandler
                     }
                 }
                 $returnsCOGS = round($returnsCOGS, 2);
-            } catch (\Throwable $e) { $returnsCOGS = 0.0; }
+            } catch (\Throwable $e) {
+                $this->logger->warning('Error computing returns COGS in analyzeSales', [
+                    'message' => $e->getMessage()
+                ]);
+                $returnsCOGS = 0.0;
+            }
 
             $netCOGS = $cogsTotal - $returnsCOGS;
 

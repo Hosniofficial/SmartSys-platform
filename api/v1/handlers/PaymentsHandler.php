@@ -9,7 +9,6 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\MonologHandler;
 use App\Services\LabelService;
-use App\Services\LocaleService;
 use App\Utils\PaginationHelper;
 class PaymentsHandler extends BaseHandler
 {

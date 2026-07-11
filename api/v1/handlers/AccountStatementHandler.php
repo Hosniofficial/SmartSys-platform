@@ -6,7 +6,6 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use PDO;
 use App\Services\MonologHandler;
 use App\Services\LabelService;
-use App\Services\LocaleService;
 class AccountStatementHandler extends BaseHandler {
     // كاش لربط (tenant_id, code) -> account_id لتقليل الاستعلامات المتكررة
     private array $accountCache = [];

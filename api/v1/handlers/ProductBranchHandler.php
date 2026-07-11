@@ -10,7 +10,6 @@ use Exception;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\MonologHandler;
-use App\Services\AccountingService;
 use App\Services\InventoryOpeningBalanceService;
 
 class ProductBranchHandler extends BaseHandler

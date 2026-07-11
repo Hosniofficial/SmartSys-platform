@@ -162,7 +162,11 @@ class SessionsHandler extends BaseHandler
                     (int)$tenantId,
                     $jwtUserId ? (int)$jwtUserId : null
                 );
-            } catch (Throwable $e) {}
+            } catch (Throwable $e) {
+                $this->logger->warning('Failed to log close session action', [
+                    'message' => $e->getMessage()
+                ]);
+            }
 
             return $this->successResponse($response, $summary, 200);
         } catch (SessionDeniedException $e) {
