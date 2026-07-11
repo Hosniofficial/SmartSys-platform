@@ -805,19 +805,19 @@ class StrictSubscriptionHandler extends BaseHandler
     private function sendVerificationEmail(string $email, int $userId, string $token, string $clientIp): void
     {
         try {
-            // استخدام EmailVerificationService لإرسال البريد بشكل موحد
+            // Use EmailVerificationService with proper method signature
             $verificationService = new \App\Services\EmailVerificationService($this->db);
             
-            // الخدمة تتولى كل شيء:
-            // - تخزين token بشكل آمن
-            // - بناء رابط التحقق
-            // - إرسال البريد عبر Mailer الموحد
-            $verificationService->sendVerificationEmail(
-                $email,
-                $userId,
-                'registration',
-                ['ip_address' => $clientIp]
-            );
+            // Create a minimal ServerRequestInterface-compatible object with IP address
+            $requestData = ['REMOTE_ADDR' => $clientIp];
+            
+            // Call the correct method: sendVerification(email, purpose, request)
+            // The request object's IP address will be captured by the service
+            $verificationService->sendVerification($email, 'registration', new \Psr\Http\Message\ServerRequest(
+                method: 'POST',
+                uri: new \Psr\Http\Message\Uri('/auth/verify-email'),
+                serverParams: $requestData
+            ));
             
         } catch (\Throwable $e) {
             $this->logger->error('Failed to send verification email', [

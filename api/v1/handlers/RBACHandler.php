@@ -411,9 +411,9 @@ class RBACHandler extends BaseHandler
 
     public function createRole(Request $request, Response $response): Response
     {
-        $adminCheck = $this->requireAdminAccess($request, $response);
-        if (!$adminCheck['isAdmin']) {
-            return $adminCheck['response'];
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
         }
         
         $tenantId = $this->extractTenantId($request);
@@ -495,9 +495,9 @@ class RBACHandler extends BaseHandler
 
     public function updateRole(Request $request, Response $response, array $args): Response
     {
-        $adminCheck = $this->requireAdminAccess($request, $response);
-        if (!$adminCheck['isAdmin']) {
-            return $adminCheck['response'];
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
         }
         
         $tenantId = $this->extractTenantId($request);
@@ -601,9 +601,9 @@ class RBACHandler extends BaseHandler
 
     public function deleteRole(Request $request, Response $response, array $args): Response
     {
-        $adminCheck = $this->requireAdminAccess($request, $response);
-        if (!$adminCheck['isAdmin']) {
-            return $adminCheck['response'];
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
         }
         
         $tenantId = $this->extractTenantId($request);
@@ -687,6 +687,11 @@ class RBACHandler extends BaseHandler
 
     public function getRolePermissions(Request $request, Response $response, array $args): Response
     {
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
+        }
+        
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -735,6 +740,11 @@ class RBACHandler extends BaseHandler
 
     public function updateRolePermissions(Request $request, Response $response, array $args): Response
     {
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
+        }
+        
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -807,6 +817,11 @@ class RBACHandler extends BaseHandler
 
     public function getUserPermissions(Request $request, Response $response, array $args): Response
     {
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
+        }
+        
         try {
             $userId = (int) ($args['id'] ?? 0);
 
@@ -840,9 +855,9 @@ class RBACHandler extends BaseHandler
 
     public function createPermission(Request $request, Response $response): Response
     {
-        $adminCheck = $this->requireAdminAccess($request, $response);
-        if (!$adminCheck['isAdmin']) {
-            return $adminCheck['response'];
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
         }
         
         try {
@@ -886,9 +901,9 @@ class RBACHandler extends BaseHandler
 
     public function updatePermission(Request $request, Response $response, array $args): Response
     {
-        $adminCheck = $this->requireAdminAccess($request, $response);
-        if (!$adminCheck['isAdmin']) {
-            return $adminCheck['response'];
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
         }
         
         try {
@@ -940,9 +955,9 @@ class RBACHandler extends BaseHandler
 
     public function deletePermission(Request $request, Response $response, array $args): Response
     {
-        $adminCheck = $this->requireAdminAccess($request, $response);
-        if (!$adminCheck['isAdmin']) {
-            return $adminCheck['response'];
+        [, , $err] = $this->requireAdminAccess($request, $response);
+        if ($err) {
+            return $err;
         }
         
         try {

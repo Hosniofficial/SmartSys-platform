@@ -237,14 +237,16 @@ class BalanceCalculationService {
                     'paidCol' => 'paid_amount'
                 ],
                 'sales_return' => [
-                    'table' => 'sales_returns',
+                    'table' => 'returns',
                     'totalCol' => 'grand_total',
-                    'paidCol' => 'paid_amount'
+                    'paidCol' => 'paid_amount',
+                    'returnTypeFilter' => 'sale'
                 ],
                 'purchase_return' => [
-                    'table' => 'purchase_returns',
+                    'table' => 'returns',
                     'totalCol' => 'grand_total',
-                    'paidCol' => 'paid_amount'
+                    'paidCol' => 'paid_amount',
+                    'returnTypeFilter' => 'purchase'
                 ]
             ];
 
@@ -263,12 +265,20 @@ class BalanceCalculationService {
             $sql = "
                 SELECT COALESCE({$totalCol}, 0) - COALESCE({$paidCol}, 0) AS amount_due
                 FROM {$table}
-                WHERE id = ? AND tenant_id = ?
-                LIMIT 1
-            ";
+                WHERE id = ? AND tenant_id = ?";
+
+            // Add return_type filter for returns table
+            if (!empty($config['returnTypeFilter'])) {
+                $sql .= " AND return_type = ?";
+                $params = [$documentId, $tenantId, $config['returnTypeFilter']];
+            } else {
+                $params = [$documentId, $tenantId];
+            }
+
+            $sql .= " LIMIT 1";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([$documentId, $tenantId]);
+            $stmt->execute($params);
             $amountDue = (float) $stmt->fetchColumn();
 
             return max(0.0, $amountDue); // Never negative
@@ -451,16 +461,18 @@ class BalanceCalculationService {
                     'paidCol' => 'paid_amount'
                 ],
                 'sales_return' => [
-                    'table' => 'sales_returns',
+                    'table' => 'returns',
                     'idCol' => 'id',
                     'totalCol' => 'grand_total',
-                    'paidCol' => 'paid_amount'
+                    'paidCol' => 'paid_amount',
+                    'returnTypeFilter' => 'sale'
                 ],
                 'purchase_return' => [
-                    'table' => 'purchase_returns',
+                    'table' => 'returns',
                     'idCol' => 'id',
                     'totalCol' => 'grand_total',
-                    'paidCol' => 'paid_amount'
+                    'paidCol' => 'paid_amount',
+                    'returnTypeFilter' => 'purchase'
                 ]
             ];
 
@@ -480,10 +492,16 @@ class BalanceCalculationService {
             $sql = "
                 SELECT {$idCol}, COALESCE({$totalCol}, 0) - COALESCE({$paidCol}, 0) AS amount_due
                 FROM {$table}
-                WHERE {$idCol} IN ({$placeholders}) AND tenant_id = ?
-            ";
+                WHERE {$idCol} IN ({$placeholders}) AND tenant_id = ?";
 
-            $params = array_merge($documentIds, [$tenantId]);
+            // Add return_type filter for returns table
+            if (!empty($config['returnTypeFilter'])) {
+                $sql .= " AND return_type = ?";
+                $params = array_merge($documentIds, [$tenantId, $config['returnTypeFilter']]);
+            } else {
+                $params = array_merge($documentIds, [$tenantId]);
+            }
+
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
 
