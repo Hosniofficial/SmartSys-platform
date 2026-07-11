@@ -148,20 +148,46 @@ class PurchaseService
         $day      = date('Y-m-d', strtotime($invoiceDateTime));
         $dayShort = date('ymd', strtotime($invoiceDateTime));
 
-        // Get sequential count for today with table lock to prevent duplicates
-        $stmt = $this->db->prepare(
-            "SELECT COUNT(*) FROM purchases
-             WHERE tenant_id = ? AND invoice_date >= ? AND invoice_date <= ?
-             FOR UPDATE"
-        );
-        $stmt->execute([
-            $this->tenantId,
-            $day . ' 00:00:00',
-            $day . ' 23:59:59',
-        ]);
+        // Retry logic for handling duplicate entry errors
+        $maxAttempts = 3;
+        $attempt = 0;
+        
+        while ($attempt < $maxAttempts) {
+            try {
+                $attempt++;
+                
+                // Get sequential count for today with table lock to prevent duplicates
+                $stmt = $this->db->prepare(
+                    "SELECT COUNT(*) FROM purchases
+                     WHERE tenant_id = ? AND DATE(invoice_date) = ?
+                     FOR UPDATE"
+                );
+                $stmt->execute([
+                    $this->tenantId,
+                    $day
+                ]);
 
-        $count = (int) $stmt->fetchColumn() + 1;
-        return sprintf('PUR-%s-%03d', $dayShort, $count);
+                $count = (int) $stmt->fetchColumn() + 1;
+                $invoiceNumber = sprintf('PUR-%s-%03d', $dayShort, $count);
+                
+                // If we got here without exception, return the number
+                return $invoiceNumber;
+                
+            } catch (PDOException $e) {
+                $msg = $e->getMessage();
+                // If it's a duplicate entry error and we haven't exceeded max attempts, retry
+                if (($e->getCode() === '23000' || strpos($msg, 'Duplicate entry') !== false) && $attempt < $maxAttempts) {
+                    // Wait a brief moment before retrying to reduce contention
+                    usleep(100000); // 100ms
+                    continue;
+                }
+                // If it's not a duplicate or we've exceeded attempts, throw the exception
+                throw $e;
+            }
+        }
+        
+        // Should not reach here, but if it does, throw an exception
+        throw new PDOException('Failed to generate unique invoice number after ' . $maxAttempts . ' attempts');
     }
 
     // -------------------------------------------------------------------------

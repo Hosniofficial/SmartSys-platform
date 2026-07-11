@@ -19,8 +19,6 @@ class UsersHandler extends BaseHandler
     public function __construct(PDO $db)
     {
         parent::__construct($db);
-        $this->securityLogger = null;
-        $this->eventDispatcher = null;
         $this->logger = MonologHandler::getInstance('users');
     }
 
