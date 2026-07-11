@@ -242,7 +242,7 @@ class SalesHandler extends BaseHandler
                 $returnAmount  = round((float)($row['return_amount'] ?? 0), 2);
                 $returnCredits = round((float)($row['return_credits'] ?? 0), 2);
                 $isReturned    = $grandTotal > 0 && $returnAmount >= $grandTotal;
-                $hasDirectReturn = !empty($row['return_ids']);  // ← يحدد ما إذا كان هناك مرتجع مباشر
+                $hasDirectReturn = !empty($row['return_ids']);  // Determine if this invoice has direct returns
                 
                 $row['actual_paid_amount']  = $actualPaid;
                 $row['return_amount']       = $returnAmount;
@@ -368,7 +368,7 @@ class SalesHandler extends BaseHandler
             $stmtReturnCredits->execute([$id, $tenantId]);
             $returnCredits = round((float) $stmtReturnCredits->fetchColumn(), 2);
             
-            // ✅ تحديد ما إذا كان هناك مرتجع مباشر على هذه الفاتورة
+            // Determine if this invoice has direct returns
             $stmtDirectReturns = $this->db->prepare(
                 "SELECT COUNT(*) FROM returns
                  WHERE sale_id = ? AND tenant_id = ? AND return_type = 'sale'"
@@ -1174,7 +1174,7 @@ class SalesHandler extends BaseHandler
 
         $paymentAmt    = round((float) $data['amount'], 2);
         
-        // ✅ CRITICAL FIX: Calculate return_credit_allocations to prevent double-paying settled invoices
+        // Calculate return_credit_allocations to prevent double-paying settled invoices
         // Example: Invoice=1000, paid_amount=0, return_credits=1000 → saleRemaining should be 0, not 1000
         $stmtCredits = $this->db->prepare(
             "SELECT COALESCE(SUM(allocated_amount), 0) AS return_credits

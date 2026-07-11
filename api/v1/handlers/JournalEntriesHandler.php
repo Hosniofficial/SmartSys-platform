@@ -218,7 +218,7 @@ class JournalEntriesHandler extends BaseHandler
         }
 
         try {
-            // ✅ استخدام Single Source of Truth: AccountingService::deleteJournalEntry()
+            // Use single source of truth: AccountingService::deleteJournalEntry()
             $success = $this->accounting->deleteJournalEntry((int) $tenantId, $id);
             
             if (!$success) {

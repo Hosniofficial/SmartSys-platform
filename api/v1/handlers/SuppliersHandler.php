@@ -177,7 +177,7 @@ class SuppliersHandler extends BaseContactHandler
         try {
             $this->db->beginTransaction();
 
-            // ✅ استخدام Single Source of Truth: AccountManagementService::createPartyAccount()
+            // Use single source of truth: AccountManagementService::createPartyAccount()
             $accountMgmt = new AccountManagementService($this->db);
             $accountId = $accountMgmt->createPartyAccount('supplier', $data['name'] ?? '', $tenantId);
             if (!$accountId) {

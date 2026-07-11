@@ -24,7 +24,7 @@ class SetupHandler extends BaseHandler
     public function getSetupStatus(Request $request, Response $response): Response
     {
         try {
-            // ✅ استخدام BaseHandler helper بدل تكرار الكود
+            // Use BaseHandler helper instead of repeating code
             $context = $this->requireTenantContext($request);
             $tenantId = $context['tenant_id'];
             $userId = $context['user_id'];
@@ -121,7 +121,7 @@ class SetupHandler extends BaseHandler
     public function saveSetup(Request $request, Response $response): Response
     {
         try {
-            // ✅ استخدام BaseHandler helper بدل تكرار الكود
+            // Use BaseHandler helper instead of repeating code
             $context = $this->requireTenantContext($request);
             $tenantId = $context['tenant_id'];
             $userId = $context['user_id'];
@@ -552,7 +552,7 @@ class SetupHandler extends BaseHandler
                 throw new Exception('لم يتم العثور على حساب الأب 1301 لإنشاء حساب فرعي للمخزن. يرجى إنشاء الحساب 1301 أولاً.', 400);
             }
 
-            // ✅ استخدام Single Source of Truth: AccountManagementService::createBranchAccount()
+            // Use single source of truth: AccountManagementService::createBranchAccount()
             $accountMgmt = new AccountManagementService($this->db);
 
             $newAccountId = $accountMgmt->createBranchAccount(
@@ -693,7 +693,7 @@ class SetupHandler extends BaseHandler
     public function skipSetup(Request $request, Response $response): Response
     {
         try {
-            // ✅ استخدام BaseHandler helper بدل تكرار الكود
+            // Use BaseHandler helper instead of repeating code
             $context = $this->requireTenantContext($request);
             $tenantId = $context['tenant_id'];
             $userId = $context['user_id'];

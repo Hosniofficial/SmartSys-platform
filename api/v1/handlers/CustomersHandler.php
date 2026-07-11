@@ -20,7 +20,7 @@ class CustomersHandler extends BaseContactHandler
 {
     protected string $contactType = 'customer';
     private CostCenterService $costCenterService;
-    private $balanceCalcService;
+    private BalanceCalculationService $balanceCalcService;
 
     public function __construct(PDO $db)
     {
@@ -312,7 +312,7 @@ class CustomersHandler extends BaseContactHandler
 
             $this->db->beginTransaction();
 
-            // ✅ استخدام Single Source of Truth: AccountManagementService::createPartyAccount()
+            // Use single source of truth: AccountManagementService::createPartyAccount()
             $accountMgmt = new AccountManagementService($this->db);
             $accountId = $accountMgmt->createPartyAccount('customer', (string) $data['name'], (int) $tenantId);
             if (!$accountId) {

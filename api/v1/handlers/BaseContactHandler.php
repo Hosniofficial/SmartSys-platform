@@ -101,7 +101,7 @@ abstract class BaseContactHandler extends BaseHandler
                 throw new \RuntimeException('Parent account not found for this contact type');
             }
 
-            // ✅ استخدام Single Source of Truth: AccountManagementService::createContactAccount()
+            // Use single source of truth: AccountManagementService::createContactAccount()
             $accountMgmt = new AccountManagementService($this->db);
             $accountId = $accountMgmt->createContactAccount(
                 $id,

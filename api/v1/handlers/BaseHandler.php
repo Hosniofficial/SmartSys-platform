@@ -104,11 +104,7 @@ class BaseHandler
     }
 
     /**
-     * ✅ دالة موحدة للتحقق من tenant context والحصول على معلومات المستخدم
-     * تُستخدم من جميع handlers بدل تكرار نفس الكود
-     * 
-     * @return array ['tenant_id' => int, 'user_id' => ?int]
-     * @throws \Exception إذا لم يكن tenant_id موجود
+     * تعيين قيمة tenantId باستخدام extractTenantId الموحد
      */
     protected function requireTenantContext(Request $request): array
     {
@@ -681,7 +677,10 @@ class BaseHandler
                             $this->throwUnauthorizedBranch();
                         }
                     } catch (\PDOException $e) {
-                        // Ignore missing ACL table only
+                // Only PDOException from missing table is expected; ignore
+            $this->logger->debug('ACL table may not exist yet', [
+                'error' => $e->getMessage()
+            ]);
                     }
                 }
 

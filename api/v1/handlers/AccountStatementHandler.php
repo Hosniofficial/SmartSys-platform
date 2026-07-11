@@ -95,7 +95,7 @@ class AccountStatementHandler extends BaseHandler {
             // 3. جلب الحركات خلال الفترة المحددة مع الحسابات
             $transactionsData = $this->getTransactions($accountId, $startDate, $endDate, $tenantId, $statusAny, $includeTypes, $excludeTypes, $limit, $offset, $costCenterId);
             // Localize labels for transactions
-            // ✅ CRITICAL FIX: Use transaction_type (actual type) instead of reference_type
+            // Use transaction_type (actual type) instead of reference_type
             // This ensures settlement lines show correct labels (e.g., 'قبض' instead of 'فاتورة بيع')
             if (!empty($transactionsData['transactions'])) {
                 foreach ($transactionsData['transactions'] as &$tx) {
@@ -116,7 +116,7 @@ class AccountStatementHandler extends BaseHandler {
                 unset($tx);
             }
             $transactions = $transactionsData['transactions'];
-            // ✅ International Standard: Always fill daily gaps for consistent reporting across all systems
+            // Always fill daily gaps for consistent reporting across all systems
             // This ensures charts, analytics, and dashboards display uniformly (like SAP, Odoo, NetSuite)
             // All daily_balances arrays include every day in the date range, even with zero transactions
             $dailyBalances = $this->fillDailyGaps($transactionsData['daily_balances'], $startDate, $endDate);
@@ -175,7 +175,7 @@ class AccountStatementHandler extends BaseHandler {
             }
             if (isset($extras['references'])) {
                 // Localize reference items labels
-                // ✅ CRITICAL FIX: The 'type' field from getCustomerReferences already contains
+                // The 'type' field from getCustomerReferences already contains
                 // the correct type (e.g., 'receipt' for payments), so use it as-is
                 if (!empty($extras['references']['items'])) {
                     foreach ($extras['references']['items'] as &$ref) {
@@ -327,7 +327,7 @@ private function normalizeInvoiceStatus(
                 'journal' as source_type,
                 je.id as source_id,
                 je.cost_center_id as cost_center_id,
-                -- ✅ SIMPLIFIED: Detect settlement lines directly based on debit/credit
+                -- Detect settlement lines directly based on debit/credit
                 -- For a settlement line on customer account: it's a credit (money in/out)
                 -- Classify based on transaction reference type and direction
                 CASE 
@@ -417,7 +417,7 @@ private function normalizeInvoiceStatus(
         $dayStartBalance = $runningBalance;
         
         foreach ($transactions as &$transaction) {
-            // ✅ Determine transaction type: prefer actual_payment_type if available
+            // Determine transaction type: prefer actual_payment_type if available
             // This fixes the issue where receipts/refunds show as 'sale' type
             $actualPaymentType = $transaction['actual_payment_type'] ?? null;
             
@@ -514,7 +514,7 @@ private function normalizeInvoiceStatus(
                 s.branch_id,
                 s.user_id,
                 s.journal_entry_id,
-                -- ✅ CRITICAL FIX: Calculate paid_amount from payments table, not from s.paid_amount
+                -- Calculate paid_amount from payments table, not from s.paid_amount
                 -- s.paid_amount might not be updated correctly, so sum payments linked to this invoice
                 COALESCE((
                     SELECT COALESCE(SUM(p.amount), 0)
@@ -565,7 +565,7 @@ private function normalizeInvoiceStatus(
         // طباعة مرجعية واضحة ولاحقة الربط مع القيود إن وجدت
         $items = array_map(function($r) {
             $net = isset($r['net_total_amount']) ? (float)$r['net_total_amount'] : 0.0;
-            // ✅ CRITICAL FIX: Use calculated_paid_amount from query (sum of payments)
+            // Use calculated_paid_amount from query (sum of payments)
             // instead of s.paid_amount which might not be updated
             $paid = isset($r['calculated_paid_amount']) ? (float)$r['calculated_paid_amount'] : (isset($r['paid_amount']) ? (float)$r['paid_amount'] : 0.0);
             $returnCredits = isset($r['return_credits_applied']) ? (float)$r['return_credits_applied'] : 0.0;
@@ -594,7 +594,7 @@ private function normalizeInvoiceStatus(
             $status = $r['status'];
             $hasReturns = !empty($r['return_ids']);
             
-            // ✅ استخدام دالة التطبيع الموحدة
+            // Use the unified normalization function
             $status = $this->normalizeInvoiceStatus(
                 $status,
                 $paid,
@@ -768,7 +768,7 @@ private function normalizeInvoiceStatus(
                 $subtype = 'sales_return_refund';
             }
             
-            // ✅ UX: Map subtype to human-readable label
+            // Map subtype to human-readable label
             $typeLabel = 'مرتجع بيع';
             if ($subtype === 'sales_return_refund') {
                 $typeLabel = 'استرداد مرتجع';
@@ -859,7 +859,7 @@ private function normalizeInvoiceStatus(
                 // If refundAmount < 0.01, $transactionSubtype stays null (sales_return_only)
             }
             
-            // ✅ UX: Map payment type and subtype to human-readable labels
+            // Map payment type and subtype to human-readable labels
             $paymentTypeLabel = $paymentType === 'refund' ? 'سند صرف' : 'سند قبض';
             if ($paymentType === 'refund' && $transactionSubtype === 'sales_return_refund') {
                 $paymentTypeLabel = 'استرجاع نقدي للعميل';
