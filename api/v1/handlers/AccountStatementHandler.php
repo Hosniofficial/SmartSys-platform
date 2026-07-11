@@ -525,8 +525,7 @@ private function normalizeInvoiceStatus(
                       AND p.is_draft = 0
                       AND p.status = 'completed'
                 ), 0) AS calculated_paid_amount,
-                -- ✅ CRITICAL: Add due_date calculation
-                -- Default to +30 days from created_at
+                -- Due date calculation (default to +30 days from creation)
                 DATE_ADD(s.created_at, INTERVAL 30 DAY) AS due_date,
                 -- Calculate days overdue
                 DATEDIFF(CURDATE(), DATE_ADD(s.created_at, INTERVAL 30 DAY)) AS days_overdue,

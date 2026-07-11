@@ -286,41 +286,7 @@ class BaseHandler
             ->withStatus($status);
     }
 
-    /**
-     * @deprecated تجنب استخدامها في PSR-7 handlers
-     */
-    /**
-     * @deprecated This method should not be used. Use errorResponse() or successResponse() instead.
-     * These methods are kept only for backward compatibility and will be removed in the next major version.
-     */
-    protected function sendResponse(int $status = 200): void
-    {
-        trigger_error('sendResponse() is deprecated. Use jsonResponse() instead.', E_USER_DEPRECATED);
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'status' => 'success',
-            'message' => '',
-            'data' => null
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
 
-    /**
-     * @deprecated This method should not be used. Use errorResponse() instead.
-     * This method is kept only for backward compatibility and will be removed in the next major version.
-     */
-    protected function sendError(string $message, int $status = 400): void
-    {
-        trigger_error('sendError() is deprecated. Use errorResponse() instead.', E_USER_DEPRECATED);
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'status' => 'error',
-            'message' => $message
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
 
     protected function errorResponse(
         Response $response,
@@ -347,28 +313,8 @@ class BaseHandler
         ], $status, false);
     }
 
-    /**
-     * @deprecated الأفضل أن تُرجع array أو تُرمي exception بدل sendError()
-     * This method is kept only for backward compatibility and will be removed in the next major version.
-     * Use extractAndValidateRequestData() instead.
-     */
-    protected function validateRequest(array $requiredFields = []): array
-    {
-        trigger_error('validateRequest() is deprecated. Use extractAndValidateRequestData() instead.', E_USER_DEPRECATED);
-        $data = json_decode(file_get_contents('php://input'), true);
 
-        if (!$data && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
-            throw new \InvalidArgumentException('Invalid request data');
-        }
 
-        foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || $data[$field] === '' || $data[$field] === null) {
-                throw new \InvalidArgumentException("Missing required field: {$field}");
-            }
-        }
-
-        return is_array($data) ? $data : [];
-    }
 
     protected function validateAuth(): bool
     {

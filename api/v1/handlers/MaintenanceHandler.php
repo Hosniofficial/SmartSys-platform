@@ -69,7 +69,7 @@ class MaintenanceHandler extends BaseHandler {
     private function createMaintenanceSchedule($data, Request $request) {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
-            throw new Exception('مطلوب معرف المستأجر (Tenant ID)');
+            throw new Exception('مطلوب معرف المستأجر (Tenant ID).');
         }
         $stmt = $this->db->prepare("
             INSERT INTO maintenance_schedules (

@@ -27,9 +27,9 @@ class CostingService {
     }
 
     // ─── computeBatchWAC ──────────────────────────────────────────────────────
-    // ✅ N+1 Fix: WAC لمجموعة منتجات في query-ين فقط بدل N×2
-    // ✅ WAC Fix: يطرح مردودات الشراء (return_type='purchase') من المخزن الكلي
-    // Returns: [product_id => float|null]  — null = لا مشتريات، يحتاج fallback
+    // Compute WAC (Weighted Average Cost) for batch of products in two queries
+    // Deducts purchase returns (return_type='purchase') from total inventory
+    // Returns: [product_id => float|null]  — null = no purchases, needs fallback
     public function computeBatchWAC(int $tenantId, array $productIds, ?string $upToDate = null): array {
         if (empty($productIds)) return [];
 
@@ -67,7 +67,7 @@ class CostingService {
             ];
         }
 
-        // Query 2: ✅ WAC Fix — طرح مردودات الشراء
+        // Query 2: Calculate WAC deducting purchase returns
         $returnDateFilter = '';
         $returnDateParam  = [];
         if ($upToDate) {
@@ -115,7 +115,7 @@ class CostingService {
     }
 
     // ─── computeCOGSForSale ───────────────────────────────────────────────────
-    // ✅ N+1 Fix: batch WAC + batch fallback — عدد ثابت من الـ queries بغض النظر عن عدد المنتجات
+    // Compute COGS using batch WAC + batch fallback for constant query count regardless of product count
     public function computeCOGSForSale(int $tenantId, int $saleId, ?string $saleDate = null): float {
         $stmt = $this->pdo->prepare("SELECT sale_date FROM sales WHERE id = ? AND tenant_id = ?");
         $stmt->execute([$saleId, $tenantId]);

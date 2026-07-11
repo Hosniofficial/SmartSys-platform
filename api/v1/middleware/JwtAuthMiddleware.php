@@ -91,7 +91,10 @@ class JwtAuthMiddleware implements MiddlewareInterface
             if ($securityConfig['debug']['enabled'] ?? false) {
                 $secretHash = substr(hash('sha256', (string)$secret), 0, 8);
                 $tokenPrefix = substr($token, 0, 12);
-                error_log('[JWT DEBUG][Middleware] secretHash=' . $secretHash . ' token.prefix=' . $tokenPrefix);
+                $this->logger->debug('[JWT DEBUG][Middleware] secretHash and token prefix', [
+                    'secret_hash' => $secretHash,
+                    'token_prefix' => $tokenPrefix
+                ]);
             }
 
             // Decode and verify token with leeway for clock skew
@@ -133,8 +136,10 @@ class JwtAuthMiddleware implements MiddlewareInterface
 
         // Safe debug logging (only in debug mode, no sensitive data)
         if ($securityConfig['debug']['enabled'] ?? false) {
-            error_log('[JWT] Final user_id=' . ($userData['id'] ?? 'null') 
-                . ' tenant=' . ($userData['tenant_id'] ?? 'null'));
+            $this->logger->debug('[JWT] Decoded user data', [
+                'user_id' => $userData['id'] ?? 'null',
+                'tenant_id' => $userData['tenant_id'] ?? 'null'
+            ]);
         }
 
         // Attach user data and tenant_id to the request

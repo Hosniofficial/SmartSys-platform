@@ -741,8 +741,7 @@ class SuppliersHandler extends BaseContactHandler
             ]);
             $paymentId = $this->db->lastInsertId();
 
-            // ✅ Single Source of Truth: resolveLiquidityAccount يتعامل مع cash/bank/card/wallet/credit
-            // ✅ bug fix: كان يستخدم $this->tenantId بدل $tenantId المُمرَّر للدالة
+            // Resolve the liquidity account for the payment method
             $liquidityAccountId = $this->accounting->resolveLiquidityAccount($paymentMethodId, (int) $tenantId);
 
             if ($liquidityAccountId === null) {
