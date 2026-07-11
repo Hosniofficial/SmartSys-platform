@@ -290,6 +290,11 @@ class MaintenanceHandler extends BaseHandler {
         ]);
 
         if ($success) {
+            $this->logger->info('Warranty claim resolved', [
+                'claim_id' => $claimId,
+                'tenant_id' => $tenantId,
+                'new_status' => $data['status']
+            ]);
         }
 
         return $success;

@@ -822,8 +822,24 @@ class RBACHandler extends BaseHandler
             return $err;
         }
         
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+        
         try {
             $userId = (int) ($args['id'] ?? 0);
+            
+            // Verify the user belongs to the same tenant
+            $userStmt = $this->db->prepare("
+                SELECT tenant_id FROM users WHERE id = ? LIMIT 1
+            ");
+            $userStmt->execute([$userId]);
+            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user || $user['tenant_id'] != $tenantId) {
+                return $this->errorResponse($response, 'المستخدم غير موجود أو لا ينتمي إلى المستأجر الحالي', 404);
+            }
 
             $stmt = $this->db->prepare("
                 SELECT DISTINCT
@@ -836,10 +852,10 @@ class RBACHandler extends BaseHandler
                 JOIN role_permissions rp ON p.id = rp.permission_id
                 JOIN roles r ON rp.role_id = r.id
                 JOIN users_role ur ON r.id = ur.role_id
-                WHERE ur.user_id = ?
+                WHERE ur.user_id = ? AND r.tenant_id = ?
                 ORDER BY p.category, p.name
             ");
-            $stmt->execute([$userId]);
+            $stmt->execute([$userId, $tenantId]);
             $permissions = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             return $this->successResponse($response, $permissions, 200);
