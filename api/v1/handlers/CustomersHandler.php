@@ -983,6 +983,12 @@ class CustomersHandler extends BaseContactHandler
                     $userId
                 );
             } catch (\Throwable $e) {
+                // Log audit failure but don't fail the payment
+                $this->logger->warning('Failed to log audit trail for customer payment', [
+                    'payment_id' => $paymentId,
+                    'customer_id' => $customerId,
+                    'error' => $e->getMessage()
+                ]);
             }
 
             return $this->successResponse($response, [

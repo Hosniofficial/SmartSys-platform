@@ -56,17 +56,6 @@ class AuthHandler extends BaseHandler
         if ($this->jwtKey === '' || $this->jwtRefreshSecret === '') {
             throw new Exception('JWT secrets are not set in environment variables.');
         }
-
-        $debugEnabled = !empty($securityConfig['debug']['enabled']);
-        if ($debugEnabled) {
-            $keyHash = substr(hash('sha256', $this->jwtKey), 0, 8);
-            $refHash = substr(hash('sha256', $this->jwtRefreshSecret), 0, 8);
-
-            $this->logger->debug('[JWT DEBUG] keyHash and refreshHash', [
-                'keyHash' => $keyHash,
-                'refreshHash' => $refHash
-            ]);
-        }
     }
 
     public function login(Request $request, Response $response): Response

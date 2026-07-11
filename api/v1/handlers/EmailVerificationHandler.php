@@ -89,13 +89,6 @@ class EmailVerificationHandler extends BaseHandler
             $userData = null;
             $baseResponse = null;
             
-            // Debug logging
-            $this->logger->info('verifyEmail: token verification result', [
-                'purpose' => $result['purpose'] ?? 'null',
-                'has_user' => !empty($result['user']),
-                'user_id' => $result['user']['id'] ?? 'null',
-            ]);
-            
             if (
                 in_array($result['purpose'] ?? '', ['registration', 'email_change'], true)
                 && !empty($result['user'])
