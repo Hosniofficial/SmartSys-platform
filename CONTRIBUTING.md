@@ -1,248 +1,299 @@
-# 🤝 المساهمة في SmartSys ERP | Contributing to SmartSys ERP
+# 🤝 دليل المساهمة في SmartSys
 
-شكراً لاهتمامك بالمساهمة في SmartSys! نحن نرحب بالمساهمات من الجميع.
+**شكراً لرغبتك بالمساهمة في المشروع! 🎉**
 
-Thank you for your interest in contributing to SmartSys! We welcome contributions from everyone.
-
----
-
-## 📋 جدول المحتويات | Table of Contents
-
-- [كيف تساهم | How to Contribute](#how-to-contribute)
-- [معايير الكود | Code Standards](#code-standards)
-- [عملية Pull Request](#pull-request-process)
-- [البلاغات والمشاكل | Reporting Issues](#reporting-issues)
+هذا الدليل يوضح كيفية المساهمة بشكل فعّال والالتزام بمعايير المشروع.
 
 ---
 
-## 🚀 كيف تساهم | How to Contribute
+## 📋 خطوات البدء السريعة
 
-### 1. Fork المشروع
+### 1. عمل Fork وClone
 ```bash
-# انقر على زر Fork في GitHub
-# Click Fork button on GitHub
-```
-
-### 2. استنسخ النسخة الخاصة بك
-```bash
-git clone git@github.com:YOUR-USERNAME/SmartSys-platform.git
+git clone https://github.com/YOUR_USERNAME/SmartSys-platform.git
 cd SmartSys-platform
 ```
 
-### 3. أنشئ فرع جديد
+### 2. عمل Branch جديد
 ```bash
 git checkout -b feature/your-feature-name
-# أو للإصلاحات | or for fixes
-git checkout -b fix/your-fix-name
+# أو
+git checkout -b fix/your-bug-fix
 ```
 
-### 4. قم بالتعديلات واختبرها
-- اكتب كود نظيف ومفهوم
-- اتبع معايير الكود الموضحة أدناه
-- اختبر تعديلاتك جيداً
+### 3. التطوير والـ Testing
+```bash
+# تطوير الميزة
+# ...
 
-### 5. Commit التغييرات
+# تشغيل الاختبارات
+vendor/bin/phpunit
+
+# تشغيل الـ Linter
+vendor/bin/php-cs-fixer fix api/v1/handlers/YourFile.php --rules=@PSR12
+```
+
+### 4. الـ Commit والـ Push
 ```bash
 git add .
-git commit -m "feat: وصف واضح للتغيير بالعربية أو الإنجليزية"
-```
-
-#### صيغة Commit Messages (Conventional Commits):
-- `feat:` ميزة جديدة
-- `fix:` إصلاح خطأ
-- `docs:` تحديث التوثيق
-- `style:` تنسيق الكود (لا يؤثر على المنطق)
-- `refactor:` إعادة هيكلة الكود
-- `perf:` تحسين الأداء
-- `test:` إضافة أو تعديل الاختبارات
-- `chore:` مهام صيانة
-
-### 6. ادفع إلى GitHub
-```bash
+git commit -m "✨ Brief description of changes"
 git push origin feature/your-feature-name
 ```
 
-### 7. افتح Pull Request
-- اذهب إلى صفحة المشروع على GitHub
-- انقر على "New Pull Request"
-- اختر الفرع الذي قمت بإنشائه
-- اكتب وصفاً واضحاً للتغييرات
+### 5. فتح Pull Request
 
 ---
 
-## 🎯 معايير الكود | Code Standards
+## ✅ قائمة تدقيق قبل PR
 
-### Backend (PHP)
-```php
-<?php
-// استخدم PSR-12 coding standards
-// Use PSR-12 coding standards
+**تأكد من جميع البنود قبل فتح PR:**
 
-namespace App\Handlers;
+### Code Standards
+- [ ] `declare(strict_types=1);` في أول سطر
+- [ ] كل دوال HTTP handlers عندها `: Response`
+- [ ] كل parameters معلّمة بالنوع الصحيح
+- [ ] Class properties معلّمة بالنوع
 
-class ExampleHandler extends BaseHandler
-{
-    // Type hints مطلوبة
-    public function create(Request $request): Response
-    {
-        // استخدم dependency injection
-        // منطق واضح ومفهوم
-        // Clear and understandable logic
-    }
-}
-```
+### Best Practices
+- [ ] استخدام `$request->getParsedBody()` مش `json_decode`
+- [ ] `catch (\Throwable $e)` (إلا لو فيه سبب موثّق)
+- [ ] استخدام `$this->logger->` مش `error_log()`
+- [ ] عمليات متعددة الخطوات ملفوفة بـ transaction
+- [ ] رسائل الخطأ واضحة وموحّدة
 
-**معايير PHP:**
-- استخدام PSR-12 coding standard
-- Type hints لجميع المعاملات والمرجعات
-- DocBlocks للوظائف المعقدة
-- تسمية واضحة للمتغيرات والدوال
-- تجنب التكرار (DRY principle)
+### Code Quality
+- [ ] الملف تم تنسيقه بـ php-cs-fixer
+- [ ] مفيش تعليقات "✅ CRITICAL FIX" أو تاريخ
+- [ ] imports صحيحة (`ServerRequestInterface as Request`)
+- [ ] مفيش dead code
 
-### Frontend (Vue.js)
-```javascript
-// استخدم Composition API
-// Use Composition API
-<script setup>
-import { ref, onMounted } from 'vue';
-
-const data = ref([]);
-
-// أسماء واضحة ومعبرة
-// Clear and descriptive names
-const fetchData = async () => {
-  // منطق واضح
-  // Clear logic
-};
-
-onMounted(() => {
-  fetchData();
-});
-</script>
-```
-
-**معايير Vue:**
-- استخدم Composition API مع `<script setup>`
-- استخدم Pinia للـ state management
-- Components صغيرة ومركزة
-- استخدم TypeScript حيثما أمكن
-- تجنب `any` types
-
-### Database
-- استخدم prepared statements دائماً
-- لا تستخدم `SELECT *` - حدد الأعمدة المطلوبة
-- أضف indexes للأعمدة المستخدمة في WHERE/JOIN
-- استخدم transactions للعمليات المتعددة
+### Documentation
+- [ ] التغييرات موثّقة (Comments، Docblocks)
+- [ ] رسالة commit واضحة
 
 ---
 
-## 📝 عملية Pull Request | Pull Request Process
+## 📝 معايير رسالة الـ Commit
 
-### قبل إرسال PR
-- ✅ تأكد من أن الكود يعمل بدون أخطاء
-- ✅ اختبر جميع الحالات (Success, Error, Edge Cases)
-- ✅ تأكد من عدم وجود console.log أو var_dump
-- ✅ حدّث التوثيق إذا لزم الأمر
-- ✅ تأكد من اتباع معايير الكود
+### صيغة الـ Commit Message
+```
+<type>: <subject>
 
-### وصف PR
-يجب أن يحتوي PR على:
+<body>
 
+<footer>
+```
+
+### الأنواع (Types)
+- `feat:` ميزة جديدة
+- `fix:` إصلاح باگ
+- `docs:` تحديثات التوثيق
+- `refactor:` إعادة هيكلة بدون تغيير السلوك
+- `perf:` تحسينات الأداء
+- `test:` إضافة أو تحديث اختبارات
+- `chore:` تحديثات البناء والتبعيات
+
+### أمثلة
+```bash
+# ✅ صحيح
+git commit -m "fix: handle null userId in getUserPermissions"
+git commit -m "feat: add retry logic to generateInvoiceNumber"
+git commit -m "docs: update CODING_STANDARDS with strict_types requirement"
+
+# ❌ خطأ
+git commit -m "fixed stuff"
+git commit -m "✅ CRITICAL FIX (2026-07-12)"
+git commit -m "update"
+```
+
+---
+
+## 🔍 عملية Code Review
+
+### ماذا يتوقع المراجع؟
+
+1. **Functionality** - هل الميزة/الإصلاح يعمل كما هو متوقع؟
+2. **Code Quality** - هل يتبع معايير المشروع؟
+3. **Documentation** - هل موثّق بشكل كافي؟
+4. **Tests** - هل هناك اختبارات؟ هل تمر؟
+5. **Performance** - هل لا يسبب مشاكل أداء؟
+6. **Security** - هل هناك ثغرات أمنية؟
+
+### الرد على التعليقات
+
+- الاستجابة السريعة أفضل
+- اشرح الخيارات البديلة إذا كنت لا تتفق
+- اقبل الملاحظات البناءة بروح رياضية
+- اعمل التعديلات المطلوبة ثم أخبر المراجع
+
+---
+
+## 📂 هيكل المشروع
+
+```
+api/v1/
+├── handlers/          # HTTP request handlers
+├── middleware/        # Request/response middleware
+├── src/
+│   ├── Services/      # Business logic
+│   ├── Repositories/  # Database queries
+│   ├── Exceptions/    # Custom exceptions
+│   ├── Listeners/     # Event listeners
+│   ├── Security/      # Security helpers
+│   └── Resources/     # Data transformation
+└── logs/              # Application logs
+
+config/               # Configuration files
+.kiro/
+├── specs/            # Feature specifications
+└── steering/         # Development guidelines
+```
+
+---
+
+## 🛠️ التطوير المحلي
+
+### متطلبات الإعداد
+```bash
+# PHP 8.1+
+php --version
+
+# Composer
+composer install
+
+# MySQL/MariaDB (يشغل على XAMPP)
+# يجب أن يكون MySQL مشغّل
+
+# التحقق من الاتصال
+php -r "new PDO('mysql:host=localhost', 'root', '');" && echo "✅ DB Connection OK"
+```
+
+### تشغيل الـ Development Server
+```bash
+# Slim development server
+php -S localhost:8000 -t . api/index.php
+
+# أو عبر PHP CLI
+vendor/bin/slim start
+```
+
+### تشغيل الاختبارات
+```bash
+# جميع الاختبارات
+vendor/bin/phpunit
+
+# اختبار ملف معين
+vendor/bin/phpunit tests/Unit/UserTest.php
+
+# اختبار مع التغطية
+vendor/bin/phpunit --coverage-html coverage/
+```
+
+---
+
+## 🐛 الإبلاغ عن الأخطاء
+
+### عند اكتشاف باگ
+
+1. **تأكد من أنه باگ فعلاً** (ليس سلوك متوقع)
+2. **ابحث عن issues موجودة** قد تغطي نفس المشكلة
+3. **أنشئ issue جديد** مع:
+   - عنوان واضح
+   - وصف المشكلة بالتفصيل
+   - خطوات إعادة الإنتاج
+   - السلوك المتوقع vs الفعلي
+   - معلومات عن البيئة (PHP version، OS، إلخ)
+
+### مثال على Issue جيد
 ```markdown
-## الوصف | Description
-وصف واضح للتغييرات
+**العنوان:** getUserPermissions يسمح بـ cross-tenant access
 
-## نوع التغيير | Type of Change
-- [ ] ميزة جديدة | New feature
-- [ ] إصلاح خطأ | Bug fix
-- [ ] تحسين أداء | Performance improvement
-- [ ] إعادة هيكلة | Refactoring
-- [ ] توثيق | Documentation
+**الوصف:**
+الدالة `RBACHandler::getUserPermissions()` تسمح لأي admin بمشاهدة صلاحيات أي مستخدم
+من أي tenant (IDOR vulnerability).
 
-## الاختبار | Testing
-كيف تم اختبار هذه التغييرات؟
+**خطوات الإعادة:**
+1. عمل login بـ admin من tenant A
+2. استدعاء GET /api/v1/users/{user_from_tenant_b}/permissions
+3. النتيجة: الصلاحيات بتظهر رغم أن المستخدم من tenant مختلف
 
-## Screenshots (إن وجدت)
-أضف لقطات شاشة للتغييرات البصرية
+**السلوك المتوقع:**
+يجب أن ترفض الطلب مع 404 Not Found
 
-## ملاحظات إضافية | Additional Notes
-أي ملاحظات مهمة للمراجعين
-```
-
-### مراجعة الكود
-- سيتم مراجعة جميع PRs من قبل maintainers
-- قد يُطلب منك إجراء تعديلات
-- التزم بالتعليقات البنّاءة
-- كن صبوراً - المراجعة تستغرق وقتاً
-
----
-
-## 🐛 البلاغات والمشاكل | Reporting Issues
-
-### قبل فتح Issue
-1. ابحث في Issues الموجودة للتأكد من عدم وجود تقرير مشابه
-2. استخدم أحدث نسخة من المشروع
-3. اجمع معلومات كافية عن المشكلة
-
-### عند فتح Issue جديد
-```markdown
-## وصف المشكلة | Issue Description
-وصف واضح ومفصل للمشكلة
-
-## خطوات إعادة الإنتاج | Steps to Reproduce
-1. افتح الصفحة X
-2. اضغط على زر Y
-3. لاحظ الخطأ Z
-
-## السلوك المتوقع | Expected Behavior
-ما الذي كان يجب أن يحدث؟
-
-## السلوك الفعلي | Actual Behavior
-ما الذي حدث فعلياً؟
-
-## البيئة | Environment
-- نظام التشغيل: Windows/Linux/Mac
-- المتصفح: Chrome/Firefox/Safari
-- نسخة PHP:
-- نسخة Node:
-
-## Screenshots/Logs
-أضف لقطات شاشة أو logs إن أمكن
+**البيئة:**
+- PHP 8.1
+- MySQL 8.0
+- SmartSys commit a8b83e8
 ```
 
 ---
 
-## 🔐 الأمان | Security
+## 📚 الموارد المفيدة
 
-إذا اكتشفت ثغرة أمنية:
-- **لا تفتح issue عام**
-- راسل المشرفين مباشرة
-- قدم تفاصيل كافية لإعادة الإنتاج
-- انتظر حتى يتم حل المشكلة قبل الإفصاح العام
-
-If you discover a security vulnerability:
-- **Do not open a public issue**
-- Contact maintainers directly
-- Provide sufficient details to reproduce
-- Wait for fix before public disclosure
+- [CODING_STANDARDS.md](CODING_STANDARDS.md) - معايير الكود
+- [PRODUCTION_READINESS_REPORT.md](PRODUCTION_READINESS_REPORT.md) - حالة الإنتاج الحالية
+- [ISSUES_RESOLUTION_REPORT.md](ISSUES_RESOLUTION_REPORT.md) - سجل الإصلاحات
+- [Slim Framework Docs](https://www.slimframework.com/)
+- [PHP Best Practices](https://www.php.net/manual/)
 
 ---
 
-## 📞 التواصل | Contact
+## 🚀 نصائح للمساهمين الجدد
 
-- GitHub Issues: للمشاكل التقنية
-- GitHub Discussions: للأسئلة والنقاشات
-- Pull Requests: للمساهمات في الكود
+### البدايات الجيدة
+- ابدأ بـ issues معلّمة بـ `good first issue`
+- اختر feature صغيرة لتعلم سير العمل
+- اسأل الأسئلة لو احتجت توضيح
+
+### تجنب هذه الأخطاء
+- ❌ تعديل multiple features في PR واحد
+- ❌ الالتزام بـ master مباشرة
+- ❌ تجاهل معايير المشروع
+- ❌ عدم كتابة اختبارات
+- ❌ رسائل commit غامضة
+
+### نصائح للنجاح
+- ✅ PR صغيرة وركزة (حول موضوع واحد)
+- ✅ رسائل commit واضحة
+- ✅ اختبارات شاملة
+- ✅ توثيق جيد
+- ✅ تفاعل إيجابي مع التعليقات
 
 ---
 
-## ⚖️ الرخصة | License
+## 💬 التواصل
 
-بالمساهمة في هذا المشروع، فإنك توافق على أن تكون مساهمتك مرخصة تحت رخصة MIT.
+### قنوات الاتصال
+- **Issues:** لـ bugs والميزات الجديدة
+- **Discussions:** للأسئلة والنقاش
+- **Slack/Discord:** للتواصل المباشر (لو متوفر)
+- **Email:** (لو موثّق في المشروع)
 
-By contributing to this project, you agree that your contributions will be licensed under the MIT License.
+### الآداب
+- كن محترماً وإيجابياً
+- تقبل النقد البناء
+- ساعد الآخرين
+- لا تتخذ الملاحظات بشكل شخصي
 
 ---
 
-**شكراً لمساهمتك! 🙏**
-**Thank you for your contribution! 🙏**
+## 📈 مسارات التطوير الوظيفي
+
+### يمكنك الترقي من:
+1. **Contributor** → إصلاحات وميزات صغيرة
+2. **Reviewer** → مراجعة PR من مساهمين آخرين
+3. **Maintainer** → إدارة المشروع والإصدارات
+
+---
+
+## ✨ الخلاصة
+
+شكراً لمساهمتك! 🎉
+
+اتبع المعايير واسأل عند الالتباس — الفريق هنا لدعمك!
+
+**Happy Coding! 🚀**
+
+---
+
+**آخر تحديث:** 12 يوليو 2026
