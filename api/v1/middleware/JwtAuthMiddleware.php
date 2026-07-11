@@ -86,16 +86,6 @@ class JwtAuthMiddleware implements MiddlewareInterface
             if (empty($secret)) {
                 throw new \Exception('JWT secret is not configured');
             }
-            
-            // Conditional debug logging (safe)
-            if ($securityConfig['debug']['enabled'] ?? false) {
-                $secretHash = substr(hash('sha256', (string)$secret), 0, 8);
-                $tokenPrefix = substr($token, 0, 12);
-                $this->logger->debug('[JWT DEBUG][Middleware] secretHash and token prefix', [
-                    'secret_hash' => $secretHash,
-                    'token_prefix' => $tokenPrefix
-                ]);
-            }
 
             // Decode and verify token with leeway for clock skew
             try {
@@ -133,14 +123,6 @@ class JwtAuthMiddleware implements MiddlewareInterface
             'full_name'  => $decodedArray['full_name'] ?? $decodedArray['name'] ?? null,
             'is_owner'   => (int) ($decodedArray['is_owner'] ?? 0),
         ];
-
-        // Safe debug logging (only in debug mode, no sensitive data)
-        if ($securityConfig['debug']['enabled'] ?? false) {
-            $this->logger->debug('[JWT] Decoded user data', [
-                'user_id' => $userData['id'] ?? 'null',
-                'tenant_id' => $userData['tenant_id'] ?? 'null'
-            ]);
-        }
 
         // Attach user data and tenant_id to the request
         // Also attach user_id for backward compatibility with existing handlers

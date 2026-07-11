@@ -155,9 +155,19 @@ class UsersHandler extends BaseHandler
 
     public function get($request, $response, $id)
     {
+        // Defensive check: $id should be a single integer, not an array
+        if (is_array($id)) {
+            return $this->errorResponse($response, 'Invalid user ID format', 400);
+        }
+        
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
+        $id = (int) $id;
+        if ($id <= 0) {
+            return $this->errorResponse($response, 'معرف المستخدم غير صحيح', 400);
         }
 
         $stmt = $this->db->prepare("

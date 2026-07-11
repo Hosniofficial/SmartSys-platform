@@ -804,86 +804,28 @@ class StrictSubscriptionHandler extends BaseHandler
 
     private function sendVerificationEmail(string $email, int $userId, string $token, string $clientIp): void
     {
-        // استخدام EmailVerificationService لإرسال البريد بشكل صحيح
         try {
-            // حفظ الـ token في جدول email_verification_tokens
-            $tokenHash = hash('sha256', $token);
-            $expiresAt = date('Y-m-d H:i:s', time() + 86400); // 24 ساعة
+            // استخدام EmailVerificationService لإرسال البريد بشكل موحد
+            $verificationService = new \App\Services\EmailVerificationService($this->db);
             
-            $user = $this->getUserById($userId);
-            $tenantId = (int) ($user['tenant_id'] ?? 0);
-            
-            $this->db->prepare(
-                "INSERT INTO email_verification_tokens
-                     (tenant_id, user_id, email, token_hash, purpose,
-                      expires_at, ip_address, device_fingerprint, attempts, max_attempts, is_revoked, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, NOW())"
-            )->execute([
-                $tenantId,
-                $userId,
+            // الخدمة تتولى كل شيء:
+            // - تخزين token بشكل آمن
+            // - بناء رابط التحقق
+            // - إرسال البريد عبر Mailer الموحد
+            $verificationService->sendVerificationEmail(
                 $email,
-                $tokenHash,
+                $userId,
                 'registration',
-                $expiresAt,
-                $clientIp,
-                null,
-                5,
-            ]);
+                ['ip_address' => $clientIp]
+            );
             
-            // إرسال البريد بـ token الحقيقي
-            $frontendUrl = getenv('FRONTEND_URL') ?: 'http://localhost:5173';
-            $verificationUrl = rtrim($frontendUrl, '/') . '/verify-email?token=' . urlencode($token);
-
-            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-            try {
-                $mail->isSMTP();
-                $mail->Host     = (string) ($_ENV['SMTP_HOST'] ?? '');
-                $mail->SMTPAuth = true;
-                $mail->Username = (string) ($_ENV['SMTP_USER'] ?? '');
-                $mail->Password = (string) ($_ENV['SMTP_PASS'] ?? '');
-                $mail->Port     = (int) ($_ENV['SMTP_PORT'] ?? 587);
-                $mail->Timeout  = (int) ($_ENV['SMTP_TIMEOUT'] ?? 15);
-
-                $secure = strtolower((string) ($_ENV['SMTP_SECURE'] ?? 'tls'));
-                $mail->SMTPSecure = ($secure === 'ssl')
-                    ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
-                    : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-
-                $mail->CharSet  = 'UTF-8';
-                $mail->Encoding = 'base64';
-                $mail->setFrom(
-                    (string) ($_ENV['SMTP_FROM'] ?? $_ENV['SMTP_USER'] ?? ''),
-                    (string) ($_ENV['SMTP_FROM_NAME'] ?? 'SmartSys')
-                );
-                $mail->addAddress($email);
-                $mail->isHTML(true);
-                $mail->Subject = 'تأكيد البريد الإلكتروني';
-                $mail->Body    = 
-                    "<div dir=\"rtl\" style=\"font-family:Tahoma,Arial;line-height:1.8\">" .
-                    "<h2 style=\"margin:0 0 12px\">تأكيد البريد الإلكتروني</h2>" .
-                    "<p>مرحباً {$user['name']}</p>" .
-                    "<p>الرجاء الضغط على الرابط التالي لإكمال عملية التسجيل.</p>" .
-                    "<p><a href=\"{$verificationUrl}\" style=\"display:inline-block;background:#2563eb;color:#fff;padding:10px 16px;border-radius:12px;text-decoration:none;font-weight:bold\">فتح الرابط</a></p>" .
-                    "</div>";
-                $mail->send();
-
-                $this->logger->info('Verification email sent successfully', [
-                    'user_id' => $userId,
-                    'email'   => $email,
-                ]);
-            } catch (\Exception $e) {
-                $this->logger->error('Email sending failed', [
-                    'user_id' => $userId,
-                    'email'   => $email,
-                    'error'   => $e->getMessage(),
-                ]);
-            }
         } catch (\Throwable $e) {
-            $this->logger->error('sendVerificationEmail failed', [
+            $this->logger->error('Failed to send verification email', [
+                'email' => $email,
                 'user_id' => $userId,
-                'email'   => $email,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage()
             ]);
+            throw new \Exception('فشل في إرسال بريد التحقق. يرجى المحاولة لاحقاً.');
         }
     }
     

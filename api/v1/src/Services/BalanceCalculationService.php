@@ -535,11 +535,11 @@ class BalanceCalculationService {
             $stmt->execute($params);
             $due = (float)$stmt->fetchColumn();
 
-            // Add amounts from sales returns if requested
+            // Add amounts from returns if requested
             if ($includeReturns) {
                 $sqlReturns = "
                     SELECT COALESCE(SUM(grand_total - paid_amount), 0) AS total_due
-                    FROM sales_returns
+                    FROM returns
                     WHERE customer_id = ? AND tenant_id = ? AND return_type = 'sale'
                 ";
                 $stmtReturns = $this->pdo->prepare($sqlReturns);
@@ -589,11 +589,11 @@ class BalanceCalculationService {
             $stmt->execute($params);
             $due = (float)$stmt->fetchColumn();
 
-            // Add amounts from purchase returns if requested
+            // Add amounts from returns if requested
             if ($includeReturns) {
                 $sqlReturns = "
                     SELECT COALESCE(SUM(grand_total - paid_amount), 0) AS total_due
-                    FROM purchase_returns
+                    FROM returns
                     WHERE supplier_id = ? AND tenant_id = ? AND return_type = 'purchase'
                 ";
                 $stmtReturns = $this->pdo->prepare($sqlReturns);

@@ -148,9 +148,11 @@ class PurchaseService
         $day      = date('Y-m-d', strtotime($invoiceDateTime));
         $dayShort = date('ymd', strtotime($invoiceDateTime));
 
+        // Get sequential count for today with table lock to prevent duplicates
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM purchases
-             WHERE tenant_id = ? AND invoice_date >= ? AND invoice_date <= ?"
+             WHERE tenant_id = ? AND invoice_date >= ? AND invoice_date <= ?
+             FOR UPDATE"
         );
         $stmt->execute([
             $this->tenantId,
@@ -597,62 +599,76 @@ class PurchaseService
      */
     public function deletePurchase(int $purchaseId): void
     {
-        // التحقق من عدم وجود مدفوعات
-        $stmtPay = $this->db->prepare(
-            "SELECT COUNT(*) FROM payments WHERE purchase_id = ? AND tenant_id = ?"
-        );
-        $stmtPay->execute([$purchaseId, $this->tenantId]);
-        if ((int) $stmtPay->fetchColumn() > 0) {
-            throw new \Exception('لا يمكن حذف الفاتورة: يوجد عليها مدفوعات مرتبطة بها');
-        }
-
-        // جلب بيانات الفاتورة
-        $stmt = $this->db->prepare(
-            "SELECT * FROM purchases WHERE id = ? AND tenant_id = ? LIMIT 1"
-        );
-        $stmt->execute([$purchaseId, $this->tenantId]);
-        $purchase = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if (!$purchase) {
-            throw new \App\Exceptions\NotFoundException('Purchase not found');
-        }
-
-        // حذف القيد المحاسبي
-        if (!empty($purchase['journal_entry_id'])) {
-            $this->accounting->deleteJournalEntry($this->tenantId, (int) $purchase['journal_entry_id']);
-        }
-
-        // عكس المخزون
-        $stmtItems = $this->db->prepare(
-            "SELECT * FROM purchase_items WHERE purchase_id = ? AND tenant_id = ?"
-        );
-        $stmtItems->execute([$purchaseId, $this->tenantId]);
-        $items = $stmtItems->fetchAll(\PDO::FETCH_ASSOC);
-
-        foreach ($items as $item) {
-            $this->updateStock(
-                (int) $item['product_id'],
-                (int) $item['unit_id'],
-                -(float) $item['quantity'],
-                (int) $purchase['branch_id'],
-                $purchaseId,
-                'out',
-                null,
-                (float) ($item['cost'] ?? 0),
-                $item['batch_number'] ?? null,
-                $item['expiry_date']  ?? null,
-                $item['serial']       ?? null
+        try {
+            // التحقق من عدم وجود مدفوعات
+            $stmtPay = $this->db->prepare(
+                "SELECT COUNT(*) FROM payments WHERE purchase_id = ? AND tenant_id = ?"
             );
+            $stmtPay->execute([$purchaseId, $this->tenantId]);
+            if ((int) $stmtPay->fetchColumn() > 0) {
+                throw new \Exception('لا يمكن حذف الفاتورة: يوجد عليها مدفوعات مرتبطة بها');
+            }
+
+            // جلب بيانات الفاتورة
+            $stmt = $this->db->prepare(
+                "SELECT * FROM purchases WHERE id = ? AND tenant_id = ? LIMIT 1"
+            );
+            $stmt->execute([$purchaseId, $this->tenantId]);
+            $purchase = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$purchase) {
+                throw new \App\Exceptions\NotFoundException('Purchase not found');
+            }
+
+            // ابدأ transaction
+            $this->db->beginTransaction();
+
+            // حذف القيد المحاسبي
+            if (!empty($purchase['journal_entry_id'])) {
+                $this->accounting->deleteJournalEntry($this->tenantId, (int) $purchase['journal_entry_id']);
+            }
+
+            // عكس المخزون
+            $stmtItems = $this->db->prepare(
+                "SELECT * FROM purchase_items WHERE purchase_id = ? AND tenant_id = ?"
+            );
+            $stmtItems->execute([$purchaseId, $this->tenantId]);
+            $items = $stmtItems->fetchAll(\PDO::FETCH_ASSOC);
+
+            foreach ($items as $item) {
+                $this->updateStock(
+                    (int) $item['product_id'],
+                    (int) $item['unit_id'],
+                    -(float) $item['quantity'],
+                    (int) $purchase['branch_id'],
+                    $purchaseId,
+                    'out',
+                    null,
+                    (float) ($item['cost'] ?? 0),
+                    $item['batch_number'] ?? null,
+                    $item['expiry_date']  ?? null,
+                    $item['serial']       ?? null
+                );
+            }
+
+            // حذف items
+            $this->db->prepare(
+                "DELETE FROM purchase_items WHERE purchase_id = ? AND tenant_id = ?"
+            )->execute([$purchaseId, $this->tenantId]);
+
+            // حذف الفاتورة
+            $this->db->prepare(
+                "DELETE FROM purchases WHERE id = ? AND tenant_id = ?"
+            )->execute([$purchaseId, $this->tenantId]);
+
+            // أكمل transaction
+            $this->db->commit();
+
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
-
-        // حذف items
-        $this->db->prepare(
-            "DELETE FROM purchase_items WHERE purchase_id = ? AND tenant_id = ?"
-        )->execute([$purchaseId, $this->tenantId]);
-
-        // حذف الفاتورة
-        $this->db->prepare(
-            "DELETE FROM purchases WHERE id = ? AND tenant_id = ?"
-        )->execute([$purchaseId, $this->tenantId]);
     }
 
     // -------------------------------------------------------------------------

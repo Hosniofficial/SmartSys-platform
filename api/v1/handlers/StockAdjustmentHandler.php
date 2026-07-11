@@ -340,6 +340,23 @@ class StockAdjustmentHandler extends BaseHandler
 
                 if ($branchId <= 0 || $delta == 0.0) continue;
 
+                // Prevent negative stock (same check as in adjustStockQuantity)
+                if ($delta < 0) {
+                    $stmt = $this->db->prepare(
+                        "SELECT quantity FROM branch_products WHERE tenant_id = ? AND branch_id = ? AND product_id = ? LIMIT 1"
+                    );
+                    $stmt->execute([$tenantId, $branchId, $productId]);
+                    $currentQty = (float) ($stmt->fetchColumn() ?? 0);
+                    
+                    if ($currentQty + $delta < 0) {
+                        throw new \Exception(sprintf(
+                            'الكمية الحالية للمنتج في الفرع (%s) أقل من الكمية المراد سحبها (%s)',
+                            $currentQty,
+                            abs($delta)
+                        ));
+                    }
+                }
+
                 $movement = $delta > 0 ? 'adjustment_in' : 'adjustment_out';
                 $txId     = $this->insertInventoryAdjustment(
                     $tenantId, $productId, $unitId,
