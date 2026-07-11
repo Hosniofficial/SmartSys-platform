@@ -132,7 +132,7 @@ class StrictSubscriptionHandler extends BaseHandler
             $this->initializeSecureAccounting($tenantId, $userId);
 
             if ($this->config['require_email_verification'] && $verificationToken) {
-                $this->sendVerificationEmail($data['email'], $userId, $verificationToken, $ip);
+                $this->sendVerificationEmail($data['email'], $userId, $verificationToken, $ip, $request);
                 
                 $this->logger->info('Verification email sent during trial signup', [
                     'user_id' => $userId,
@@ -802,22 +802,20 @@ class StrictSubscriptionHandler extends BaseHandler
         }
     }
 
-    private function sendVerificationEmail(string $email, int $userId, string $token, string $clientIp): void
+    private function sendVerificationEmail(string $email, int $userId, string $token, string $clientIp, Request $request): void
     {
         try {
             // Use EmailVerificationService with proper method signature
             $verificationService = new \App\Services\EmailVerificationService($this->db);
             
-            // Create a minimal ServerRequestInterface-compatible object with IP address
-            $requestData = ['REMOTE_ADDR' => $clientIp];
-            
             // Call the correct method: sendVerification(email, purpose, request)
-            // The request object's IP address will be captured by the service
-            $verificationService->sendVerification($email, 'registration', new \Psr\Http\Message\ServerRequest(
-                method: 'POST',
-                uri: new \Psr\Http\Message\Uri('/auth/verify-email'),
-                serverParams: $requestData
-            ));
+            // Pass the real Request object which contains all necessary data
+            $verificationService->sendVerification($email, 'registration', $request);
+            
+            $this->logger->info('Verification email sent successfully', [
+                'email' => $email,
+                'user_id' => $userId
+            ]);
             
         } catch (\Throwable $e) {
             $this->logger->error('Failed to send verification email', [

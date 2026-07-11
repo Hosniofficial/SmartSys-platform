@@ -56,7 +56,6 @@ class SecurityEventRepository
             
             $stmt->bindValue(':details', $details !== null ? json_encode($details) : null, PDO::PARAM_STR);
             $stmt->bindValue(':created_at', $createdAt ?? date('Y-m-d H:i:s'), PDO::PARAM_STR);
-            $stmt->bindValue(':created_at', $createdAt ?? date('Y-m-d H:i:s'), PDO::PARAM_STR);
             
             $stmt->execute();
             
@@ -125,7 +124,7 @@ class SecurityEventRepository
             }
             
             if ($severity !== null) {
-                $sql .= ' AND severity = :severity';
+                $sql .= ' AND event_severity = :severity';
                 $params[':severity'] = $severity;
                 $types[':severity'] = PDO::PARAM_STR;
             }
@@ -256,7 +255,7 @@ class SecurityEventRepository
                 COUNT(*) as total_events,
                 COUNT(DISTINCT user_id) as unique_users,
                 COUNT(DISTINCT ip_address) as unique_ips,
-                SUM(CASE WHEN severity = "high" OR severity = "critical" THEN 1 ELSE 0 END) as critical_events
+                SUM(CASE WHEN event_severity = "high" OR event_severity = "critical" THEN 1 ELSE 0 END) as critical_events
             FROM security_events
             WHERE 1=1';
             
