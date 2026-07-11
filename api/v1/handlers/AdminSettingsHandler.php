@@ -38,9 +38,15 @@ class AdminSettingsHandler extends BaseHandler
         $userId = isset($userData['id']) ? (int) $userData['id'] : null;
         $roleId = isset($userData['role_id']) ? (int) $userData['role_id'] : null;
         $role = strtolower((string) ($userData['role'] ?? ''));
+        $isOwner = (bool) ($userData['is_owner'] ?? false);
 
         if (!$userId) {
             return null;
+        }
+
+        // Owner (tenant creator) has full access without permission checks (especially during setup)
+        if ($isOwner && !$requireManage) {
+            return $userData;
         }
 
         try {
@@ -78,6 +84,9 @@ class AdminSettingsHandler extends BaseHandler
         $userData = $this->checkSettingsAccess($request, false);
 
         if (!$userData) {
+            $this->logger->warning('Settings access denied', [
+                'user' => $request->getAttribute('user')
+            ]);
             return $this->errorResponse($response, 'ليس لديك إذن للوصول إلى الإعدادات', 403);
         }
 
@@ -86,6 +95,12 @@ class AdminSettingsHandler extends BaseHandler
             if (!$tenantId) {
                 return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
             }
+
+            $this->logger->info('Fetching settings', [
+                'tenant_id' => $tenantId,
+                'user_id' => $userData['id'] ?? null,
+                'is_owner' => $userData['is_owner'] ?? false
+            ]);
 
             $settings = $this->settingsHandler->getSettings((int) $tenantId);
 

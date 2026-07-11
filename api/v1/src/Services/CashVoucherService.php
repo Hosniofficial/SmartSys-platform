@@ -64,17 +64,18 @@ class CashVoucherService
 
             $stmt = $this->db->prepare("
                 INSERT INTO cash_vouchers (
-                    tenant_id, type, date, amount, currency,
+                    tenant_id, branch_id, type, date, amount, currency,
                     customer_id, supplier_id, account_id, reference, notes,
                     created_by, journal_entry_id, cost_center_id, idempotency_key
                 ) VALUES (
-                    :tenant_id, :type, :date, :amount, :currency,
+                    :tenant_id, :branch_id, :type, :date, :amount, :currency,
                     :customer_id, :supplier_id, :account_id, :reference, :notes,
                     :created_by, :journal_entry_id, :cost_center_id, :idempotency_key
                 )
             ");
             $stmt->execute([
                 ':tenant_id'        => $this->tenantId,
+                ':branch_id'        => $data['branch_id'] ?? null,
                 ':type'             => $data['type'],
                 ':date'             => $data['date'],
                 ':amount'           => $data['amount'],

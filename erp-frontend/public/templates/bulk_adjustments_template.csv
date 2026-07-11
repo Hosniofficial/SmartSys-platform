@@ -1,0 +1,9 @@
+product_code,branch_code,quantity,notes
+SKU-001,MAIN,50,opening stock
+SKU-001,BR-1,20,initial distribution
+SKU-001,BR-2,30,initial distribution
+# Alternatively you can use IDs instead of codes:
+# product_id,branch_id,quantity,notes
+# 101,1,50,opening stock
+# 101,2,20,initial distribution
+# 101,3,30,initial distribution

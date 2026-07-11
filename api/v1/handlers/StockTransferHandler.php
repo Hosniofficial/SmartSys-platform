@@ -88,13 +88,17 @@ class StockTransferHandler extends BaseHandler
                      quantity_cost = quantity_cost + VALUES(quantity_cost)"
             )->execute([$data['to_branch'], $data['product_id'], $data['quantity'], $transferTotalCost, $tenantId]);
 
-            // 4. سجل عملية النقل في stock_transfers
+            // 4. سجل عملية النقل في stock_transfers (مع batch, expiry, serial - Phase 3)
             $this->db->prepare(
-                "INSERT INTO stock_transfers (tenant_id, from_branch, to_branch, product_id, quantity, notes, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO stock_transfers (tenant_id, from_branch, to_branch, product_id, quantity, batch_number, expiry_date, serial, notes, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )->execute([
                 $tenantId, $data['from_branch'], $data['to_branch'],
-                $data['product_id'], $data['quantity'], $data['notes'] ?? null, $userId,
+                $data['product_id'], $data['quantity'],
+                $data['batch_number'] ?? null,
+                $data['expiry_date'] ?? null,
+                $data['serial'] ?? null,
+                $data['notes'] ?? null, $userId,
             ]);
             $transferId = (int) $this->db->lastInsertId();
 

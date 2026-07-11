@@ -59,15 +59,23 @@ ehthumbs.db
 # Database backups (keep repo clean - use external storage)
 *.sql
 *.sql.gz
+*.dump
+*.sqlite
+*.db
+
+# Exclude specific SQL files
+check_cogs_data.sql
 
 # Local development
 .local/
 .testing/
 
-# Node dev files
+# Node dev files (Frontend)
 /erp-frontend/node_modules/
 /erp-frontend/dist/
-/erp-frontend/
+/erp-frontend/.vite/
+/erp-frontend/.nuxt/
+/erp-frontend/.output/
 
 # PHP specific
 .phpunit.result.cache
@@ -98,6 +106,14 @@ coverage/
 secretsfile.txt
 private_key.pem
 *.p12
+*.rar
+*.zip
+*.tar.gz
+
+# Exclude specific files
+smartsys_backend.rar
+php -S localhost8000.txt
+مهم للانتاج.txt
 
 # Misc
 package.json.bak

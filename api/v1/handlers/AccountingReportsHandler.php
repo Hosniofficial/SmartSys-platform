@@ -464,13 +464,16 @@ class AccountingReportsHandler extends BaseHandler
                     c.name          AS customer_name,
                     s.net_total_amount,
                     COALESCE(s.paid_amount, 0)                           AS paid_amount,
-                    s.net_total_amount - COALESCE(s.paid_amount, 0)      AS outstanding
+                    COALESCE(SUM(rca.allocated_amount), 0)              AS return_credits,
+                    s.net_total_amount - COALESCE(s.paid_amount, 0) - COALESCE(SUM(rca.allocated_amount), 0) AS outstanding
                 FROM sales s
                 LEFT JOIN customers c ON c.id = s.customer_id AND c.tenant_id = s.tenant_id
+                LEFT JOIN return_credit_allocations rca ON rca.sale_id = s.id AND rca.tenant_id = s.tenant_id
                 WHERE s.tenant_id = ?
                   AND s.status NOT IN ('cancelled','draft')
-                  AND s.net_total_amount > COALESCE(s.paid_amount, 0)
+                  AND (s.net_total_amount > COALESCE(s.paid_amount, 0) OR COALESCE(SUM(rca.allocated_amount), 0) > 0)
                   AND s.sale_date <= ?
+                GROUP BY s.id
                 ORDER BY days_outstanding DESC
             ";
 

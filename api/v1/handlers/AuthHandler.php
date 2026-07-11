@@ -12,6 +12,7 @@ use App\Services\SecurityLogger;
 use App\Services\SecurityEventDispatcher;
 use App\Services\JwtBlacklistService;
 use App\Services\MonologHandler;
+use App\Services\TwoFactorEncryptionService;
 use App\Utils\RequestHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -26,6 +27,7 @@ class AuthHandler extends BaseHandler
     private ?SecurityLogger $securityLogger;
     private ?SecurityEventDispatcher $eventDispatcher;
     private \PHPGangsta_GoogleAuthenticator $ga;
+    private TwoFactorEncryptionService $twoFaEncryption;
 
     public function __construct(
         PDO $db,
@@ -49,6 +51,7 @@ class AuthHandler extends BaseHandler
         $this->tokenExpiry = (int) ($jwtConfig['access_token_expiry'] ?? 3600);
         $this->refreshTokenExpiry = (int) ($jwtConfig['refresh_token_expiry'] ?? 2592000);
         $this->ga = new \PHPGangsta_GoogleAuthenticator();
+        $this->twoFaEncryption = new TwoFactorEncryptionService();
 
         if ($this->jwtKey === '' || $this->jwtRefreshSecret === '') {
             throw new Exception('JWT secrets are not set in environment variables.');
@@ -186,7 +189,7 @@ class AuthHandler extends BaseHandler
                     ], 200);
                 }
 
-                if (empty($user['two_fa_secret']) || !$this->ga->verifyCode((string) $user['two_fa_secret'], $twoFactorCode)) {
+                if (empty($user['two_fa_secret']) || !$this->ga->verifyCode((string) $this->twoFaEncryption->decrypt($user['two_fa_secret']), $twoFactorCode)) {
                     $this->logger->warning('Invalid 2FA code during login', [
                         'user_id' => $user['id'],
                         'ip' => $clientIp
@@ -643,6 +646,34 @@ class AuthHandler extends BaseHandler
         }
     }
 
+    // =========================================================================
+    // PUBLIC WRAPPERS FOR EXTERNAL HANDLERS
+    // =========================================================================
+
+    /**
+     * Generate refresh token (public wrapper for EmailVerificationHandler)
+     */
+    public function generateRefreshTokenPublic(int $userId): string
+    {
+        return $this->generateRefreshToken($userId);
+    }
+
+    /**
+     * Store refresh token (public wrapper for EmailVerificationHandler)
+     */
+    public function storeRefreshTokenPublic(int $userId, string $token): void
+    {
+        $this->storeRefreshToken($userId, $token);
+    }
+
+    /**
+     * Set refresh token cookie (public wrapper for EmailVerificationHandler)
+     */
+    public function setRefreshTokenCookiePublic(Response $response, string $token): Response
+    {
+        return $this->setRefreshTokenCookie($response, $token);
+    }
+
     /**
      * Setup 2FA for user
      */
@@ -696,23 +727,40 @@ class AuthHandler extends BaseHandler
                 return $this->errorResponse($response, 'User ID and verification code are required', 400);
             }
 
-            $userId = (int) $data['user_id'];
-            $code = (string) $data['code'];
+            // ✅ Security: verify caller owns this user_id
+            $jwtUserId = $this->extractUserId($request);
+            if (!$jwtUserId) {
+                return $this->errorResponse($response, 'Unauthorized', 401);
+            }
 
+            $requestUserId = (int) $data['user_id'];
+            if ($requestUserId !== $jwtUserId) {
+                $this->logger->warning('2FA verify: user_id mismatch', [
+                    'jwt_user_id'     => $jwtUserId,
+                    'request_user_id' => $requestUserId,
+                ]);
+                return $this->errorResponse($response, 'أنت غير مصرح بالتحقق من 2FA لمستخدم آخر', 403);
+            }
+
+            $userId = $requestUserId;
+            $code   = (string) $data['code'];
+
+            // ✅ Security: scope query by tenant_id to prevent cross-tenant reads
+            $tenantId = $this->extractTenantId($request);
             $stmt = $this->db->prepare("
                 SELECT two_fa_secret
                 FROM users
-                WHERE id = ?
+                WHERE id = ? AND tenant_id = ?
                 LIMIT 1
             ");
-            $stmt->execute([$userId]);
+            $stmt->execute([$userId, $tenantId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user || empty($user['two_fa_secret'])) {
                 return $this->errorResponse($response, 'Invalid verification code', 401);
             }
 
-            $isValid = $this->ga->verifyCode((string) $user['two_fa_secret'], $code);
+            $isValid = $this->ga->verifyCode((string) $this->twoFaEncryption->decrypt($user['two_fa_secret']), $code);
 
             if (!$isValid) {
                 $this->logger->warning('Invalid 2FA code attempt', ['user_id' => $userId]);
@@ -748,9 +796,25 @@ class AuthHandler extends BaseHandler
                 return $this->errorResponse($response, 'User ID, code and secret are required', 400);
             }
 
-            $userId = (int) $data['user_id'];
-            $code = (string) $data['code'];
-            $secret = (string) $data['secret'];
+            // ✅ Security: verify caller owns this user_id
+            $jwtUserId = $this->extractUserId($request);
+            if (!$jwtUserId) {
+                return $this->errorResponse($response, 'Unauthorized', 401);
+            }
+
+            $requestUserId = (int) $data['user_id'];
+            if ($requestUserId !== $jwtUserId) {
+                $this->logger->warning('2FA enable: user_id mismatch', [
+                    'jwt_user_id'     => $jwtUserId,
+                    'request_user_id' => $requestUserId,
+                ]);
+                return $this->errorResponse($response, 'أنت غير مصرح بتفعيل 2FA لمستخدم آخر', 403);
+            }
+
+            $userId   = $requestUserId;
+            $code     = (string) $data['code'];
+            $secret   = (string) $data['secret'];
+            $tenantId = $this->extractTenantId($request);
 
             $isValid = $this->ga->verifyCode($secret, $code);
 
@@ -759,23 +823,35 @@ class AuthHandler extends BaseHandler
                 return $this->errorResponse($response, 'Invalid verification code', 400);
             }
 
+            // ✅ Security: WHERE includes tenant_id — prevents cross-tenant update
+            // ✅ Encrypt secret before storing
+            $encryptedSecret = $this->twoFaEncryption->encrypt($secret);
             $stmt = $this->db->prepare("
                 UPDATE users
                 SET two_fa_secret = ?, two_fa_enabled = 1
-                WHERE id = ?
+                WHERE id = ? AND tenant_id = ?
             ");
-            $stmt->execute([$secret, $userId]);
+            $stmt->execute([$encryptedSecret, $userId, $tenantId]);
+
+            if ($stmt->rowCount() === 0) {
+                // No row updated — user doesn't exist in this tenant
+                $this->logger->warning('2FA enable: no matching user in tenant', [
+                    'user_id'   => $userId,
+                    'tenant_id' => $tenantId,
+                ]);
+                return $this->errorResponse($response, 'User not found', 404);
+            }
 
             $this->logger->info('2FA enabled', ['user_id' => $userId]);
 
             return $this->jsonResponse($response, [
-                'status' => 'success',
-                'message' => '2FA enabled successfully'
+                'status'  => 'success',
+                'message' => '2FA enabled successfully',
             ]);
         } catch (Exception $e) {
             $this->logger->error('2FA enable error', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace'   => $e->getTraceAsString(),
             ]);
 
             return $this->errorResponse($response, 'فشل تفعيل المصادقة الثنائية. يرجى المحاولة مرة أخرى.', 400);

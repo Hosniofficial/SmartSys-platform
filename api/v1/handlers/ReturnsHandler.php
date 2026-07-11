@@ -12,6 +12,47 @@ use App\Services\CostCenter\CostCenterService;
 use App\Services\LabelService;
 use App\Utils\PaginationHelper;
 
+/**
+ * ──────────────────────────────────────────────────────────
+ * RETURNS HANDLER
+ * ──────────────────────────────────────────────────────────
+ *
+ * HTTP handler for return management (sales returns and purchase returns)
+ * with inventory tracking and accounting journal posting.
+ *
+ * **Key Responsibilities**:
+ * - Sales return CRUD operations (returned quantities per invoice)
+ * - Purchase return CRUD operations (returned quantities per purchase)
+ * - Inventory adjustment tracking on return creation/update
+ * - Returnable quantity calculations (available stock for return per product)
+ * - Journal entry posting via AccountingService for return transactions
+ * - Multi-tenancy filtering and branch/warehouse isolation
+ * - Localized response labels (ar/en) via LabelService
+ *
+ * **Multi-Tenancy**:
+ * All queries filtered by tenant_id and branch_id; per-user cost center resolution
+ * for financial transaction tracking.
+ *
+ * **Dependencies**:
+ * - ReturnService: Core business logic (CRUD, inventory calculations, accounting)
+ * - CostCenterService: Cost center resolution for return transactions
+ * - AccountingService: Journal entry posting for return inventory adjustments
+ * - MonologHandler: Entity-specific logging (returns channel)
+ * - LabelService: Localized reference and status labels
+ * - PaginationHelper: Query result pagination (limit, offset)
+ *
+ * **Return Types Supported**:
+ * - sale: Returns from customer sales (decreases A/R, increases inventory)
+ * - purchase: Returns to supplier purchases (decreases A/P, increases inventory)
+ *
+ * **HTTP Status Codes**:
+ * - 200: Success (GET, list operations)
+ * - 201: Created (POST operations)
+ * - 400: Bad Request (missing/invalid parameters, insufficient returnable qty)
+ * - 403: Forbidden (insufficient permissions, missing tenant_id)
+ * - 404: Not Found (return/sale/purchase not found)
+ * - 500: Server Error (database/transaction failures)
+ */
 class ReturnsHandler extends BaseHandler
 {
     protected $logger;
@@ -45,9 +86,11 @@ class ReturnsHandler extends BaseHandler
             ??= $this->services->returns($tenantId, $userId);
     }
 
-    // =========================================================
-    // Localization Helpers
-    // =========================================================
+    /**
+     * ──────────────────────────────────────────────────────────
+     * HELPER METHODS
+     * ──────────────────────────────────────────────────────────
+     */
 
     private function refLabel(?string $type, string $locale = 'ar'): string
     {
@@ -59,9 +102,11 @@ class ReturnsHandler extends BaseHandler
         return LabelService::statusLabel($code, $locale);
     }
 
-    // =========================================================
-    // Returned Quantities
-    // =========================================================
+    /**
+     * ──────────────────────────────────────────────────────────
+     * RETRIEVAL & INVENTORY OPERATIONS
+     * ──────────────────────────────────────────────────────────
+     */
 
     public function getReturnedQuantities(Request $request, Response $response): Response
     {
@@ -117,9 +162,14 @@ class ReturnsHandler extends BaseHandler
         }
 
         $stmtProd = $this->db->prepare("
-            SELECT name, barcode, unit_name
-            FROM products
-            WHERE id = ? AND tenant_id = ?
+            SELECT 
+                p.name, 
+                p.barcode,
+                COALESCE(u.name, 'قطعة') AS unit_name
+            FROM products p
+            LEFT JOIN product_units pu ON p.id = pu.product_id AND pu.is_main_unit = 1 AND pu.tenant_id = ?
+            LEFT JOIN units u ON pu.unit_id = u.id
+            WHERE p.id = ? AND p.tenant_id = ?
         ");
 
         if ($type === 'sale') {
@@ -150,11 +200,11 @@ class ReturnsHandler extends BaseHandler
             $productId = (int) $r['product_id'];
             $originalQty = (float) $r['original_qty'];
 
-            $stmtProd->execute([$productId, $tenantId]);
+            $stmtProd->execute([$tenantId, $productId, $tenantId]);
             $prod = $stmtProd->fetch(PDO::FETCH_ASSOC) ?: [
                 'name' => null,
                 'barcode' => null,
-                'unit_name' => null
+                'unit_name' => 'قطعة'
             ];
 
             $stmtPrev->execute([$tenantId, $invoiceId, $productId]);
@@ -176,10 +226,13 @@ class ReturnsHandler extends BaseHandler
         return $this->successResponse($response, $result, 200);
     }
 
-    // =========================================================
-    // LIST
-    // =========================================================
-
+    /**
+     * List returns with pagination and filtering by type (sale or purchase).
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
     public function list(Request $request, Response $response): Response
     {
         $tenantId = $this->extractTenantId($request);
@@ -189,8 +242,10 @@ class ReturnsHandler extends BaseHandler
 
         $queryParams = $request->getQueryParams();
         $branchId = $queryParams['branch_id'] ?? null;
+        $isExempt = $this->isCashierSessionExempt($request);
 
-        if (!$branchId || $branchId === '') {
+        // المستخدم المقيّد بفرع فقط يُطالَب بتحديد branch_id إجباريًا
+        if (!$isExempt && (!$branchId || $branchId === '')) {
             return $this->errorResponse($response, 'مطلوب تحديد المخزن (branch_id) لعرض المرتجعات.', 400);
         }
 
@@ -229,11 +284,11 @@ class ReturnsHandler extends BaseHandler
                 ON r.return_type = 'purchase' AND r.supplier_id = s.id AND s.tenant_id = ?
             LEFT JOIN users u
                 ON r.created_by = u.id AND (u.tenant_id = r.tenant_id OR u.tenant_id IS NULL)
-            WHERE r.tenant_id = ? AND r.branch_id = ?
+            WHERE r.tenant_id = ?
         ";
 
-        $params = [$tenantId, $tenantId, $tenantId, (int) $branchId];
-        $countParams = [$tenantId, $tenantId, $tenantId, (int) $branchId];
+        $params = [$tenantId, $tenantId, $tenantId];
+        $countParams = [$tenantId, $tenantId, $tenantId];
 
         $countQuery = "
             SELECT COUNT(*)
@@ -242,8 +297,16 @@ class ReturnsHandler extends BaseHandler
                 ON r.return_type = 'sale' AND r.customer_id = c.id AND c.tenant_id = ?
             LEFT JOIN suppliers s
                 ON r.return_type = 'purchase' AND r.supplier_id = s.id AND s.tenant_id = ?
-            WHERE r.tenant_id = ? AND r.branch_id = ?
+            WHERE r.tenant_id = ?
         ";
+
+        // فلتر الفرع اختياري الآن — يُطبَّق فقط إن وُجد فعليًا في الطلب
+        if ($branchId !== null && $branchId !== '') {
+            $query .= " AND r.branch_id = ?";
+            $countQuery .= " AND r.branch_id = ?";
+            $params[] = (int) $branchId;
+            $countParams[] = (int) $branchId;
+        }
 
         if ($search !== '') {
             $query .= " AND (r.return_number LIKE ? OR c.name LIKE ? OR s.name LIKE ?)";
@@ -317,10 +380,14 @@ class ReturnsHandler extends BaseHandler
         ], 200);
     }
 
-    // =========================================================
-    // GET
-    // =========================================================
-
+    /**
+     * Get single return details with associated items and localized labels.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => return_id, ['type'] => 'sale'|'purchase'
+     * @return Response
+     */
     public function get(Request $request, Response $response, array $args): Response
     {
         $tenantId = $this->extractTenantId($request);
@@ -403,9 +470,11 @@ class ReturnsHandler extends BaseHandler
         return $this->successResponse($response, $return, 200);
     }
 
-    // =========================================================
-    // Thin Wrappers
-    // =========================================================
+    /**
+     * ──────────────────────────────────────────────────────────
+     * CONVENIENCE WRAPPERS
+     * ──────────────────────────────────────────────────────────
+     */
 
     public function listSale(Request $request, Response $response): Response
     {
@@ -437,10 +506,14 @@ class ReturnsHandler extends BaseHandler
         return $this->get($request, $response, $args);
     }
 
-    // =========================================================
-    // RETURN DETAILS
-    // =========================================================
-
+    /**
+     * Get detailed return information with items and calculations.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => return_id
+     * @return Response
+     */
     public function getReturnDetails(Request $request, Response $response, array $args): Response
     {
         $tenantId = $this->extractTenantId($request);
@@ -776,9 +849,12 @@ public function searchInvoice(Request $request, Response $response): Response
             i.net_total_amount,
             IFNULL(i.paid_amount, 0) AS paid_amount,
             (i.net_total_amount + IFNULL(i.tax_amount, 0)) AS grand_total,
+            COALESCE(SUM(rca.allocated_amount), 0) AS return_credits_applied,
             ((i.net_total_amount + IFNULL(i.tax_amount, 0)) - IFNULL(i.paid_amount, 0)) AS outstanding,
+            ((i.net_total_amount + IFNULL(i.tax_amount, 0)) - IFNULL(i.paid_amount, 0)) AS outstanding_amount,
+            GREATEST(0, (i.net_total_amount + IFNULL(i.tax_amount, 0)) - IFNULL(i.paid_amount, 0) - COALESCE(SUM(rca.allocated_amount), 0)) AS net_outstanding,
             CASE
-                WHEN IFNULL(i.paid_amount, 0) <= 0 THEN 'credit'
+                WHEN IFNULL(i.paid_amount, 0) <= 0 AND COALESCE(SUM(rca.allocated_amount), 0) > 0 THEN 'credit'
                 WHEN IFNULL(i.paid_amount, 0) >= (i.net_total_amount + IFNULL(i.tax_amount, 0)) THEN 'cash'
                 WHEN IFNULL(i.paid_amount, 0) > 0
                      AND IFNULL(i.paid_amount, 0) < (i.net_total_amount + IFNULL(i.tax_amount, 0)) THEN 'partial'
@@ -788,7 +864,11 @@ public function searchInvoice(Request $request, Response $response): Response
                 WHEN IFNULL(i.discount_value, 0) > 0 THEN 1
                 ELSE 0
             END AS has_discount,
-            i.branch_id
+            i.branch_id,
+            i.payment_method_id,
+            pm.name AS payment_method_name,
+            pm.kind AS payment_method_kind,
+            (SELECT COUNT(*) FROM sales_items WHERE sale_id = i.id AND tenant_id = :tenant_id_subquery) AS items_count
         ";
     } else {
         $selectFields = "
@@ -799,10 +879,19 @@ public function searchInvoice(Request $request, Response $response): Response
             (i.total_amount - IFNULL(i.discount_value, 0)) AS net_total_amount,
             IFNULL(i.paid_amount, 0) AS paid_amount,
             (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0)) AS grand_total,
+            0 AS return_credits_applied,
             (
                 (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0))
                 - IFNULL(i.paid_amount, 0)
             ) AS outstanding,
+            (
+                (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0))
+                - IFNULL(i.paid_amount, 0)
+            ) AS outstanding_amount,
+            (
+                (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0))
+                - IFNULL(i.paid_amount, 0)
+            ) AS net_outstanding,
             CASE
                 WHEN IFNULL(i.paid_amount, 0) <= 0 THEN 'credit'
                 WHEN IFNULL(i.paid_amount, 0) >= (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0)) THEN 'cash'
@@ -814,7 +903,11 @@ public function searchInvoice(Request $request, Response $response): Response
                 WHEN IFNULL(i.discount_value, 0) > 0 THEN 1
                 ELSE 0
             END AS has_discount,
-            i.branch_id
+            i.branch_id,
+            i.payment_method_id,
+            pm.name AS payment_method_name,
+            pm.kind AS payment_method_kind,
+            (SELECT COUNT(*) FROM purchases_items WHERE purchase_id = i.id AND tenant_id = :tenant_id_subquery) AS items_count
         ";
     }
 
@@ -828,16 +921,24 @@ public function searchInvoice(Request $request, Response $response): Response
             b.name AS branch_name
         FROM {$table} i
         {$partyJoin}
+        LEFT JOIN payment_methods pm
+            ON i.payment_method_id = pm.id
+           AND pm.tenant_id = :tenant_id_payment_method
         LEFT JOIN branches b
             ON i.branch_id = b.id
            AND b.tenant_id = :tenant_id_branch
+        " . ($isSale ? "LEFT JOIN return_credit_allocations rca
+            ON i.id = rca.sale_id
+           AND i.tenant_id = rca.tenant_id" : "") . "
         WHERE i.tenant_id = :tenant_id_where
     ";
 
     $params = [
         ':tenant_id_where' => $tenantId,
         ':tenant_id_party' => $tenantId,
-        ':tenant_id_branch' => $tenantId
+        ':tenant_id_payment_method' => $tenantId,
+        ':tenant_id_branch' => $tenantId,
+        ':tenant_id_subquery' => $tenantId
     ];
 
     if ($invoiceNumber !== '') {
@@ -846,6 +947,18 @@ public function searchInvoice(Request $request, Response $response): Response
         if (ctype_digit($invoiceNumber)) {
             $sql .= " OR i.id = :invoice_id";
             $params[':invoice_id'] = (int)$invoiceNumber;
+        }
+
+        if ($isSale) {
+            $sql .= " OR (c.name IS NOT NULL AND c.name LIKE :customer_name)";
+            $sql .= " OR (c.phone IS NOT NULL AND c.phone LIKE :phone)";
+            $params[':customer_name'] = "%{$invoiceNumber}%";
+            $params[':phone'] = "%{$invoiceNumber}%";
+        } else {
+            $sql .= " OR (s.name IS NOT NULL AND s.name LIKE :supplier_name)";
+            $sql .= " OR (s.phone IS NOT NULL AND s.phone LIKE :phone)";
+            $params[':supplier_name'] = "%{$invoiceNumber}%";
+            $params[':phone'] = "%{$invoiceNumber}%";
         }
 
         $sql .= ")";
@@ -862,7 +975,11 @@ public function searchInvoice(Request $request, Response $response): Response
         $params[':to_date'] = $toDate;
     }
 
-    $sql .= " ORDER BY i.{$dateField} DESC LIMIT 10";
+    if ($isSale) {
+        $sql .= " GROUP BY i.id";
+    }
+
+    $sql .= " ORDER BY i.{$dateField} DESC LIMIT 50";
 
     try {
         $stmt = $this->db->prepare($sql);
@@ -920,7 +1037,7 @@ public function getInvoiceItems(Request $request, Response $response): Response
                     si.net_total  AS subtotal,
                     NULL          AS batch_number,
                     NULL          AS expiry_date
-                FROM sales_items si          -- ✅ الاسم الصحيح
+                FROM sales_items si
                 JOIN products p
                     ON si.product_id = p.id
                    AND p.tenant_id = :tenant_id

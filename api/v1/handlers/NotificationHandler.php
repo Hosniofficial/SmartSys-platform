@@ -398,8 +398,12 @@ class NotificationHandler extends BaseHandler
             ");
             $stmt->execute([$notificationId, (int) $userId, (int) $tenantId]);
 
-            return $this->jsonResponse($response, [
-                'status' => 'success',
+            return $this->successResponse($response, [
+                'notification' => [
+                    'id' => $notificationId,
+                    'is_read' => 1,
+                    'read_at' => date('c'),
+                ],
                 'message' => 'Notification marked as read'
             ], 200);
         } catch (\Throwable $e) {

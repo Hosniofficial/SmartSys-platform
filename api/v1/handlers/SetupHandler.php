@@ -555,14 +555,6 @@ class SetupHandler extends BaseHandler
             // ✅ استخدام Single Source of Truth: AccountManagementService::createBranchAccount()
             $accountMgmt = new AccountManagementService($this->db);
 
-            // Temporary debug — remove after confirming
-            $this->logger->debug('Checking 1301 before createBranchAccount', [
-                'tenant_id' => $tenantId,
-                'account_1301_exists' => (bool) $this->db->query(
-                    "SELECT id FROM accounts WHERE code='1301' AND tenant_id={$tenantId} LIMIT 1"
-                )->fetchColumn()
-            ]);
-
             $newAccountId = $accountMgmt->createBranchAccount(
                 $branch['name'],
                 $tenantId,

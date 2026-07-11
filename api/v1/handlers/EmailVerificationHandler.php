@@ -85,6 +85,17 @@ class EmailVerificationHandler extends BaseHandler
 
             // Auto-login: generate access token for registration/email_change
             $accessToken = null;
+            $refreshToken = null;
+            $userData = null;
+            $baseResponse = null;
+            
+            // Debug logging
+            $this->logger->info('verifyEmail: token verification result', [
+                'purpose' => $result['purpose'] ?? 'null',
+                'has_user' => !empty($result['user']),
+                'user_id' => $result['user']['id'] ?? 'null',
+            ]);
+            
             if (
                 in_array($result['purpose'] ?? '', ['registration', 'email_change'], true)
                 && !empty($result['user'])
@@ -97,20 +108,84 @@ class EmailVerificationHandler extends BaseHandler
                     } else {
                         $authHandler = new \App\Handlers\AuthHandler($this->db);
                     }
+                    
+                    $userId = (int) $result['user']['id'];
+                    
+                    // Generate both access and refresh tokens
                     $accessToken = $authHandler->generateAccessTokenPublic($result['user']);
-                } catch (\Throwable $e) {
-                    $this->logger->warning('verifyEmail: failed to generate auto-login token', [
-                        'user_id' => $result['user_id'] ?? null,
-                        'error'   => $e->getMessage(),
+                    $refreshToken = $authHandler->generateRefreshTokenPublic($userId);
+                    $authHandler->storeRefreshTokenPublic($userId, $refreshToken);
+                    
+                    // Format user data for Frontend (only needed fields)
+                    $userData = [
+                        'id' => $userId,
+                        'name' => $result['user']['name'] ?? '',
+                        'email' => $result['user']['email'] ?? '',
+                        'username' => $result['user']['username'] ?? '',
+                        'role' => (string) ($result['user']['role_name'] ?? $result['user']['role'] ?? 'user'),
+                        'role_id' => (int) ($result['user']['role_id'] ?? 0),
+                        'tenant_id' => (int) ($result['user']['tenant_id'] ?? 0),
+                        'is_owner' => (int) ($result['user']['is_owner'] ?? 0),
+                        'branch_id' => isset($result['user']['branch_id']) ? (int) $result['user']['branch_id'] : null,
+                        'status' => $result['user']['status'] ?? 'active',
+                        'is_setup_complete' => (int) ($result['is_setup_complete'] ?? 0),
+                    ];
+                    
+                    // Build response with both tokens
+                    $baseResponse = $this->jsonResponse($response, [
+                        'status'       => 'success',
+                        'message'      => 'Email verified successfully',
+                        'access_token' => $accessToken,
+                        'data' => [
+                            'user' => $userData,
+                            'is_setup_complete' => (bool) ($result['is_setup_complete'] ?? false),
+                        ],
+                    ], 200, false);
+                    
+                    // Set refresh token cookie in response
+                    $baseResponse = $authHandler->setRefreshTokenCookiePublic($baseResponse, $refreshToken);
+                    
+                    $this->logger->info('verifyEmail: auto-login tokens generated and stored successfully', [
+                        'user_id' => $userId,
+                        'access_token_length' => strlen($accessToken),
+                        'refresh_token_stored' => true,
                     ]);
+                    
+                    return $baseResponse;
+                } catch (\Throwable $e) {
+                    $this->logger->warning('verifyEmail: failed to generate auto-login tokens', [
+                        'user_id' => $result['user']['id'] ?? null,
+                        'error'   => $e->getMessage(),
+                        'trace'   => $e->getTraceAsString(),
+                    ]);
+                    
+                    // Fallback: return without refresh token
+                    return $this->jsonResponse($response, [
+                        'status'       => 'success',
+                        'message'      => 'Email verified successfully (access token only)',
+                        'access_token' => $accessToken,
+                        'data' => [
+                            'user' => $userData,
+                            'is_setup_complete' => (bool) ($result['is_setup_complete'] ?? false),
+                        ],
+                    ], 200, false);
                 }
+            } else {
+                $this->logger->warning('verifyEmail: auto-login conditions not met', [
+                    'purpose_match' => in_array($result['purpose'] ?? '', ['registration', 'email_change'], true),
+                    'purpose' => $result['purpose'] ?? 'null',
+                    'has_user' => !empty($result['user']),
+                ]);
             }
 
             return $this->jsonResponse($response, [
                 'status'       => 'success',
                 'message'      => 'Email verified successfully',
-                'data'         => $result,
                 'access_token' => $accessToken,
+                'data' => [
+                    'user' => $userData,
+                    'is_setup_complete' => (bool) ($result['is_setup_complete'] ?? false),
+                ],
             ], 200, false);
         } catch (Exception $e) {
             $msg = $e->getMessage();

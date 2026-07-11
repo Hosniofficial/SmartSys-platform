@@ -11,6 +11,7 @@ use App\Handlers\AnalyticsHandler;
 use App\Handlers\AuditHandler;
 use App\Handlers\AuditTrailHandler;
 use App\Handlers\AuthHandler;
+use App\Handlers\BootstrapHandler;
 use App\Handlers\BranchHandler;
 use App\Handlers\BranchInventoryReportHandler;
 use App\Handlers\CategoriesHandler;
@@ -235,6 +236,7 @@ return function (): Container {
     BranchInventoryReportHandler::class => fn(PDO $pdo) => new BranchInventoryReportHandler($pdo),
     StockAdjustmentHandler::class       => fn(PDO $pdo) => new StockAdjustmentHandler($pdo),
     StockTransferHandler::class         => fn(PDO $pdo) => new StockTransferHandler($pdo),
+    BootstrapHandler::class             => fn(PDO $pdo) => new BootstrapHandler($pdo),
 
     SetupHandler::class => fn(PDO $pdo) => new SetupHandler($pdo),
     OpeningBalanceHandler::class => fn(PDO $pdo) => new OpeningBalanceHandler($pdo),

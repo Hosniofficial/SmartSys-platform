@@ -671,6 +671,20 @@ class OpeningBalanceHandler extends BaseHandler
 
             // Per-branch JEs are created inside the items loop above
 
+            // ── Mark all posted products with opening_balance_posted = 1 ────────────
+            // This ensures ProductListResource correctly calculates gl_status = 'posted'
+            // (see ProductListResource::transform line 43-44)
+            $productIds = array_unique(array_map(fn($row) => (int)$row['product_id'], $items));
+            if (!empty($productIds)) {
+                $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+                $this->db->prepare("
+                    UPDATE products
+                    SET opening_balance_posted = 1,
+                        updated_at             = NOW()
+                    WHERE tenant_id = ? AND id IN ({$placeholders})
+                ")->execute(array_merge([$tenantId], $productIds));
+            }
+
             if ($transactionActive) {
                 $this->db->commit();
                 $transactionActive = false;

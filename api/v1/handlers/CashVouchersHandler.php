@@ -39,6 +39,12 @@ class CashVouchersHandler extends BaseHandler
             }
 
             $filters = $this->normalizeListFilters($request->getQueryParams());
+            $isExempt = $this->isCashierSessionExempt($request);
+
+            // Non-exempt users must have branch_id filter
+            if (!$isExempt && !$filters['branch_id']) {
+                return $this->errorResponse($response, 'مطلوب تحديد الفرع (branch_id) لعرض السندات.', 400);
+            }
 
             $sql = "
                 SELECT
@@ -58,6 +64,12 @@ class CashVouchersHandler extends BaseHandler
             ";
 
             $binds = [':tenant_id' => (int) $tenantId];
+
+            // Branch filtering: mandatory for non-exempt (checked above), optional for exempt
+            if ($filters['branch_id']) {
+                $sql .= " AND cv.branch_id = :branch_id";
+                $binds[':branch_id'] = $filters['branch_id'];
+            }
 
             if ($filters['type']) {
                 $sql .= " AND cv.type = :type";
@@ -385,6 +397,7 @@ class CashVouchersHandler extends BaseHandler
 
             $stmt = $this->db->prepare("
                 UPDATE cash_vouchers SET
+                    branch_id = :branch_id,
                     type = :type,
                     date = :date,
                     amount = :amount,
@@ -401,6 +414,7 @@ class CashVouchersHandler extends BaseHandler
             ");
 
             $stmt->execute([
+                ':branch_id' => $newVoucherData['branch_id'] ?? null,
                 ':type' => $newVoucherData['type'],
                 ':date' => $newVoucherData['date'],
                 ':amount' => $newVoucherData['amount'],
@@ -553,6 +567,7 @@ class CashVouchersHandler extends BaseHandler
     {
         return [
             'type' => $params['type'] ?? null,
+            'branch_id' => !empty($params['branch_id']) ? (int) $params['branch_id'] : null,
             'customer_id' => !empty($params['customer_id']) ? (int) $params['customer_id'] : null,
             'supplier_id' => !empty($params['supplier_id']) ? (int) $params['supplier_id'] : null,
             'date_from' => $params['start_date'] ?? ($params['from'] ?? null),

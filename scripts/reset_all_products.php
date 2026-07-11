@@ -9,7 +9,7 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/database.php';
 
 // ── إعدادات ────────────────────────────────────────────────────────────────
-const TENANT_ID = 39;
+const TENANT_ID = 47;  // ← تم التحديث ليطابق الـ Tenant الحالي
 $dryRun = isset($_GET['dry']) || isset($argv[1]) && $argv[1] === '--dry';
 $confirmed = isset($_GET['confirm']) || isset($argv[1]) && $argv[1] === '--confirm';
 

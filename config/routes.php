@@ -67,6 +67,9 @@ return function (App $app, Container $container): void {
         (require __DIR__ . '/../app/routes/terminals.php')($group, $container);
         (require __DIR__ . '/../app/routes/shifts.php')($group, $container);
 
+        // Bootstrap (Aggregated APIs for performance)
+        (require __DIR__ . '/../app/routes/bootstrap.php')($group, $container);
+        
         // Users
         (require __DIR__ . '/../app/routes/categories.php')($group, $container);
         (require __DIR__ . '/../app/routes/customers.php')($group, $container);

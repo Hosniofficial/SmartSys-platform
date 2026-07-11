@@ -247,7 +247,17 @@ class CustomersHandler extends BaseContactHandler
                             WHERE jel.account_id = c.account_id
                               AND jel.tenant_id = c.tenant_id
                         ), 0)
-                    ) AS balance
+                    ) AS balance,
+                    (
+                        COALESCE((
+                            SELECT SUM(r.grand_total)
+                            FROM returns r
+                            WHERE r.customer_id = c.id
+                              AND r.tenant_id = c.tenant_id
+                              AND r.return_type = 'sale'
+                              AND r.status IN ('approved', 'completed')
+                        ), 0)
+                    ) AS total_returns
                 FROM customers c
                 WHERE c.id = :id AND c.tenant_id = :tenant_id
                 LIMIT 1
@@ -260,6 +270,7 @@ class CustomersHandler extends BaseContactHandler
             }
 
             $customer['balance'] = (float)($customer['balance'] ?? 0);
+            $customer['total_returns'] = (float)($customer['total_returns'] ?? 0);
             return $this->successResponse($response, $customer, 200);
         } catch (\Throwable $e) {
             $this->logger->error('Get customer error', [
@@ -697,8 +708,9 @@ class CustomersHandler extends BaseContactHandler
                             $type        = 'فاتورة مبيعات';
                             $description = 'دين على العميل لفاتورة رقم ' . ($refNumber ?: $refId);
                         } else {
-                            $type        = 'دفعة أولى فاتورة';
-                            $description = 'تسوية دفعة أولى من العميل لفاتورة رقم ' . ($refNumber ?: $refId);
+                            // Check if it's a full or partial payment
+                            $type        = 'دفعة';
+                            $description = 'دفعة على فاتورة رقم ' . ($refNumber ?: $refId);
                         }
                         break;
 
@@ -710,11 +722,31 @@ class CustomersHandler extends BaseContactHandler
 
                     case 'return':
                         if ($credit > 0) {
-                            $type        = 'مرتجع مبيعات';
-                            $description = 'رد قيمة المرتجع للعميل رقم ' . ($refNumber ?: $refId);
+                            $type        = 'إشعار دائن';
+                            $description = 'إشعار دائن (مرتجع) رقم ' . ($refNumber ?: $refId);
                         } else {
-                            $type        = 'تسوية مرتجع نقدي';
-                            $description = 'صرف نقدي للعميل مقابل المرتجع رقم ' . ($refNumber ?: $refId);
+                            $type        = 'استرجاع نقدي';
+                            $description = 'استرداد قيمة مرتجع للعميل رقم ' . ($refNumber ?: $refId);
+                        }
+                        break;
+
+                    case 'sale_return':
+                        if ($credit > 0) {
+                            $type        = 'إشعار دائن';
+                            $description = 'إشعار دائن (مرتجع بيع) رقم ' . ($refNumber ?: $refId);
+                        } else {
+                            $type        = 'استرجاع نقدي';
+                            $description = 'استرداد قيمة مرتجع بيع للعميل رقم ' . ($refNumber ?: $refId);
+                        }
+                        break;
+
+                    case 'purchase_return':
+                        if ($credit > 0) {
+                            $type        = 'مرتجع مشتريات';
+                            $description = 'إشعار دائن لمرتجع مشتريات رقم ' . ($refNumber ?: $refId);
+                        } else {
+                            $type        = 'استرجاع مشتريات';
+                            $description = 'استرجاع نقدي لمرتجع شراء رقم ' . ($refNumber ?: $refId);
                         }
                         break;
 
@@ -891,7 +923,7 @@ class CustomersHandler extends BaseContactHandler
                 throw new \Exception('لم يتم العثور على حساب العميل.');
             }
 
-            $jeId = $acc->postPayment(
+            $jeId = $this->accounting->postPayment(
                 (int) $tenantId,
                 $paymentId,
                 $amount,

@@ -110,18 +110,6 @@ class RequestRateLimiter implements MiddlewareInterface
         return $this->withRateLimitHeaders($response, $limit, $remaining, $resetAfter);
     }
 
-    private function getClientIdentifier(Request $request): string
-    {
-        // Use IP address by default
-        $ip = $this->getClientIP($request);
-        
-        // For API keys or authenticated users, you might want to use their ID
-        $userId = $request->getAttribute('user_id') ?? 'anonymous';
-        
-        // Combine IP and user ID for more accurate rate limiting
-        return hash('sha256', $ip . '|' . $userId);
-    }
-
     private function getClientIP(Request $request): string
     {
         return RequestHelper::getClientIp($request, $this->trustProxy);

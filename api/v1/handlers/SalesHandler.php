@@ -16,6 +16,55 @@ use App\Handlers\AuditHandler;
 use App\Utils\PaginationHelper;
 use App\Repositories\SaleRepository;
 
+/**
+ * ──────────────────────────────────────────────────────────
+ * SALES HANDLER
+ * ──────────────────────────────────────────────────────────
+ *
+ * HTTP handler for all sales-related endpoints (list, get, create, update, delete,
+ * approve/reject, payments, pending approvals, and debt management).
+ *
+ * **Key Responsibilities**:
+ * - Invoice CRUD operations with atomic transactions
+ * - Approval workflow (pending, awaiting approval, approved, rejected)
+ * - Payment recording with Idempotency-Key support for duplicate prevention
+ * - Customer debt payment management with race condition prevention (SELECT FOR UPDATE)
+ * - COGS (Cost of Goods Sold) posting on approval via AccountingService
+ * - Multi-currency support via CurrencyService
+ * - Localized response labels (ar/en) via LabelService
+ * - Automatic invoice numbering and status calculation
+ *
+ * **Multi-Tenancy**:
+ * All queries filtered by tenant_id; authorization via RBACHandler for approval operations
+ * (permissions: 'sales.approval.approve', 'sales.approval.reject').
+ *
+ * **Dependencies**:
+ * - SalesService: Core business logic (CRUD, status transitions, cost calculations)
+ * - AccountingService: Journal entry posting for sales, COGS, and payments
+ * - NotificationHandler: Customer notifications on invoice status changes
+ * - RBACHandler: Role-based authorization for approval operations
+ * - MonologHandler: Entity-specific logging (sales channel)
+ * - LabelService: Localized reference and status labels
+ * - CurrencyService: Multi-currency handling
+ * - PaginationHelper: Query result pagination (limit, offset)
+ *
+ * **Status Transitions**:
+ * - pending_payment: New invoice, unpaid
+ * - partial: Partially paid
+ * - paid: Fully paid
+ * - pending_approval: Awaiting approval (if workflow enabled)
+ * - returned: Return amount exceeds invoice total
+ * - settled_by_return: Return credits cover remaining balance without full cash payment
+ *
+ * **HTTP Status Codes**:
+ * - 200: Success (GET, list, approve/reject operations)
+ * - 201: Created (POST operations)
+ * - 400: Bad Request (missing/invalid parameters)
+ * - 403: Forbidden (insufficient permissions, missing tenant_id)
+ * - 404: Not Found (invoice not found)
+ * - 409: Conflict (duplicate idempotency key)
+ * - 500: Server Error (database/transaction failures)
+ */
 class SalesHandler extends BaseHandler
 {
     private $rbac;
@@ -27,18 +76,64 @@ class SalesHandler extends BaseHandler
         $this->rbac   = new RBACHandler($db);
     }
 
-    // =========================================================
-    // LIST
-    // =========================================================
+    /**
+     * ──────────────────────────────────────────────────────────
+     * LIST OPERATIONS
+     * ──────────────────────────────────────────────────────────
+     */
 
-    private function determineSaleStatus(float $grandTotal, float $paidAmount, float $returnAmount = 0.0): string
+    private function determineSaleStatus(float $grandTotal, float $paidAmount, float $returnAmount = 0.0, float $returnCredits = 0.0, $createdAt = null, $firstPaymentDate = null, bool $hasDirectReturn = false): string
     {
-        if ($grandTotal <= 0)                 return 'paid';
-        if ($returnAmount >= $grandTotal)     return 'returned';
-        if ($paidAmount <= 0)                 return 'pending_payment';
-        return $paidAmount >= $grandTotal     ? 'paid' : 'partial';
+        if ($grandTotal <= 0) {
+            return 'paid';
+        }
+
+        if ($returnAmount >= $grandTotal) {
+            return 'returned';
+        }
+
+        $outstanding = max(0.0, round($grandTotal - $paidAmount - $returnCredits, 2));
+
+        if ($outstanding < 0.01) {
+            // Fully paid by cash only, possibly with later return
+            if ($paidAmount >= $grandTotal - 0.01) {
+                return $hasDirectReturn || $returnAmount > 0.01 ? 'returned' : 'paid';
+            }
+
+            // Fully settled by credit note only (no cash paid)
+            if ($paidAmount < 0.01) {
+                if ($returnCredits > 0.01 && !$hasDirectReturn) {
+                    return 'settled_by_credit';
+                }
+                return 'closed_by_return';
+            }
+
+            // Mixed settlement: some cash + some return credit
+            if ($returnCredits > 0.01 && $paidAmount > 0.01) {
+                return 'settled_mixed';
+            }
+
+            return 'closed_by_return';
+        }
+
+        if ($paidAmount <= 0) {
+            return 'pending_payment';
+        }
+
+        // Partial settlement
+        return 'partial';
     }
 
+    /**
+     * List sales with filtering, pagination and optional totals.
+     *
+     * Query parameters supported: q, customer_id, status, date_from, date_to,
+     * branch_id, sort, order, include_totals, page, per_page
+     *
+     * @param Request $request PSR-7 request
+     * @param Response $response PSR-7 response
+     * @return Response
+     */
     public function list(Request $request, Response $response): Response
     {
         try {
@@ -125,7 +220,15 @@ class SalesHandler extends BaseHandler
                                     AND pm.status = 'completed'), 0) AS actual_paid_amount,
                         COALESCE((SELECT SUM(r.grand_total) FROM returns r
                                   WHERE r.sale_id = s.id AND r.tenant_id = s.tenant_id
-                                    AND r.return_type = 'sale'), 0)  AS return_amount
+                                    AND r.return_type = 'sale'), 0)  AS return_amount,
+                        COALESCE((SELECT SUM(rca.allocated_amount) FROM return_credit_allocations rca
+                                  WHERE rca.sale_id = s.id AND rca.tenant_id = s.tenant_id), 0) AS return_credits,
+                        (SELECT MIN(pm.payment_date) FROM payments pm
+                         WHERE pm.sale_id = s.id AND pm.tenant_id = s.tenant_id
+                           AND pm.status = 'completed' LIMIT 1) AS first_payment_date,
+                        (SELECT GROUP_CONCAT(r.id) FROM returns r
+                         WHERE r.sale_id = s.id AND r.tenant_id = s.tenant_id
+                           AND r.return_type = 'sale') AS return_ids
                  " . $from . $whereSql . "
                  ORDER BY {$sortCol} {$order}
                  LIMIT {$perPage} OFFSET {$offset}"
@@ -137,11 +240,14 @@ class SalesHandler extends BaseHandler
                 $grandTotal    = round((float)($row['net_total_amount'] ?? 0) + (float)($row['tax_amount'] ?? 0), 2);
                 $actualPaid    = round((float)$row['actual_paid_amount'], 2);
                 $returnAmount  = round((float)($row['return_amount'] ?? 0), 2);
+                $returnCredits = round((float)($row['return_credits'] ?? 0), 2);
                 $isReturned    = $grandTotal > 0 && $returnAmount >= $grandTotal;
+                $hasDirectReturn = !empty($row['return_ids']);  // ← يحدد ما إذا كان هناك مرتجع مباشر
+                
                 $row['actual_paid_amount']  = $actualPaid;
                 $row['return_amount']       = $returnAmount;
-                $row['remaining_balance']   = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid, 2));
-                $row['dynamic_status']      = $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount);
+                $row['remaining_balance'] = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid - $returnCredits, 2));
+                $row['dynamic_status']      = $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount, $returnCredits, $row['created_at'], $row['first_payment_date'], $hasDirectReturn);
                 $items[] = $row;
             }
 
@@ -184,6 +290,14 @@ class SalesHandler extends BaseHandler
     // GET SINGLE
     // =========================================================
 
+    /**
+     * Get single sale details including items, payments and dynamic status.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args Route arguments (expects 'id')
+     * @return Response
+     */
     public function get(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -246,12 +360,36 @@ class SalesHandler extends BaseHandler
             );
             $stmtReturn->execute([$id, $tenantId]);
             $returnAmount = round((float) $stmtReturn->fetchColumn(), 2);
+            
+            $stmtReturnCredits = $this->db->prepare(
+                "SELECT COALESCE(SUM(allocated_amount), 0) FROM return_credit_allocations
+                 WHERE sale_id = ? AND tenant_id = ?"
+            );
+            $stmtReturnCredits->execute([$id, $tenantId]);
+            $returnCredits = round((float) $stmtReturnCredits->fetchColumn(), 2);
+            
+            // ✅ تحديد ما إذا كان هناك مرتجع مباشر على هذه الفاتورة
+            $stmtDirectReturns = $this->db->prepare(
+                "SELECT COUNT(*) FROM returns
+                 WHERE sale_id = ? AND tenant_id = ? AND return_type = 'sale'"
+            );
+            $stmtDirectReturns->execute([$id, $tenantId]);
+            $hasDirectReturn = (int)$stmtDirectReturns->fetchColumn() > 0;
+            
+            // Get first payment date for accurate status determination
+            $stmtFirstPayment = $this->db->prepare(
+                "SELECT MIN(payment_date) FROM payments
+                 WHERE sale_id = ? AND tenant_id = ? AND status = 'completed' LIMIT 1"
+            );
+            $stmtFirstPayment->execute([$id, $tenantId]);
+            $firstPaymentDate = $stmtFirstPayment->fetchColumn();
+            
             $isReturned   = $grandTotal > 0 && $returnAmount >= $grandTotal;
 
             $sale['actual_paid_amount'] = $actualPaid;
             $sale['return_amount']      = $returnAmount;
-            $sale['remaining_balance']  = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid, 2));
-            $sale['dynamic_status']     = $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount);
+            $sale['remaining_balance'] = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid - $returnCredits, 2));
+            $sale['dynamic_status']     = $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount, $returnCredits, $sale['created_at'], $firstPaymentDate, $hasDirectReturn);
 
             return $this->successResponse($response, $sale, 200);
         } catch (\Throwable $e) {
@@ -263,11 +401,22 @@ class SalesHandler extends BaseHandler
             return $this->errorResponse($response, 'Failed to retrieve sale details', 500);
         }
     }
-// =========================================================
-// PENDING APPROVALS
-// =========================================================
 
-public function pendingApprovals(Request $request, Response $response): Response
+    /**
+     * ──────────────────────────────────────────────────────────
+     * RETRIEVAL OPERATIONS
+     * ──────────────────────────────────────────────────────────
+     */
+
+    /**
+     * Return sales that are pending approval.
+     * Supports pagination and includes payment method resolution.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
+    public function pendingApprovals(Request $request, Response $response): Response
 {
     try {
         $tenantId = $this->extractTenantId($request);
@@ -355,10 +504,15 @@ public function pendingApprovals(Request $request, Response $response): Response
         return $this->errorResponse($response, 'Failed to retrieve pending approvals', 500);
     }
 }
-    // =========================================================
-    // CREATE
-    // =========================================================
 
+    /**
+     * Create a new sale (invoice).
+     * Validates tenant context, applies default cost centers and delegates to service layer.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
     public function create(Request $request, Response $response): Response
     {
         try {
@@ -411,6 +565,19 @@ public function pendingApprovals(Request $request, Response $response): Response
                 'message' => 'تم إنشاء الفاتورة بنجاح',
                 'id'      => $saleId,
             ]), 201);
+        } catch (\App\Exceptions\InsufficientStockException $e) {
+            // ✅ معالجة خاصة لخطأ المخزون غير الكافي
+            $this->logger->warning('Sales invoice creation failed - insufficient stock', [
+                'product_id' => $e->productId,
+                'available_qty' => $e->availableQty,
+                'requested_qty' => $e->requestedQty,
+                'tenant_id' => $tenantId ?? 'unknown',
+                'user_id' => $userId ?? 'unknown'
+            ]);
+
+            return $response->withStatus(409)
+                ->withHeader('Content-Type', 'application/json')
+                ->write(json_encode($e->toArray(), JSON_UNESCAPED_UNICODE));
         } catch (\Throwable $e) {
             $this->logger->error('Sales invoice creation failed', [
                 'message' => $e->getMessage(),
@@ -424,10 +591,15 @@ public function pendingApprovals(Request $request, Response $response): Response
         }
     }
 
-    // =========================================================
-    // APPROVE
-    // =========================================================
-
+    /**
+     * Approve a sale invoice. Requires RBAC permission 'sales.approval.approve'.
+     * Delegates to service layer and ensures COGS journal posting after approval.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => sale_id
+     * @return Response
+     */
     public function approve(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -470,16 +642,14 @@ public function pendingApprovals(Request $request, Response $response): Response
                 'payment_override' => $paymentOverride,
             ]);
 
-            // ── Atomic approval: approveSale + COGS in one transaction ────────
-            // TransactionManager inside approveSale owns the transaction.
-            // We do NOT open a separate beginTransaction() here to avoid nesting.
+            // Atomic workflow: Service layer owns transaction for approval; we then post COGS independently.
+            // TransactionManager ensures approveSale commits before COGS posting to avoid nesting issues.
             $svc = $this->services->saleApproval((int) $tenantId, $userId);
 
             try {
                 $res = $svc->approveSale($tenantId, $saleId, $note, $paymentOverride);
 
-                // postCOGSForSale — called after approveSale commits its transaction.
-                // Runs in its own transaction via postJournalEntry's $ownTransaction check.
+                // Post COGS after approval is committed. This runs in its own transaction to prevent nesting.
                 $this->accounting->postCOGSForSale($tenantId, $saleId, $userId ? (int) $userId : null);
 
                 $this->logger->info('Sales invoice approved + COGS posted', [
@@ -500,7 +670,7 @@ public function pendingApprovals(Request $request, Response $response): Response
                     'user_id'   => $userId,
                 ]);
 
-                // Surface a clear message — don't expose internal details in production
+                // Return environment-appropriate error message (verbose for dev, generic for production)
                 $userMessage = (($_ENV['APP_ENV'] ?? 'production') === 'development')
                     ? 'فشل اعتماد الفاتورة: ' . $e->getMessage()
                     : 'فشل اعتماد الفاتورة. يُرجى التحقق من إعدادات الحسابات المحاسبية (COGS / المخزون) ثم المحاولة مجدداً.';
@@ -513,6 +683,20 @@ public function pendingApprovals(Request $request, Response $response): Response
                 'data'    => $res,
             ], 200);
 
+        } catch (\App\Exceptions\InsufficientStockException $e) {
+            // ✅ معالجة خاصة لخطأ المخزون غير الكافي عند الموافقة
+            $this->logger->warning('Sales approval failed - insufficient stock', [
+                'product_id' => $e->productId,
+                'available_qty' => $e->availableQty,
+                'requested_qty' => $e->requestedQty,
+                'tenant_id' => $tenantId ?? 'unknown',
+                'sale_id' => $saleId ?? 'unknown',
+                'user_id' => $userId ?? 'unknown'
+            ]);
+
+            return $response->withStatus(409)
+                ->withHeader('Content-Type', 'application/json')
+                ->write(json_encode($e->toArray(), JSON_UNESCAPED_UNICODE));
         } catch (\Throwable $e) {
             $this->logger->error('Sales invoice approval failed (outer)', [
                 'message'   => $e->getMessage(),
@@ -524,6 +708,14 @@ public function pendingApprovals(Request $request, Response $response): Response
         }
     }
 
+    /**
+     * Reject a sale invoice. Requires RBAC permission 'sales.approval.reject'.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => sale_id
+     * @return Response
+     */
     public function reject(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -601,6 +793,15 @@ public function pendingApprovals(Request $request, Response $response): Response
     // UPDATE
     // =========================================================
 
+    /**
+     * Update sale invoice data (partial updates supported).
+     * Delegates validation and business rules to service layer.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => sale_id
+     * @return Response
+     */
     public function update(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -654,10 +855,15 @@ public function pendingApprovals(Request $request, Response $response): Response
         }
     }
 
-    // =========================================================
-    // UPDATE STATUS
-    // =========================================================
-
+    /**
+     * Update only the status of a sale (e.g., cancel, mark shipped).
+     * Validates transitions and notifies interested parties.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => sale_id
+     * @return Response
+     */
     public function updateStatus(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -701,7 +907,7 @@ public function pendingApprovals(Request $request, Response $response): Response
         } catch (\App\Exceptions\NotFoundException $e) {
             return $this->errorResponse($response, $e->getMessage(), 404);
         } catch (\InvalidArgumentException | \Exception $e) {
-            // Business rule violations (invalid status, forbidden transition)
+            // Business validation errors: invalid status value or forbidden state transition
             return $this->errorResponse($response, $e->getMessage(), 422);
         } catch (\Throwable $e) {
             $this->logger->error('Sale status update failed', [
@@ -713,12 +919,21 @@ public function pendingApprovals(Request $request, Response $response): Response
         }
     }
 
-    // =========================================================
-    // DELETE
-    // =========================================================
-
+    /**
+     * Delete (cancel) a sale invoice. Performs RBAC checks and delegates
+     * business logic to service layer.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args expects ['id'] => sale_id
+     * @return Response
+     */
     public function delete(Request $request, Response $response, array $args = []): Response
 {
+    $tenantId = null;
+    $saleId = null;
+    $userId = null;
+    
     try {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
@@ -763,20 +978,25 @@ public function pendingApprovals(Request $request, Response $response): Response
         $this->logger->error('Sales invoice deletion failed', [
             'message' => $e->getMessage(),
             'trace' => $e->getTraceAsString(),
-            'tenant_id' => $tenantId,
-            'sale_id' => $saleId,
-            'user_id' => $userId
+            'tenant_id' => $tenantId ?? 'unknown',
+            'sale_id' => $saleId ?? 'unknown',
+            'user_id' => $userId ?? 'unknown'
         ]);
 
         return $this->errorResponse($response, 'فشل في حذف الفاتورة', 400);
     }
 }
 
-// =========================================================
-// PAY CUSTOMER DEBT
-// =========================================================
-
-public function payDebt(Request $request, Response $response): Response
+    /**
+     * Pay outstanding customer debt across multiple invoices.
+     * Supports idempotency via `Idempotency-Key` header and validates
+     * outstanding balance with a FOR UPDATE lock.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
+    public function payDebt(Request $request, Response $response): Response
 {
     try {
         $tenantId = $this->extractTenantId($request);
@@ -797,8 +1017,9 @@ public function payDebt(Request $request, Response $response): Response
             return $this->errorResponse($response, 'customer_id و amount و payment_method_id مطلوبة', 400);
         }
 
-        // ── Idempotency check ─────────────────────────────────────────────
+        // Support idempotency via header to prevent duplicate payments from retries
         $idemKey = trim($request->getHeaderLine('Idempotency-Key'));
+        $idem = null;
         if ($idemKey !== '') {
             $idem   = new \App\Services\IdempotencyService($this->db);
             $cached = $idem->check($tenantId, $idemKey);
@@ -811,9 +1032,8 @@ public function payDebt(Request $request, Response $response): Response
             }
         }
 
-        // ── Outstanding balance validation ────────────────────────────────
-        // Fetch the customer's total outstanding balance (sum of unpaid invoices).
-        // We use FOR UPDATE to lock the rows and prevent concurrent over-payment.
+        // Validate customer's outstanding balance with FOR UPDATE lock to prevent race conditions
+        // This ensures we cannot process a payment exceeding the customer's total debt
         $this->db->beginTransaction();
         try {
             $balStmt = $this->db->prepare("
@@ -821,16 +1041,29 @@ public function payDebt(Request $request, Response $response): Response
                     SUM(
                         ROUND(net_total_amount + IFNULL(tax_amount, 0), 2)
                         - IFNULL(paid_amount, 0)
+                        - COALESCE(rca_sum, 0)
                     ), 0
                 ) AS outstanding
-                FROM sales
-                WHERE tenant_id   = ?
-                  AND customer_id = ?
-                  AND status NOT IN ('canceled', 'rejected', 'draft')
-                  AND ROUND(net_total_amount + IFNULL(tax_amount, 0), 2) > IFNULL(paid_amount, 0)
+                FROM (
+                    SELECT 
+                        s.id,
+                        s.net_total_amount,
+                        s.tax_amount,
+                        s.paid_amount,
+                        COALESCE(SUM(rca.allocated_amount), 0) AS rca_sum
+                    FROM sales s
+                    LEFT JOIN return_credit_allocations rca ON rca.sale_id = s.id 
+                        AND rca.tenant_id = s.tenant_id
+                    WHERE s.tenant_id = ?
+                      AND s.customer_id = ?
+                      AND s.status NOT IN ('canceled', 'rejected', 'draft')
+                    GROUP BY s.id
+                    HAVING ROUND(net_total_amount + IFNULL(tax_amount, 0), 2) 
+                        > IFNULL(paid_amount, 0) + COALESCE(SUM(rca.allocated_amount), 0)
+                ) AS filtered_sales
                 FOR UPDATE
             ");
-            $balStmt->execute([$tenantId, $customerId]);
+            $balStmt->execute([$tenantId, $customerId, $tenantId, $customerId]);
             $outstanding = round((float) $balStmt->fetchColumn(), 2);
 
             if ($amount > $outstanding + 0.01) {
@@ -847,7 +1080,7 @@ public function payDebt(Request $request, Response $response): Response
                 );
             }
 
-            $this->db->rollBack(); // Release the FOR UPDATE lock — actual work done in SalesService
+            $this->db->rollBack(); // Release lock; service layer performs actual payment processing
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -855,7 +1088,7 @@ public function payDebt(Request $request, Response $response): Response
             throw $e;
         }
 
-        // ── Process payment ───────────────────────────────────────────────
+        // Delegate payment processing to service layer
         $svc    = $this->services->salePayment($userId);
         $result = $svc->payCustomerDebt(
             $tenantId,
@@ -872,7 +1105,7 @@ public function payDebt(Request $request, Response $response): Response
             'data'    => $result,
         ];
 
-        // ── Store idempotency result ──────────────────────────────────────
+        // Cache idempotent response for retry scenarios
         if ($idemKey !== '') {
             $paymentId = (int) ($result['payment_id'] ?? 0);
             $idem->store($tenantId, $idemKey, $paymentId, $responseData);
@@ -891,11 +1124,16 @@ public function payDebt(Request $request, Response $response): Response
     }
 }
 
-// =========================================================
-// ADD SALES PAYMENT
-// =========================================================
-
-public function addSalesPayment(Request $request, Response $response): Response
+    /**
+     * Add a payment to a specific sale (invoice).
+     * Validates the payment amount against remaining balance and delegates
+     * to payment service which creates payment and accounting journal.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
+    public function addSalesPayment(Request $request, Response $response): Response
 {
     $tenantId = $this->extractTenantId($request);
     if (!$tenantId) {
@@ -915,7 +1153,7 @@ public function addSalesPayment(Request $request, Response $response): Response
     try {
         $userId = $this->extractUserId($request) ?? null;
 
-        // ── Validation ────────────────────────────────────────────────────
+        // Verify sale exists and validate payment amount against remaining balance
         $stmt = $this->db->prepare("
             SELECT branch_id, status,
                    ROUND(net_total_amount + IFNULL(tax_amount, 0), 2) AS grand_total,
@@ -935,7 +1173,22 @@ public function addSalesPayment(Request $request, Response $response): Response
         }
 
         $paymentAmt    = round((float) $data['amount'], 2);
-        $saleRemaining = round((float) $saleRow['grand_total'] - (float) $saleRow['paid_amount'], 2);
+        
+        // ✅ CRITICAL FIX: Calculate return_credit_allocations to prevent double-paying settled invoices
+        // Example: Invoice=1000, paid_amount=0, return_credits=1000 → saleRemaining should be 0, not 1000
+        $stmtCredits = $this->db->prepare(
+            "SELECT COALESCE(SUM(allocated_amount), 0) AS return_credits
+             FROM return_credit_allocations
+             WHERE sale_id = ? AND tenant_id = ?"
+        );
+        $stmtCredits->execute([$data['sale_id'], $tenantId]);
+        $returnCredits = round((float) $stmtCredits->fetchColumn(), 2);
+        
+        $saleRemaining = max(0, round(
+            (float) $saleRow['grand_total'] - (float) $saleRow['paid_amount'] - $returnCredits,
+            2
+        ));
+        
         if ($paymentAmt > $saleRemaining + 0.01) {
             return $this->errorResponse($response, "الدفعة ({$paymentAmt}) تتجاوز المبلغ المتبقي ({$saleRemaining})", 400);
         }
@@ -943,7 +1196,7 @@ public function addSalesPayment(Request $request, Response $response): Response
 
         $branchId = $saleRow['branch_id'] ?? null;
 
-        // ── تفويض للـ Service ─────────────────────────────────────────────
+        // Delegate to service layer for payment creation and accounting entries
         $svc    = $this->services->salePayment($userId);
         $result = $svc->addSalePayment(
             (int) $tenantId,

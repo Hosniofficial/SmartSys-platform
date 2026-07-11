@@ -318,7 +318,12 @@ class EmailVerificationService
 
     private function getUserById(int $userId): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
+        $stmt = $this->db->prepare("
+            SELECT u.*, r.name AS role_name
+            FROM users u
+            LEFT JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ? LIMIT 1
+        ");
         $stmt->execute([$userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;

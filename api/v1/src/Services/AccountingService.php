@@ -1192,21 +1192,12 @@ class AccountingService
                 if ($requestedDeduction <= 0) {
                     $remainingAmount = 0.0;
                 } elseif (in_array(strtolower($refundMode), ['deduct_and_return', 'auto'], true)) {
+                    // استخدم $deductFromCustomerBalance المحسوبة بالفعل في ReturnService
+                    // لا تعيد الحساب من الـ DB — هذا يضمن توافق البيانات بين الطبقتين
                     if ($deductFromCustomerBalance > 0) {
                         $remainingAmount = round($deductFromCustomerBalance, 2);
                     } else {
-                        $customerTotalOutstanding = 0.0;
-                        if ($partyId) {
-                            try {
-                                $stmt = $this->db->prepare(
-                                    "SELECT COALESCE(SUM((net_total_amount + IFNULL(tax_amount,0)) - IFNULL(paid_amount,0)), 0)
-                                     FROM sales WHERE customer_id = ? AND tenant_id = ?"
-                                );
-                                $stmt->execute([$partyId, $tenantId]);
-                                $customerTotalOutstanding = (float) $stmt->fetchColumn();
-                            } catch (\Throwable $e) {}
-                        }
-                        $remainingAmount = round(min($requestedDeduction, max(0, $customerTotalOutstanding)), 2);
+                        $remainingAmount = 0.0;
                     }
                 } else {
                     $remainingAmount = round($requestedDeduction, 2);
@@ -1446,14 +1437,44 @@ class AccountingService
 
         $entryDate = substr($paymentDate, 0, 10) ?: date('Y-m-d');
 
+        // Fetch sale to determine if payment is full or partial
+        $saleStmt = $this->db->prepare("
+            SELECT 
+                invoice_number,
+                (net_total_amount + IFNULL(tax_amount, 0)) AS grand_total,
+                IFNULL(paid_amount, 0) AS current_paid_amount
+            FROM sales 
+            WHERE id = ? AND tenant_id = ?
+            LIMIT 1
+        ");
+        $saleStmt->execute([$saleId, $tenantId]);
+        $sale = $saleStmt->fetch(\PDO::FETCH_ASSOC);
+
+        // Build description based on payment type
+        $paymentDescription = 'تسديد جزء من الفاتورة';
+        if ($sale) {
+            $invoiceNumber = $sale['invoice_number'] ?? "#{$saleId}";
+            $currentOutstanding = (float)$sale['grand_total'] - (float)$sale['current_paid_amount'];
+            
+            // Check if this payment will complete the invoice
+            $totalAfterPayment = (float)$sale['current_paid_amount'] + $amount;
+            $isFullPayment = (abs($totalAfterPayment - (float)$sale['grand_total']) < 0.01);
+            
+            if ($isFullPayment) {
+                $paymentDescription = 'سداد فاتورة رقم ' . $invoiceNumber;
+            } else {
+                $paymentDescription = 'دفعة جزئية لفاتورة رقم ' . $invoiceNumber;
+            }
+        }
+
         $journalEntryId = $this->postJournalEntry(
             $tenantId,
             'sale_payment',
             $saleId,
-            "دفعة إضافية على فاتورة مبيعات رقم #{$saleId}",
+            $paymentDescription,
             [
-                ['account_id' => $liquidityAccountId, 'debit' => $amount, 'credit' => 0,      'description' => 'تحصيل دفعة إضافية'],
-                ['account_id' => $arAccountId,        'debit' => 0,       'credit' => $amount, 'description' => 'تسديد جزء من الفاتورة'],
+                ['account_id' => $liquidityAccountId, 'debit' => $amount, 'credit' => 0,      'description' => 'تحصيل دفعة'],
+                ['account_id' => $arAccountId,        'debit' => 0,       'credit' => $amount, 'description' => $paymentDescription],
             ],
             $entryDate,
             $userId,

@@ -244,11 +244,15 @@ class ReturnService
     /**
      * توزيع مبلغ خصم من رصيد العميل (من مرتجع مبيعات) على فواتير المبيعات المستحقة.
      *
+     * المنطق الصحيح:
+     * - المرتجع يخصم الدين (outstanding)، لا يعني أموال دُفعت
+     * - paid_amount = الأموال المدفوعة فعلاً (نقود أو تحويل)
+     * - المرتجع يقلل الدين فقط، بدون تحديث paid_amount
+     *
      * الأولوية: الفاتورة الأصلية المرتبطة بالمرتجع أولاً، ثم أقدم الفواتير المفتوحة.
      *
-     * @param int        $tenantId              معرف المستأجر
      * @param int        $customerId            معرف العميل
-     * @param float      $amountToAllocate      المبلغ المراد توزيعه
+     * @param float      $amountToAllocate      المبلغ المراد توزيعه (المرتجع)
      * @param int|null   $originalSaleId        الفاتورة الأصلية للمرتجع (أولوية عليا)
      * @param int|null   $paymentId             معرف الدفعة المرتبطة (لتسجيل payment_applications)
      * @param int|null   $createdBy             معرف المستخدم المنفّذ
@@ -258,7 +262,8 @@ class ReturnService
         float $amountToAllocate,
         ?int  $originalSaleId = null,
         ?int  $paymentId      = null,
-        ?int  $createdBy      = null
+        ?int  $createdBy      = null,
+        ?int  $returnId       = null
     ): void {
         if ($amountToAllocate <= 0) {
             return;
@@ -266,45 +271,99 @@ class ReturnService
 
         $tenantId   = $this->tenantId;
         $toAllocate = $amountToAllocate;
+        $settledInvoiceIds = []; // Track invoices that became fully paid
 
         try {
+            /**
+             * IMPORTANT: We do NOT update sales.paid_amount
+             * 
+             * Why? A return is a CREDIT NOTE that reduces the debt (outstanding),
+             * not an actual payment. paid_amount should only increase when real money
+             * is received (cash or bank transfer).
+             * 
+             * We only record payment_applications for audit trail purposes.
+             */
+            
             // 1. الفاتورة الأصلية أولاً
             if ($originalSaleId !== null) {
+                // ✅ FIXED: Lock actual row with FOR UPDATE on sales table directly
                 $stmt = $this->db->prepare("
-                    SELECT net_total_amount + IFNULL(tax_amount, 0) AS grand_total, paid_amount
-                    FROM sales
-                    WHERE id = ? AND tenant_id = ?
+                    SELECT s.id,
+                           s.net_total_amount + IFNULL(s.tax_amount, 0) AS grand_total,
+                           s.paid_amount
+                    FROM sales s
+                    WHERE s.id = ? AND s.tenant_id = ?
                     FOR UPDATE
                 ");
                 $stmt->execute([$originalSaleId, $tenantId]);
                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
                 if ($row) {
-                    $outstanding = max(0, (float) $row['grand_total'] - (float) $row['paid_amount']);
-                    $apply       = min($toAllocate, $outstanding);
+                    // ✅ FIXED: Calculate return_credits separately (no duplication, safe calculation)
+                    $rcStmt = $this->db->prepare("
+                        SELECT COALESCE(SUM(allocated_amount), 0) AS return_credits
+                        FROM return_credit_allocations
+                        WHERE sale_id = ? AND tenant_id = ?
+                    ");
+                    $rcStmt->execute([$originalSaleId, $tenantId]);
+                    $rcRow = $rcStmt->fetch(\PDO::FETCH_ASSOC);
+                    $returnCredits = (float) ($rcRow['return_credits'] ?? 0.0);
+                    
+                    $outstanding = max(0, (float) $row['grand_total'] - (float) $row['paid_amount'] - $returnCredits);
+                    
+                    // For returns (returnId !== null), allocate to the original invoice
+                    // BUT: only allocate up to the outstanding amount
+                    // If outstanding=0 (fully paid), don't allocate here; let excess go to other invoices
+                    // This ensures proper FIFO distribution when return has excess amount
+                    if ($returnId !== null) {
+                        $apply = min($toAllocate, max(0, $outstanding));
+                    } else {
+                        $apply = min($toAllocate, $outstanding);
+                    }
 
                     if ($apply > 0) {
-                        $this->db->prepare(
-                            "UPDATE sales SET paid_amount = paid_amount + ? WHERE id = ? AND tenant_id = ?"
-                        )->execute([$apply, $originalSaleId, $tenantId]);
-
-                        $this->insertPaymentApplication($paymentId, 'sale', $originalSaleId, $apply, $createdBy);
+                        // ✓ Record the allocation for audit trail ONLY
+                        // ✗ DO NOT update paid_amount
+                        // The return reduces the debt, not the payment amount
+                        
+                        // ✅ Check if this is a return credit or cash payment
+                        if ($returnId !== null) {
+                            // Return credit allocation — register in return_credit_allocations
+                            $this->insertReturnCreditAllocation((int) $returnId, (int) $originalSaleId, $apply, $createdBy);
+                        } else {
+                            // Cash payment allocation — register in payment_applications
+                            $this->insertPaymentApplication($paymentId, 'sale', $originalSaleId, $apply, $createdBy);
+                        }
+                        
                         $toAllocate -= $apply;
+                        
+                        // ✅ Track if invoice became fully paid
+                        // Use the calculated value directly - don't re-query payment_applications
+                        $newOutstanding = $outstanding - $apply;
+                        if ($newOutstanding <= 0.01) {
+                            $settledInvoiceIds[] = [
+                                'id' => $originalSaleId,
+                                'newOutstanding' => $newOutstanding
+                            ];
+                        }
                     }
                 }
             }
 
             // 2. باقي الفواتير المفتوحة بالترتيب الزمني
             if ($toAllocate > 0) {
+                // ✅ FIXED: Query locks actual sales rows (not derived table)
+                // Removed subquery to ensure FOR UPDATE locks real rows
                 $stmt = $this->db->prepare("
-                    SELECT id,
-                           (net_total_amount + IFNULL(tax_amount, 0)) AS grand_total,
-                           paid_amount
-                    FROM sales
-                    WHERE customer_id = ?
-                      AND tenant_id   = ?
-                      AND (net_total_amount + IFNULL(tax_amount, 0) - IFNULL(paid_amount, 0)) > 0
-                    ORDER BY sale_date ASC, id ASC
+                    SELECT s.id,
+                           s.net_total_amount + IFNULL(s.tax_amount, 0) AS grand_total,
+                           s.paid_amount,
+                           s.sale_date
+                    FROM sales s
+                    WHERE s.customer_id = ?
+                      AND s.tenant_id = ?
+                      AND (s.net_total_amount + IFNULL(s.tax_amount, 0) - IFNULL(s.paid_amount, 0)) > 0
+                    ORDER BY s.sale_date ASC, s.id ASC
                     FOR UPDATE
                 ");
                 $stmt->execute([$customerId, $tenantId]);
@@ -318,18 +377,115 @@ class ReturnService
                         continue;
                     }
 
-                    $outstanding = max(0, (float) $r['grand_total'] - (float) $r['paid_amount']);
+                    // ✅ FIXED: Calculate return_credits for this invoice separately (single point of calculation)
+                    $rcStmt = $this->db->prepare("
+                        SELECT COALESCE(SUM(allocated_amount), 0) AS return_credits
+                        FROM return_credit_allocations
+                        WHERE sale_id = ? AND tenant_id = ?
+                    ");
+                    $rcStmt->execute([$r['id'], $tenantId]);
+                    $rcRow = $rcStmt->fetch(\PDO::FETCH_ASSOC);
+                    $returnCredits = (float) ($rcRow['return_credits'] ?? 0.0);
+                    
+                    $outstanding = max(0, (float) $r['grand_total'] - (float) $r['paid_amount'] - $returnCredits);
                     if ($outstanding <= 0) continue;
 
                     $apply = min($toAllocate, $outstanding);
                     if ($apply <= 0) continue;
 
-                    $this->db->prepare(
-                        "UPDATE sales SET paid_amount = paid_amount + ? WHERE id = ? AND tenant_id = ?"
-                    )->execute([$apply, $r['id'], $tenantId]);
-
-                    $this->insertPaymentApplication($paymentId, 'sale', (int) $r['id'], $apply, $createdBy);
+                    // ✓ Record the allocation for audit trail
+                    // If returnId is provided, register in return_credit_allocations (NOT payment_applications)
+                    // Otherwise, use payment_applications for cash payments
+                    if ($returnId !== null) {
+                        // Return credit allocation — separate from cash payments
+                        $this->insertReturnCreditAllocation((int) $returnId, (int) $r['id'], $apply, $createdBy);
+                    } else {
+                        // Cash payment allocation
+                        $this->insertPaymentApplication($paymentId, 'sale', (int) $r['id'], $apply, $createdBy);
+                    }
+                    
                     $toAllocate -= $apply;
+                    
+                    // ✅ Track if invoice became fully paid
+                    // Use the calculated value directly - don't re-query payment_applications
+                    $newOutstanding = $outstanding - $apply;
+                    if ($newOutstanding <= 0.01) {
+                        $settledInvoiceIds[] = [
+                            'id' => (int) $r['id'],
+                            'newOutstanding' => $newOutstanding
+                        ];
+                    }
+                }
+            }
+            
+            // ✅ Update status for fully settled invoices
+            // Use the calculated outstanding values - DO NOT re-query payment_applications
+            // Payment applications may not exist if $paymentId is null (audit-only)
+            if (!empty($settledInvoiceIds)) {
+                try {
+                    // 🔑 CRITICAL: Determine settlement type
+                    // - If paymentId is null OR payment is a refund → 'closed_by_return' (settled by credit note)
+                    // - If paymentId is actual payment (type='payment') → 'paid' (actual cash received)
+                    $settlementType = 'closed_by_return'; // Default: settled by return credit
+                    
+                    if ($paymentId !== null) {
+                        $stmt = $this->db->prepare(
+                            "SELECT payment_type FROM payments WHERE id = ? AND tenant_id = ?"
+                        );
+                        $stmt->execute([$paymentId, $tenantId]);
+                        $paymentType = $stmt->fetchColumn();
+                        
+                        // Only mark as 'paid' if this is an actual cash/bank payment
+                        if ($paymentType === 'payment') {
+                            $settlementType = 'paid';
+                        }
+                        // If payment_type='refund', stay with 'closed_by_return'
+                    }
+                    
+                    foreach ($settledInvoiceIds as $invoiceData) {
+                        $invoiceId = $invoiceData['id'];
+                        $newOutstanding = $invoiceData['newOutstanding'];
+                        
+                        if ($newOutstanding <= 0.01) {
+                            // Get invoice grand total for UPDATE
+                            $stmt = $this->db->prepare(
+                                "SELECT net_total_amount, tax_amount FROM sales WHERE id = ? AND tenant_id = ?"
+                            );
+                            $stmt->execute([$invoiceId, $tenantId]);
+                            $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if ($invoice) {
+                                // ✅ CRITICAL ACCOUNTING RULE:
+                                // Only update STATUS, NEVER update paid_amount
+                                // 
+                                // paid_amount = actual cash/bank received only
+                                // return_credit_allocations = credit notes (separate tracking)
+                                // 
+                                // Settlement is determined by:
+                                //   outstanding = grand_total - paid_amount - return_credits <= 0
+                                // 
+                                // NOT by updating paid_amount to grandTotal
+                                // That would incorrectly claim all money was paid in cash
+                                
+                                $this->db->prepare(
+                                    "UPDATE sales SET status = ? WHERE id = ? AND tenant_id = ?"
+                                )->execute([$settlementType, $invoiceId, $tenantId]);
+                            }
+                            
+                            (MonologHandler::getInstance('returns'))->info('Invoice settled', [
+                                'tenant_id' => $tenantId,
+                                'sale_id' => $invoiceId,
+                                'customer_id' => $customerId,
+                                'settlement_type' => $settlementType,
+                                'new_outstanding' => $newOutstanding,
+                            ]);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    (MonologHandler::getInstance('returns'))->warning('Failed to update invoice status after allocation', [
+                        'tenant_id' => $tenantId,
+                        'message' => $e->getMessage(),
+                    ]);
                 }
             }
         } catch (\Throwable $e) {
@@ -365,6 +521,39 @@ class ReturnService
                 'payment_id' => $paymentId,
                 'ref_id'     => $refId,
                 'message'    => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Helper: تسجيل تطبيق return credit على فاتورة في جدول return_credit_allocations.
+     * هذا منفصل تماماً عن payment_applications الذي يخص الدفعات النقدية فقط.
+     * 
+     * @param int $returnId معرف المرتجع
+     * @param int $saleId معرف الفاتورة
+     * @param float $allocatedAmount المبلغ المطبق
+     * @param int|null $createdBy معرف المستخدم الذي نفّذ العملية
+     */
+    private function insertReturnCreditAllocation(
+        int    $returnId,
+        int    $saleId,
+        float  $allocatedAmount,
+        ?int   $createdBy
+    ): void {
+        try {
+            $this->db->prepare("
+                INSERT INTO return_credit_allocations
+                    (tenant_id, return_id, sale_id, allocated_amount, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE
+                    allocated_amount = VALUES(allocated_amount),
+                    created_at = NOW()
+            ")->execute([$this->tenantId, $returnId, $saleId, $allocatedAmount, $createdBy ?? 1]);
+        } catch (\Throwable $e) {
+            (MonologHandler::getInstance('returns'))->warning('insertReturnCreditAllocation: failed', [
+                'return_id' => $returnId,
+                'sale_id'   => $saleId,
+                'message'   => $e->getMessage(),
             ]);
         }
     }
@@ -744,12 +933,11 @@ class ReturnService
                         $deductFromCustomerBalance = min($saleOutstanding, $grandTotal);
                     }
                 } else {
-                    if ($refundMode === 'credit_note' || $refundMode === 'deduct_and_return') {
-                        $data['paid_amount'] = 0;
-                    }
+                    // الفاتورة الأصلية مسددة بالكامل - لا نعيّن paid_amount هنا، سيتم حسابه بناءً على customerTotalOutstanding
+                    // تأكد أن paid_amount غير محدود بالقيمة المرسلة من الواجهة
                 }
 
-                // إعادة حساب الضريبة إذا لم تُمرَّر
+                // إعادة حساب الضريبة إذا لم تُمرَّ
                 if ($taxTotal <= 0) {
                     $effectiveTaxRate = isset($data['tax_rate']) ? (float) $data['tax_rate']
                         : (isset($sale['tax_rate']) ? (float) $sale['tax_rate'] : null);
@@ -759,16 +947,26 @@ class ReturnService
                 }
                 $grandTotal = $totalAfterDiscount + $taxTotal;
 
+                // ── حساب paid_amount بناءً على الديون والـ refund_mode ────────────────────
                 if ($saleOutstanding === 0) {
-                    // حساب outstanding عبر كل فواتير العميل
-                    $customerTotalOutstanding = $this->getCustomerTotalOutstanding((int) $data['party_id'], $tenantId);
-                    if (in_array(strtolower((string) $refundMode), ['deduct_and_return', 'auto'], true)) {
+                    // الفاتورة الأصلية مسددة بالكامل = العميل دفع نقداً = يجب رد المبلغ نقداً
+                    // في mode=auto، يكون ذكياً: خصم من ديون فواتير أخرى أولاً، ثم رد الباقي نقداً
+                    // لا فرق بين auto و deduct_and_return في المنطق - الفرق فقط في اسم الـ mode
+                    
+                    if ($refundMode === 'auto' || $refundMode === 'deduct_and_return') {
+                        // auto/deduct_and_return: ذكي - خصم من الديون أولاً، ثم رد النقدي من الزيادة
+                        $customerTotalOutstanding = $this->getCustomerTotalOutstanding((int) $data['party_id'], $tenantId);
                         $deductFromCustomerBalance = min($customerTotalOutstanding, $grandTotal);
-                        $data['paid_amount']        = round(max(0, $grandTotal - $deductFromCustomerBalance), 2);
+                        $data['paid_amount'] = round(max(0, $grandTotal - $deductFromCustomerBalance), 2);
                     } elseif ($refundMode === 'cash') {
+                        // cash mode: رد نقدي بالكامل
                         $data['paid_amount'] = $grandTotal;
-                    } elseif ($refundMode === 'credit_note') {
+                        $deductFromCustomerBalance = 0;
+                    } else {
+                        // credit_note أو أي وضع آخر: خصم من الديون فقط
+                        $customerTotalOutstanding = $this->getCustomerTotalOutstanding((int) $data['party_id'], $tenantId);
                         $data['paid_amount'] = 0;
+                        $deductFromCustomerBalance = min($customerTotalOutstanding, $grandTotal);
                     }
                 }
 
@@ -798,15 +996,6 @@ class ReturnService
                         throw new \Exception('لا يمكن استلام نقدي لمرتجع على فاتورة مشتريات آجلة أو غير مسددة بالكامل. سيتم خصم قيمة المرتجع من ذمة المورد.');
                     }
                     $data['paid_amount'] = 0;
-                } else {
-                    $refundModePurchase = $data['refund_mode'] ?? 'auto';
-                    if ($refundModePurchase === 'credit_note') {
-                        $data['paid_amount'] = 0;
-                    } elseif ($refundModePurchase === 'deduct_and_return') {
-                        $data['paid_amount'] = $purchaseOutstanding > 0
-                            ? max(0, $grandTotal - min($purchaseOutstanding, $grandTotal))
-                            : $grandTotal;
-                    }
                 }
 
                 if ($taxTotal <= 0) {
@@ -818,8 +1007,28 @@ class ReturnService
                 }
                 $grandTotal = $totalAfterDiscount + $taxTotal;
 
-                if (in_array(($data['refund_mode'] ?? 'auto'), ['auto', 'cash'], true) && $purchaseOutstanding === 0) {
-                    $data['paid_amount'] = $grandTotal;
+                // معالجة paid_amount بناءً على حالة الفاتورة والـ refund_mode
+                if ($purchaseOutstanding === 0) {
+                    // الفاتورة مسددة - فحص الديون الأخرى للمورد
+                    $refundModePurchase = $data['refund_mode'] ?? 'auto';
+                    
+                    if ($refundModePurchase === 'auto') {
+                        // auto mode: خصم من ديون المورد إذا وجدت، وإلا فرد نقدي
+                        // للتبسيط، نعامل كـ cash (رد نقدي)
+                        $data['paid_amount'] = $grandTotal;
+                    } elseif ($refundModePurchase === 'cash') {
+                        // cash mode: رد نقدي بالكامل
+                        $data['paid_amount'] = $grandTotal;
+                    } elseif ($refundModePurchase === 'credit_note') {
+                        // credit_note: لا رد نقدي
+                        $data['paid_amount'] = 0;
+                    } else {
+                        // deduct_and_return أو آخر: رد نقدي
+                        $data['paid_amount'] = $grandTotal;
+                    }
+                } else {
+                    // الفاتورة بها ديون - تم تعيين paid_amount = 0 أعلاه
+                    // لا نعدّل هنا
                 }
                 if ($data['paid_amount'] > $grandTotal) {
                     $data['paid_amount'] = $grandTotal;
@@ -915,6 +1124,29 @@ class ReturnService
         }
 
         $returnId = (int) $this->db->lastInsertId();
+
+        // ✅ Update refund_amount and refund_method in returns table (Problem #4 fix)
+        // Determine refund_method dynamically from actual payment method kind
+        if ($data['return_type'] === 'sale' && $data['paid_amount'] > 0) {
+            $refundMethod = 'cash'; // Default fallback
+            
+            // Fetch the actual kind from payment_methods (cash, bank, card, wallet, credit)
+            $stmtMethod = $this->db->prepare(
+                "SELECT kind FROM payment_methods WHERE id = ? AND tenant_id = ? LIMIT 1"
+            );
+            $stmtMethod->execute([(int) $data['payment_method_id'], $tenantId]);
+            $methodKind = $stmtMethod->fetchColumn();
+            
+            if ($methodKind) {
+                $refundMethod = $methodKind;
+            }
+            
+            // ✅ Update both refund_amount and refund_method with correct method kind
+            $this->db->prepare(
+                "UPDATE returns SET refund_amount = ?, refund_method = ? 
+                 WHERE id = ? AND tenant_id = ?"
+            )->execute([$data['paid_amount'], $refundMethod, $returnId, $tenantId]);
+        }
 
         // ── INSERT return_items + stock ───────────────────────────────────────
         $stmtItems = $this->db->prepare("
@@ -1044,14 +1276,34 @@ class ReturnService
 
         // ── توزيع رصيد العميل ─────────────────────────────────────────────────
         if ($data['return_type'] === 'sale' && !empty($data['party_id']) && $deductFromCustomerBalance > 0) {
+            // ✅ IMPORTANT: Always pass originalSaleId to register allocation on the original invoice first
+            // Then allocateCustomerBalance() will distribute remaining balance to other invoices (FIFO by date)
+            // This ensures the allocation appears in the API response for the invoice with the return
+            $originalSaleIdToUse = (int) $saleId;
+            
             $this->allocateCustomerBalance(
                 (int) $data['party_id'],
                 (float) $deductFromCustomerBalance,
-                $saleId ? (int) $saleId : null,
+                $originalSaleIdToUse,  // Always pass original sale ID for allocation registration
                 $paymentId,
-                $userId
+                $userId,
+                $returnId  // معرّف المرتجع — لتسجيل allocations في جدول return_credit_allocations
             );
         }
+
+        // ── Update original sale status if full return ────────────────────────
+        // ✅ REMOVED: Duplicate status update block (2026-06-15)
+        // allocateCustomerBalance() now handles all status updates with proper logic:
+        // - Compares grand_total against (paid_amount + return_credits)
+        // - Sets settlement_type='closed_by_return' OR 'paid' based on payment type
+        // - Ensures no conflicting status values from multiple sources
+        // 
+        // Removing this block prevents:
+        // (1) Simple comparison (returnGrandTotal >= originalGrandTotal) ignoring prior payments
+        // (2) Duplicate status updates that conflict with allocateCustomerBalance()
+        // (3) Incorrect 'closed_by_return' when invoice had prior cash payments
+        // 
+        // The status is now updated ONLY by allocateCustomerBalance() after all allocations are processed.
 
         return [
             'return_id'     => $returnId,
@@ -1079,7 +1331,7 @@ class ReturnService
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM((net_total_amount + IFNULL(tax_amount,0)) - IFNULL(paid_amount,0)), 0)
             FROM sales
-            WHERE customer_id = ? AND tenant_id = ? AND status = 'active' AND is_draft = 0
+            WHERE customer_id = ? AND tenant_id = ? AND status NOT IN ('closed_by_return', 'cancelled')
               AND ((net_total_amount + IFNULL(tax_amount,0)) - IFNULL(paid_amount,0)) > 0
         ");
         $stmt->execute([$customerId, $tenantId]);

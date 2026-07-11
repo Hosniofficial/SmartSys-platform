@@ -18,10 +18,9 @@ return [
     ],
 
     // Debug Configuration (safe, does NOT print secrets)
-    'debug' => [
-        'enabled' => ($_ENV['APP_DEBUG'] ?? 'false') === 'true' || ($_ENV['APP_DEBUG'] ?? false) === true,
-    ],
-    
+    // Note: full debug config block is defined later in this file under 'debug' key.
+    // ⚠️ Removed duplicate 'debug' key — PHP silently overwrites the first with the second.
+
     // Security Logging Configuration
     'security_logging' => [
         'enabled' => ($_ENV['SECURITY_LOGGING_ENABLED'] ?? 'true') === 'true',
@@ -213,7 +212,13 @@ return [
     
     // CORS Configuration
     'cors' => [
-        'origin' => [
+        // ✅ Origins loaded from environment variable CORS_ALLOWED_ORIGINS (comma-separated).
+        // Falls back to localhost dev origins when the variable is absent.
+        // Never use '*' with credentials:true — always list origins explicitly.
+        'origin' => array_values(array_filter(
+            array_map('trim', explode(',', $_ENV['CORS_ALLOWED_ORIGINS'] ?? '')),
+            fn($o) => $o !== ''
+        )) ?: [
             'http://localhost:5173',
             'http://localhost:3000',
             'http://127.0.0.1:5173',
@@ -237,9 +242,11 @@ return [
     
     // Development/Debug Settings
     'debug' => [
-        'enabled' => $_ENV['APP_DEBUG'] ?? false,
-        'log_all_requests' => false,
-        'detailed_errors' => $_ENV['APP_DEBUG'] ?? false,
+        'enabled'                => ($_ENV['APP_DEBUG'] ?? 'false') === 'true'
+                                    || ($_ENV['APP_DEBUG'] ?? false) === true,
+        'log_all_requests'       => false,
+        'detailed_errors'        => ($_ENV['APP_DEBUG'] ?? 'false') === 'true'
+                                    || ($_ENV['APP_DEBUG'] ?? false) === true,
         'security_headers_in_dev' => true,
     ],
 ];

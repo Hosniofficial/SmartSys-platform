@@ -271,18 +271,40 @@ class ProductBranchHandler extends BaseHandler
 
         try {
             $body      = is_array($request->getParsedBody()) ? $request->getParsedBody() : [];
+            // Support both mapping_id (legacy) and product_id + branch_id (new)
             $mappingId = !empty($body['mapping_id']) ? (int) $body['mapping_id'] : null;
+            $productId = !empty($body['product_id']) ? (int) $body['product_id'] : null;
+            $branchId  = !empty($body['branch_id'])  ? (int) $body['branch_id']  : null;
             $quantity  = isset($body['quantity'])   ? (float) $body['quantity']   : null;
             $unitCost  = isset($body['unit_cost'])  ? (float) $body['unit_cost']  : null;
             $entryDate = !empty($body['entry_date']) ? (string) $body['entry_date'] : date('Y-m-d');
             $unitId    = !empty($body['unit_id'])   ? (int) $body['unit_id']      : 1;
             $userId    = $this->extractUserId($request);
 
-            if (!$mappingId || $quantity === null || $unitCost === null) {
-                return $this->errorResponse($response, 'مطلوب معرف الخريطة والكمية والتكلفة.', 422);
+            if (($quantity === null || $unitCost === null)) {
+                return $this->errorResponse($response, 'مطلوب الكمية والتكلفة.', 422);
             }
             if ($quantity <= 0 || $unitCost <= 0) {
                 return $this->errorResponse($response, 'الكمية والتكلفة يجب أن تكونا أكبر من صفر.', 422);
+            }
+
+            // Determine mapping by ID or product_id + branch_id
+            if (!$mappingId && ($productId && $branchId)) {
+                // New mode: lookup mapping by product_id + branch_id
+                $lookupStmt = $this->db->prepare("
+                    SELECT id FROM product_branch_gl_mapping
+                    WHERE product_id = ? AND branch_id = ? AND tenant_id = ?
+                    LIMIT 1
+                ");
+                $lookupStmt->execute([$productId, $branchId, $tenantId]);
+                $mappingRow = $lookupStmt->fetch(PDO::FETCH_ASSOC);
+                if ($mappingRow) {
+                    $mappingId = (int) $mappingRow['id'];
+                }
+            }
+
+            if (!$mappingId) {
+                return $this->errorResponse($response, 'مطلوب معرف الخريطة أو معرف المنتج والفرع.', 422);
             }
 
             // Fetch mapping with product/branch names

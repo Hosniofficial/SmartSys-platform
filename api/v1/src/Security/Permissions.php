@@ -135,11 +135,44 @@ final class Permissions
     public const VOUCHER_DELETE = 'voucher.delete';
 
     // ──────────────────────────────────────────────────────────────────
+    // Categories
+    // ──────────────────────────────────────────────────────────────────
+    public const CATEGORY_VIEW   = 'category.view';
+    public const CATEGORY_CREATE = 'category.create';
+    public const CATEGORY_EDIT   = 'category.edit';
+    public const CATEGORY_DELETE = 'category.delete';
+
+    // ──────────────────────────────────────────────────────────────────
+    // Documents
+    // ──────────────────────────────────────────────────────────────────
+    public const DOCUMENT_VIEW   = 'document.view';
+    public const DOCUMENT_UPLOAD = 'document.upload';
+    public const DOCUMENT_EDIT   = 'document.edit';
+    public const DOCUMENT_DELETE = 'document.delete';
+
+    // ──────────────────────────────────────────────────────────────────
+    // Payment Methods (configuration — not customer payments)
+    // ──────────────────────────────────────────────────────────────────
+    public const PAYMENT_METHOD_VIEW   = 'payment_method.view';
+    public const PAYMENT_METHOD_MANAGE = 'payment_method.manage';
+
+    // ──────────────────────────────────────────────────────────────────
+    // Warranty
+    // ──────────────────────────────────────────────────────────────────
+    public const WARRANTY_VIEW   = 'warranty.view';
+    public const WARRANTY_CREATE = 'warranty.create';
+    public const WARRANTY_EDIT   = 'warranty.edit';
+    public const WARRANTY_DELETE = 'warranty.delete';
+
+    // ──────────────────────────────────────────────────────────────────
     // Accounting (periods, journal entries, account statements)
     // ──────────────────────────────────────────────────────────────────
     public const ACCOUNTING_VIEW          = 'accounting.view';
     public const ACCOUNTING_PERIOD_MANAGE = 'accounting.period.manage';
     public const ACCOUNTING_JE_CREATE     = 'accounting.je.create';
+    public const ACCOUNTING_JE_DELETE     = 'accounting.je.delete';
+    public const ACCOUNTING_JE_REVERSE    = 'accounting.je.reverse';
+    public const ACCOUNTING_OPENING_BALANCE = 'accounting.opening_balance.commit';
 
     // ──────────────────────────────────────────────────────────────────
     // POS (sessions, shifts, terminals)

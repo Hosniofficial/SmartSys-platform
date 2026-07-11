@@ -1,19 +1,31 @@
 <?php
-require_once __DIR__ . '/config/bootstrap.php';
-require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../config/database.php';
 
 $database = new Database();
 $pdo = $database->pdo;
 
-$tenantId  = 39;
+// Use tenant 47 which has data
+$tenantId  = 47;
 
-// Auto-detect latest product for this tenant
+// Auto-detect latest product for this tenant - but allow override
+$productIdArg = isset($argv[1]) ? (int)$argv[1] : null;
 $latest = $pdo->prepare("SELECT id, name, created_at FROM products WHERE tenant_id = ? ORDER BY id DESC LIMIT 1");
 $latest->execute([$tenantId]);
 $latestProduct = $latest->fetch(PDO::FETCH_ASSOC);
-$productId = $latestProduct ? (int) $latestProduct['id'] : 0;
 
-echo "=== آخر منتج: ID={$productId} | {$latestProduct['name']} | {$latestProduct['created_at']} ===\n\n";
+if ($productIdArg) {
+  // Override with command line argument
+  $productId = $productIdArg;
+  $productCheck = $pdo->prepare("SELECT id, name, created_at FROM products WHERE id = ? AND tenant_id = ?");
+  $productCheck->execute([$productId, $tenantId]);
+  $latestProduct = $productCheck->fetch(PDO::FETCH_ASSOC);
+} else {
+  // Use latest
+  $productId = $latestProduct ? (int) $latestProduct['id'] : 0;
+}
+
+echo "=== التينانت: {$tenantId} | آخر منتج: ID={$productId} | {$latestProduct['name']} | {$latestProduct['created_at']} ===\n\n";
 
 // ─── ALL BRANCHES for this product ────────────────────────────────────────────
 section("0. جميع الفروع في product_branch_gl_mapping");

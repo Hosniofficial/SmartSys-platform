@@ -135,6 +135,9 @@ class SaleApprovalService
         $stmt->execute([$saleId, $tenantId]);
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // ✅ نفس ترتيب القفل المستخدم في الإنشاء لمنع deadlock
+        usort($items, fn($a, $b) => (int)$a['product_id'] <=> (int)$b['product_id']);
+
         foreach ($items as $item) {
             $baseQuantity = (float) $item['quantity'] * (float) ($item['conversion_factor'] ?? 1);
             $unitCost     = (float) ($item['purchase_price'] ?? 0);
@@ -151,9 +154,12 @@ class SaleApprovalService
             $availableQty = (float) ($lockStmt->fetchColumn() ?? 0);
 
             if ($availableQty < $baseQuantity) {
-                throw new Exception(
+                throw new \App\Exceptions\InsufficientStockException(
                     "الكمية المتوفرة للمنتج {$item['product_id']} ({$availableQty}) " .
-                    "أقل من الكمية المطلوبة ({$baseQuantity}) عند الاعتماد."
+                    "أقل من الكمية المطلوبة ({$baseQuantity}) عند الاعتماد.",
+                    (int)$item['product_id'],
+                    $availableQty,
+                    $baseQuantity
                 );
             }
 

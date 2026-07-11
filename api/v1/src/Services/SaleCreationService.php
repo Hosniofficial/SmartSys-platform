@@ -147,14 +147,21 @@ class SaleCreationService
     private function resolvePaymentMethodId(array $data, float $paidAmount, int $tenantId): int
     {
         if (!empty($data['payment_method_id'])) {
-            return (int)$data['payment_method_id'];
+            $pmId = (int)$data['payment_method_id'];
+            // Verify the payment method exists for this tenant
+            $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE id = ? AND tenant_id = ? LIMIT 1");
+            $stmt->execute([$pmId, $tenantId]);
+            if ($stmt->fetchColumn()) {
+                return $pmId;
+            }
+            // If specified payment method doesn't exist, fall through to auto-resolve
         }
         $kind = $paidAmount > 0 ? 'cash' : 'credit';
-        $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE kind = ? AND tenant_id = ? AND deleted_at IS NULL ORDER BY is_default DESC, id ASC LIMIT 1");
+        $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE kind = ? AND tenant_id = ? ORDER BY is_default DESC, id ASC LIMIT 1");
         $stmt->execute([$kind, $tenantId]);
         $id = $stmt->fetchColumn();
         if ($id) return (int)$id;
-        $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY id ASC LIMIT 1");
+        $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE tenant_id = ? ORDER BY id ASC LIMIT 1");
         $stmt->execute([$tenantId]);
         $id = $stmt->fetchColumn();
         if ($id) return (int)$id;
@@ -179,6 +186,12 @@ class SaleCreationService
         $notificationHandler = null;
         if ($applyStock) {
             $notificationHandler = new NotificationHandler($this->pdo);
+        }
+
+        // ✅ ترتيب ثابت حسب product_id لمنع deadlock عند فواتير متزامنة
+        // تحتوي نفس المنتجات بترتيب مختلف
+        if ($applyStock) {
+            usort($preparedItems, fn($a, $b) => (int)$a['product_id'] <=> (int)$b['product_id']);
         }
 
         foreach ($preparedItems as $item) {
@@ -219,8 +232,11 @@ class SaleCreationService
                 $availableQty = (float)($lockStmt->fetchColumn() ?? 0);
 
                 if ($availableQty < $baseQuantity) {
-                    throw new Exception(
-                        "الكمية المتوفرة للمنتج {$productId} ({$availableQty}) أقل من الكمية المطلوبة ({$baseQuantity})."
+                    throw new \App\Exceptions\InsufficientStockException(
+                        "الكمية المتوفرة للمنتج {$productId} ({$availableQty}) أقل من الكمية المطلوبة ({$baseQuantity}).",
+                        $productId,
+                        $availableQty,
+                        $baseQuantity
                     );
                 }
 

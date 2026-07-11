@@ -154,7 +154,7 @@ class PaymentsHandler extends BaseHandler
                     ON s.id = p.supplier_id
                    AND s.tenant_id = p.tenant_id
                 {$whereSql}
-                ORDER BY p.payment_date DESC, p.id DESC
+                ORDER BY p.payment_date ASC, p.id ASC
                 LIMIT :limit OFFSET :offset
             ";
 
@@ -275,7 +275,7 @@ class PaymentsHandler extends BaseHandler
                    AND pm.tenant_id = p.tenant_id
                 LEFT JOIN users u ON u.id = p.created_by
                 {$whereSql}
-                ORDER BY p.payment_date DESC, p.id DESC
+                ORDER BY p.payment_date ASC, p.id ASC
                 LIMIT :limit OFFSET :offset
             ";
 

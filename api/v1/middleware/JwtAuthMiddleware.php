@@ -119,23 +119,6 @@ class JwtAuthMiddleware implements MiddlewareInterface
                 throw new \Exception('Tenant ID missing in token');
             }
 
-        // Ensure we have the required user data
-        $userData = [
-            'id' => $decodedArray['user_id'] ?? null,
-            'username' => $decodedArray['username'] ?? null,
-            'email' => $decodedArray['email'] ?? null,
-            'role' => $decodedArray['role'] ?? null,
-            'role_id' => $decodedArray['role_id'] ?? null,
-            'tenant_id' => $decodedArray['tenant_id'] ?? null,
-            'full_name' => $decodedArray['full_name'] ?? null
-        ];
-
-        // Safe debug logging (only in debug mode, no sensitive data)
-        if ($securityConfig['debug']['enabled'] ?? false) {
-            error_log('[JWT] user_id=' . ($userData['id'] ?? 'null') 
-                . ' tenant=' . ($userData['tenant_id'] ?? 'null'));
-        }
-
         // Ensure we have all required user data with consistent format
         $userData = [
             'id'         => $decodedArray['user_id'] ?? $decodedArray['id'] ?? null,

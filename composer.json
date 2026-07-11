@@ -8,7 +8,8 @@
         "vlucas/phpdotenv": "^5.6",
         "firebase/php-jwt": "^6.11",
         "dompdf/dompdf": "^2.0",
-        "phpgangsta/googleauthenticator": "dev-master",
+        "_comment_2fa": "Using specific commit hash as workaround until stable release. Consider migrating to spomky-labs/otphp for production",
+        "phpgangsta/googleauthenticator": "dev-master#505c2af8337b559b33557f37cda38e5f843f3768",
         "pusher/pusher-php-server": "^7.2",
         "monolog/monolog": "^2.11",
         "phpmailer/phpmailer": "^6.10",
@@ -16,6 +17,7 @@
         "php-di/php-di": "^7.1",
         "nikic/php-parser": "^5.7",
         "stripe/stripe-php": "^19.4",
+        "_comment_paypal": "TODO: Migrate processPayPalPayment() in PaymentIntegrationHandler to paypal/paypal-server-sdk then remove the legacy SDK below",
         "paypal/rest-api-sdk-php": "^1.6",
         "sentry/sentry": "^4.0"
     },

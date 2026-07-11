@@ -17,6 +17,44 @@ use App\Services\LocaleService;
 use App\Utils\PaginationHelper;
 use App\Utils\DateHelper;
 
+/**
+ * ──────────────────────────────────────────────────────────
+ * PURCHASES HANDLER
+ * ──────────────────────────────────────────────────────────
+ *
+ * HTTP handler for all purchase order and invoice management operations.
+ * Provides endpoints for listing, retrieving, creating, updating, and deleting
+ * purchase documents with payment tracking and supplier debt management.
+ *
+ * **Key Responsibilities**:
+ * - Invoice CRUD operations with atomic transactions
+ * - Approval workflow (pending, approval, rejection)
+ * - Payment recording with Idempotency-Key support
+ * - Supplier debt payment management with race condition prevention (FOR UPDATE)
+ * - Multi-currency support via FinancialCalculationService
+ * - Localized response labels (ar/en) via LabelService
+ * - Automatic numbering and status calculation
+ *
+ * **Multi-Tenancy**:
+ * All queries filtered by tenant_id; authorization via RBACHandler for approval operations.
+ *
+ * **Dependencies**:
+ * - FinancialCalculationService: Cost calculations, currency conversions
+ * - MonologHandler: Entity-specific logging (purchases channel)
+ * - LabelService: Localized reference and status labels
+ * - LocaleService: Accept-Language header parsing
+ * - PaginationHelper: Query result pagination (limit, offset)
+ * - DateHelper: DateTime normalization (end-of-day handling)
+ *
+ * **HTTP Status Codes**:
+ * - 200: Success (GET, list operations)
+ * - 201: Created (POST operations)
+ * - 400: Bad Request (missing/invalid parameters)
+ * - 403: Forbidden (insufficient permissions, missing tenant_id)
+ * - 404: Not Found (invoice/payment not found)
+ * - 409: Conflict (duplicate idempotency key)
+ * - 500: Server Error (database/transaction failures)
+ */
 class PurchasesHandler extends BaseHandler
 {
     private FinancialCalculationService $financialCalcService;
@@ -48,12 +86,32 @@ class PurchasesHandler extends BaseHandler
         return DateHelper::normalize($value, $endOfDay);
     }
 
-    private function determinePurchaseStatus(float $netTotal, float $paidAmount, float $returnAmount = 0.0): string
+    private function determinePurchaseStatus(float $netTotal, float $paidAmount, float $returnAmount = 0.0, ?string $createdAt = null, ?string $firstPaymentDate = null): string
     {
         if ($netTotal <= 0)              return 'paid';
         if ($returnAmount >= $netTotal)  return 'returned';
         if ($paidAmount <= 0)            return 'due';
-        return $paidAmount >= $netTotal  ? 'paid' : 'partial';
+        
+        // Calculate total settlement: cash payments + returns applied to balance
+        $totalSettled = round($paidAmount + $returnAmount, 2);
+        $isFullySettled = $totalSettled >= $netTotal - 0.01;
+        
+        // Full settlement via cash payment (possibly combined with return)
+        if ($isFullySettled) {
+            // Use first payment date to distinguish between same-day payment (paid) vs later settlement (settled)
+            if ($createdAt && $firstPaymentDate) {
+                $createdDate = (new \DateTime($createdAt))->format('Y-m-d');
+                $paymentDate = (new \DateTime($firstPaymentDate))->format('Y-m-d');
+                if ($createdDate === $paymentDate) {
+                    return 'paid';
+                } else {
+                    return 'settled';
+                }
+            }
+            return 'paid';
+        }
+        
+        return 'partial';
     }
 
     private function calculatePurchaseTotals(array $data): array
@@ -225,6 +283,13 @@ class PurchasesHandler extends BaseHandler
         );
     }
 
+    /**
+     * Get next sequential purchase invoice number for this tenant.
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response JSON: {invoice_number: string}
+     */
     public function getNextInvoiceNumber(Request $request, Response $response): Response
     {
         try {
@@ -238,6 +303,25 @@ class PurchasesHandler extends BaseHandler
         }
     }
 
+    /**
+     * List purchase invoices with pagination and filtering.
+     *
+     * **Query Parameters**:
+     * - q, search: Full-text search in invoice_number, supplier name
+     * - supplier_id: Filter by supplier (integer)
+     * - branch_id: Filter by branch (integer)
+     * - status: Filter by status (pending, approved, rejected, paid)
+     * - date_from, start_date: Start date (YYYY-MM-DD)
+     * - date_to, end_date: End date (YYYY-MM-DD)
+     * - sort: Field to sort by (id, invoice_date, total_amount, status) [default: invoice_date]
+     * - order: Sort direction (asc, desc) [default: desc]
+     * - page: Pagination page number [default: 1]
+     * - per_page: Items per page [default: 10]
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response JSON: {items: array, total: int, page: int, limit: int, total_pages: int}
+     */
     public function list(Request $request, Response $response): Response
     {
         try {
@@ -317,7 +401,10 @@ class PurchasesHandler extends BaseHandler
                                 AND pm.status = 'completed'), 0) AS actual_paid_amount,
                     COALESCE((SELECT SUM(r.grand_total) FROM returns r
                               WHERE r.purchase_id = p.id AND r.tenant_id = p.tenant_id
-                                AND r.return_type = 'purchase'), 0) AS return_amount
+                                AND r.return_type = 'purchase'), 0) AS return_amount,
+                    (SELECT MIN(pm.payment_date) FROM payments pm
+                     WHERE pm.purchase_id = p.id AND pm.tenant_id = p.tenant_id
+                       AND pm.status = 'completed' LIMIT 1) AS first_payment_date
                 $from
                 $whereSql
                 ORDER BY $sortCol $order
@@ -341,7 +428,7 @@ class PurchasesHandler extends BaseHandler
                 $it['remaining_balance']  = $returnAmount >= $totalAmt
                     ? 0.0
                     : round(max(0.0, $totalAmt - $actualPaid), 2);
-                $it['dynamic_status']     = $this->determinePurchaseStatus($totalAmt, $actualPaid, $returnAmount);
+                $it['dynamic_status']     = $this->determinePurchaseStatus($totalAmt, $actualPaid, $returnAmount, $it['created_at'] ?? null, $it['first_payment_date'] ?? null);
                 $it['status_label'] = $this->statusLabel($it['dynamic_status'], $locale);
             }
             unset($it);
@@ -387,6 +474,17 @@ class PurchasesHandler extends BaseHandler
         }
     }
 
+    /**
+     * Get single purchase invoice with items and payments.
+     *
+     * **Route Parameters**:
+     * - id: Purchase invoice ID (integer)
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args Route arguments: {id: int}
+     * @return Response JSON: Single purchase with items and payments
+     */
     public function get(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -463,6 +561,15 @@ class PurchasesHandler extends BaseHandler
             $stmtRet->execute([$id, $tenantId]);
             $returnAmount = round((float) $stmtRet->fetchColumn(), 2);
 
+            // Get first payment date for accurate status determination (not updated_at which changes on any edit)
+            $stmtFirstPayment = $this->db->prepare("
+                SELECT MIN(payment_date) FROM payments
+                WHERE purchase_id = ? AND tenant_id = ? AND status = 'completed'
+                LIMIT 1
+            ");
+            $stmtFirstPayment->execute([$id, $tenantId]);
+            $firstPaymentDate = $stmtFirstPayment->fetchColumn();
+
             $purchase['reference_type']   = 'purchase';
             $purchase['reference_id']     = $purchase['id'] ?? null;
             $purchase['reference']        = 'purchase#' . ($purchase['id'] ?? '');
@@ -472,7 +579,7 @@ class PurchasesHandler extends BaseHandler
             $purchase['remaining_balance']  = $returnAmount >= $totalAmt
                 ? 0.0
                 : round(max(0.0, $totalAmt - $actualPaid), 2);
-            $purchase['dynamic_status']     = $this->determinePurchaseStatus($totalAmt, $actualPaid, $returnAmount);
+            $purchase['dynamic_status']     = $this->determinePurchaseStatus($totalAmt, $actualPaid, $returnAmount, $purchase['created_at'] ?? null, $firstPaymentDate);
             $purchase['status_label']     = $this->statusLabel($purchase['dynamic_status'], $locale);
             $purchase['payments']         = $payments;
 
@@ -492,6 +599,29 @@ class PurchasesHandler extends BaseHandler
         }
     }
 
+    /**
+     * Create new purchase invoice with line items.
+     *
+     * **Request Body** (JSON):
+     * - invoice_number: Unique invoice identifier (string)
+     * - invoice_date: Invoice date (YYYY-MM-DD)
+     * - supplier_id: Supplier ID (integer)
+     * - items: Array of items [{product_id, quantity, unit_price, ...}]
+     * - notes: Optional notes (string)
+     * - branch_id: Branch ID (integer)
+     * - payment_method_id: Payment method ID (integer, optional)
+     * - cost_center_id: Cost center ID (integer, optional)
+     * - supplier_account_id: Supplier account ID (integer, optional)
+     *
+     * **Side Effects**:
+     * - Creates accounting journal entries for purchase
+     * - Records audit trail
+     * - Sends notifications
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response JSON: Created invoice with ID and status
+     */
     public function create(Request $request, Response $response): Response
     {
         try {
@@ -682,6 +812,19 @@ class PurchasesHandler extends BaseHandler
         }
     }
 
+    /**
+     * Update purchase invoice (status, notes, partial item modifications).
+     *
+     * **Route Parameters**:
+     * - id: Purchase invoice ID (integer)
+     *
+     * **Request Body** (JSON): Any fields to update (partial update allowed)
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args Route arguments: {id: int}
+     * @return Response JSON: Updated invoice with new status/values
+     */
     public function update(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -758,6 +901,22 @@ class PurchasesHandler extends BaseHandler
     }
 
 
+    /**
+     * Delete/cancel purchase invoice (soft delete).
+     *
+     * **Route Parameters**:
+     * - id: Purchase invoice ID (integer)
+     *
+     * **Side Effects**:
+     * - Reverses associated accounting journal entries
+     * - Sets invoice status to 'cancelled'
+     * - Records audit trail
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args Route arguments: {id: int}
+     * @return Response JSON: {message: "Deleted successfully"}
+     */
     public function delete(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -807,6 +966,31 @@ class PurchasesHandler extends BaseHandler
         }
     }
 
+    /**
+     * Record payment for single purchase invoice.
+     *
+     * **Route Parameters**:
+     * - id: Purchase invoice ID (integer)
+     *
+     * **Request Body** (JSON):
+     * - amount: Payment amount (float)
+     * - payment_date: Payment date (YYYY-MM-DD)
+     * - payment_method_id: Payment method ID (integer)
+     * - reference_number: Optional payment reference (string)
+     *
+     * **Idempotency**:
+     * Supports Idempotency-Key header to prevent duplicate payments on retries.
+     *
+     * **Side Effects**:
+     * - Creates accounting journal entries
+     * - Updates invoice paid_amount
+     * - Records audit trail
+     *
+     * @param Request $request
+     * @param Response $response
+     * @param array $args Route arguments: {id: int}
+     * @return Response JSON: {payment_id: int, remaining_amount: float}
+     */
     public function addPayment(Request $request, Response $response, array $args = []): Response
     {
         try {
@@ -907,8 +1091,37 @@ class PurchasesHandler extends BaseHandler
         }
     }
 
+    /**
+     * Pay multiple supplier invoices (supplier debt payment).
+     *
+     * **Request Body** (JSON):
+     * - supplier_id: Supplier ID (integer)
+     * - amount: Total payment amount (float)
+     * - payment_date: Payment date (YYYY-MM-DD)
+     * - payment_method_id: Payment method ID (integer)
+     * - purchases: Array of {purchase_id: int, amount: float} (allocation across invoices)
+     * - reference_number: Optional payment reference (string)
+     *
+     * **Idempotency**:
+     * Supports Idempotency-Key header to prevent duplicate bulk payments on retries.
+     *
+     * **Concurrency Protection**:
+     * Uses SELECT... FOR UPDATE on supplier purchases to prevent race conditions.
+     *
+     * **Side Effects**:
+     * - Creates atomic transaction across all allocations
+     * - Creates accounting journal entries per invoice
+     * - Updates each invoice's paid_amount
+     * - Records audit trail
+     *
+     * @param Request $request
+     * @param Response $response
+     * @return Response JSON: {payments: array, total_paid: float}
+     */
     public function paySupplierDebt(Request $request, Response $response): Response
     {
+        $tenantId = null;
+        $userId = null;
         try {
             $ctx      = $this->requireTenantContext($request);
             $tenantId = $ctx['tenant_id'];
@@ -962,7 +1175,7 @@ class PurchasesHandler extends BaseHandler
             if ($this->db->inTransaction()) $this->db->rollBack();
             $this->logger->error('Failed to record supplier payment', [
                 'error'     => $e->getMessage(),
-                'tenant_id' => $this->tenantId ?? null,
+                'tenant_id' => $tenantId ?? 'unknown',
             ]);
             return $this->errorResponse($response, 'فشل تسجيل الدفعة', 400);
         }

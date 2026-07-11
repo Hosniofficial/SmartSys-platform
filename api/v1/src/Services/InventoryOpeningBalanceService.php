@@ -114,8 +114,14 @@ class InventoryOpeningBalanceService
         ");
         $chk->execute([$tenantId, $productId, $branchId]);
         if ($chk->fetchColumn()) {
+            // ⚠️  NOTE: If user manually deletes GL entries from accounting side,
+            // the mapping status will reset but products.opening_balance_posted remains 1.
+            // To allow re-posting, user must reset the flag via:
+            //   UPDATE products SET opening_balance_posted = 0 WHERE id = ?
+            // OR admin should provide a "Reset Opening Balance" endpoint for corrections
             throw new \RuntimeException(
-                "الرصيد الافتتاحي للمنتج #{$productId} في الفرع #{$branchId} مُرحّل مسبقاً."
+                "الرصيد الافتتاحي للمنتج #{$productId} في الفرع #{$branchId} مُرحّل مسبقاً. "
+                . "للترصيد مرة أخرى بعد التصحيح، قم بإعادة تعيين الرصيد الافتتاحي من الإدارة."
             );
         }
 
@@ -264,6 +270,14 @@ class InventoryOpeningBalanceService
                 updated_at               = NOW()
             WHERE tenant_id = ? AND product_id = ? AND branch_id = ?
         ")->execute([$unitCost, $totalCost, $userId, $tenantId, $productId, $branchId]);
+
+        // ── 9b. Mark product opening_balance_posted flag ──────────────────────
+        $this->db->prepare("
+            UPDATE products
+            SET opening_balance_posted = 1,
+                updated_at             = NOW()
+            WHERE tenant_id = ? AND id = ?
+        ")->execute([$tenantId, $productId]);
 
         // ── 10. Update inventory_transactions with journal_entry_id ───────────
         $this->db->prepare("

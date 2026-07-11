@@ -61,6 +61,12 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        // ✅ Development mode: skip all security checks
+        $isDevelopment = ($_ENV['APP_ENV'] ?? getenv('APP_ENV') ?? 'production') === 'development';
+        if ($isDevelopment) {
+            return $handler->handle($request);
+        }
+
         try {
             // 1. IP Blocking Check
             if ($this->config['enable_ip_blocking']) {

@@ -213,14 +213,9 @@ class SessionsHandler extends BaseHandler
                 $session = $s->fetch(PDO::FETCH_ASSOC);
             }
             if (!$session && $deviceId !== null && $deviceId !== '') {
-                $s = $this->db->prepare($baseSql . " AND device_id = ?");
+                $s = $this->db->prepare($baseSql . " AND device_id = ? ORDER BY start_time DESC LIMIT 1");
                 $s->execute([$tenantId, $deviceId]);
-                $all = $s->fetchAll(PDO::FETCH_ASSOC);
-                if ($cashierId !== null && $cashierId !== '') {
-                    foreach ($all as $ds) {
-                        if ((int)$ds['cashier_id'] === (int)$cashierId) { $session = $ds; break; }
-                    }
-                }
+                $session = $s->fetch(PDO::FETCH_ASSOC);
             }
 
             if ($session) {
@@ -246,35 +241,67 @@ class SessionsHandler extends BaseHandler
                 return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
             }
 
-            $q         = $request->getQueryParams();
-            $status    = $q['status']    ?? null;
-            $branchId  = $q['branch_id'] ?? null;
-            $cashierId = $q['cashier_id'] ?? null;
+            $q           = $request->getQueryParams();
+            $status      = $q['status']       ?? null;
+            $branchId    = $q['branch_id']    ?? null;
+            $cashierId   = $q['cashier_id']   ?? null;
+            $sessionType = $q['session_type'] ?? null;
+            $device      = $q['device']       ?? $q['device_name'] ?? null;
+            $fromDate    = $q['from_date']    ?? null;
+            $toDate      = $q['to_date']      ?? null;
+            // ✅ Accept 'yes', 'true', '1' uniformly
+            $hasVarianceRaw = $q['has_variance'] ?? null;
+            $hasVariance    = in_array($hasVarianceRaw, ['yes','true','1'], true)
+                                ? 'yes'
+                                : (in_array($hasVarianceRaw, ['no','false','0'], true) ? 'no' : null);
             [$page, $limit, $offset] = PaginationHelper::fromArray($q, 20, 100);
 
-            $selectFields = "
-                cs.*,
-                u.name AS cashier_name,
-                u2.name AS closed_by_name,
-                (
-                    cs.closing_cash_amount - cs.opening_cash_amount +
-                    (SELECT COALESCE(SUM(CASE WHEN type IN ('income','return_receipt','sale','deposit') THEN amount ELSE 0 END), 0)
-                     FROM cash_transactions WHERE tenant_id = cs.tenant_id AND session_id = cs.id) -
-                    (SELECT COALESCE(SUM(CASE WHEN type IN ('expense','return_payment','purchase','withdrawal') THEN amount ELSE 0 END), 0)
-                     FROM cash_transactions WHERE tenant_id = cs.tenant_id AND session_id = cs.id)
-                ) AS variance_amount
-            ";
+            // ─── Use LEFT JOIN for cash_transactions to avoid repeated correlated subqueries ───
             $baseSql = "
                 FROM cashier_sessions cs
                 LEFT JOIN users u  ON cs.cashier_id = u.id  AND u.tenant_id  = cs.tenant_id
                 LEFT JOIN users u2 ON cs.closed_by  = u2.id AND u2.tenant_id = cs.tenant_id
+                LEFT JOIN (
+                    SELECT
+                        session_id,
+                        COALESCE(SUM(CASE WHEN type IN ('income','return_receipt','sale','deposit')              THEN amount ELSE 0 END), 0) AS cash_in,
+                        COALESCE(SUM(CASE WHEN type IN ('expense','return_payment','purchase','withdrawal')      THEN amount ELSE 0 END), 0) AS cash_out
+                    FROM cash_transactions
+                    WHERE tenant_id = ?
+                    GROUP BY session_id
+                ) ct ON ct.session_id = cs.id
                 WHERE cs.tenant_id = ?
             ";
-            $params = [$tenantId];
+            $params = [$tenantId, $tenantId];
 
-            if ($status !== null && $status !== '')   { $baseSql .= " AND cs.status = ?";     $params[] = $status; }
-            if ($branchId !== null && $branchId !== '') { $baseSql .= " AND cs.branch_id = ?";  $params[] = $branchId; }
-            if ($cashierId !== null && $cashierId !== '') { $baseSql .= " AND cs.cashier_id = ?"; $params[] = $cashierId; }
+            if ($status      !== null && $status      !== '') { $baseSql .= " AND cs.status = ?";       $params[] = $status; }
+            if ($branchId    !== null && $branchId    !== '') { $baseSql .= " AND cs.branch_id = ?";    $params[] = $branchId; }
+            if ($cashierId   !== null && $cashierId   !== '') { $baseSql .= " AND cs.cashier_id = ?";   $params[] = $cashierId; }
+            if ($sessionType !== null && $sessionType !== '') { $baseSql .= " AND cs.session_type = ?"; $params[] = $sessionType; }
+            if ($device      !== null && $device      !== '') { $baseSql .= " AND (cs.device_name = ? OR cs.device_id = ?)"; $params[] = $device; $params[] = $device; }
+            if ($fromDate    !== null && $fromDate    !== '') { $baseSql .= " AND cs.start_time >= ?";  $params[] = $fromDate . ' 00:00:00'; }
+            if ($toDate      !== null && $toDate      !== '') { $baseSql .= " AND cs.start_time < ?";   $params[] = date('Y-m-d', strtotime($toDate . ' +1 day')) . ' 00:00:00'; }
+            if ($hasVariance !== null) {
+                if ($hasVariance === 'yes') {
+                    $baseSql .= " AND cs.closing_cash_amount IS NOT NULL AND ABS(cs.closing_cash_amount - cs.opening_cash_amount - COALESCE(ct.cash_in,0) + COALESCE(ct.cash_out,0)) > 0.01";
+                } else {
+                    $baseSql .= " AND (cs.closing_cash_amount IS NULL OR ABS(cs.closing_cash_amount - cs.opening_cash_amount - COALESCE(ct.cash_in,0) + COALESCE(ct.cash_out,0)) <= 0.01)";
+                }
+            }
+
+            // ─── Main list query ──────────────────────────────────────────────────────────
+            $selectFields = "
+                cs.*,
+                u.name  AS cashier_name,
+                u2.name AS closed_by_name,
+                COALESCE(ct.cash_in,  0) AS cash_in,
+                COALESCE(ct.cash_out, 0) AS cash_out,
+                -- variance = closing - expected = closing - (opening + cash_in - cash_out)
+                CASE WHEN cs.closing_cash_amount IS NOT NULL
+                     THEN cs.closing_cash_amount - cs.opening_cash_amount - COALESCE(ct.cash_in,0) + COALESCE(ct.cash_out,0)
+                     ELSE NULL
+                END AS variance_amount
+            ";
 
             $stmt = $this->db->prepare("SELECT $selectFields $baseSql ORDER BY cs.start_time DESC LIMIT ? OFFSET ?");
             $stmt->execute(array_merge($params, [$limit, $offset]));
@@ -283,20 +310,46 @@ class SessionsHandler extends BaseHandler
             $svc = $this->sessionService();
             foreach ($items as &$item) {
                 $item['session_type_label'] = $svc->getSessionTypeLabel($item['session_type'] ?? 'manual');
-                if (empty($item['cashier_name'])) $item['cashier_name'] = 'مستخدم #' . ($item['cashier_id'] ?? '');
+                if (empty($item['cashier_name']))    $item['cashier_name']    = 'مستخدم #' . ($item['cashier_id'] ?? '');
                 if (!empty($item['closed_by']) && empty($item['closed_by_name'])) $item['closed_by_name'] = 'مستخدم #' . $item['closed_by'];
                 $item['variance_amount'] = isset($item['variance_amount']) ? (float)$item['variance_amount'] : null;
+                $item['cash_in']         = (float)($item['cash_in']  ?? 0);
+                $item['cash_out']        = (float)($item['cash_out'] ?? 0);
             }
             unset($item);
 
+            // ─── Total count ──────────────────────────────────────────────────────────────
             $countStmt = $this->db->prepare("SELECT COUNT(*) $baseSql");
             $countStmt->execute($params);
             $total = (int) $countStmt->fetchColumn();
 
+            // ─── KPI aggregation over full filtered set (not just current page) ──────────
+            $kpiSql = "
+                SELECT
+                    COUNT(*) AS total_sessions,
+                    COALESCE(SUM(cs.opening_cash_amount + COALESCE(ct.cash_in,0) - COALESCE(ct.cash_out,0)), 0) AS total_expected_cash,
+                    COUNT(CASE
+                        WHEN cs.closing_cash_amount IS NOT NULL
+                         AND ABS(cs.closing_cash_amount - cs.opening_cash_amount - COALESCE(ct.cash_in,0) + COALESCE(ct.cash_out,0)) > 0.01
+                        THEN 1 END
+                    ) AS sessions_with_variance
+                $baseSql
+            ";
+            $kpiStmt = $this->db->prepare($kpiSql);
+            $kpiStmt->execute($params);
+            $kpi = $kpiStmt->fetch(PDO::FETCH_ASSOC);
+
             return $this->successResponse($response, [
-                'items' => $items, 'total' => $total,
-                'page' => $page, 'limit' => $limit,
+                'items'       => $items,
+                'total'       => $total,
+                'page'        => $page,
+                'limit'       => $limit,
                 'total_pages' => (int)ceil($total / $limit),
+                'kpi'         => [
+                    'total_sessions'         => (int)($kpi['total_sessions']         ?? 0),
+                    'total_expected_cash'    => (float)($kpi['total_expected_cash']  ?? 0),
+                    'sessions_with_variance' => (int)($kpi['sessions_with_variance'] ?? 0),
+                ],
             ], 200);
         } catch (Exception $e) {
             $this->logger->error('List sessions failed', ['message' => $e->getMessage()]);
@@ -428,15 +481,23 @@ class SessionsHandler extends BaseHandler
             }
         }
         if (isset($query['has_variance'])) {
-            $varianceInner = "cs.closing_cash_amount - (cs.opening_cash_amount
-                + COALESCE((SELECT SUM(amount) FROM cash_transactions WHERE tenant_id=cs.tenant_id AND session_id=cs.id AND type IN ('income','return_receipt','sale','deposit')),0)
-                - COALESCE((SELECT SUM(amount) FROM cash_transactions WHERE tenant_id=cs.tenant_id AND session_id=cs.id AND type IN ('expense','return_payment','purchase','withdrawal')),0))";
-            if ($query['has_variance'] === 'true') {
-                $clause = " AND cs.closing_cash_amount IS NOT NULL AND ABS($varianceInner) > 0.01";
-            } else {
-                $clause = " AND (cs.closing_cash_amount IS NULL OR ABS($varianceInner) <= 0.01)";
+            // ✅ Normalize the same way as listSessions(): accept 'yes'/'true'/'1' and 'no'/'false'/'0'
+            $hasVarianceRaw = $query['has_variance'];
+            $hasVariance    = in_array($hasVarianceRaw, ['yes', 'true', '1', 1, true], true)
+                                ? 'yes'
+                                : (in_array($hasVarianceRaw, ['no', 'false', '0', 0, false], true) ? 'no' : null);
+
+            if ($hasVariance !== null) {
+                $varianceInner = "cs.closing_cash_amount - (cs.opening_cash_amount
+                    + COALESCE((SELECT SUM(amount) FROM cash_transactions WHERE tenant_id=cs.tenant_id AND session_id=cs.id AND type IN ('income','return_receipt','sale','deposit')),0)
+                    - COALESCE((SELECT SUM(amount) FROM cash_transactions WHERE tenant_id=cs.tenant_id AND session_id=cs.id AND type IN ('expense','return_payment','purchase','withdrawal')),0))";
+                if ($hasVariance === 'yes') {
+                    $clause = " AND cs.closing_cash_amount IS NOT NULL AND ABS($varianceInner) > 0.01";
+                } else {
+                    $clause = " AND (cs.closing_cash_amount IS NULL OR ABS($varianceInner) <= 0.01)";
+                }
+                $sql .= $clause; $countSql .= $clause;
             }
-            $sql .= $clause; $countSql .= $clause;
         }
     }
 }

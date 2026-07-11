@@ -36,6 +36,13 @@ class SessionDeniedException extends \RuntimeException
  * Read helpers (buildSessionSummary, getSessionTransactions, getSessionTypeLabel,
  * resolveSessionType, checkAndCloseInactiveAdminSessions) are also provided here
  * so the handler stays thin.
+ *
+ * IMPORTANT — Source of truth for cash_in / cash_out is ALWAYS the
+ * `cash_transactions` table. expected_cash and variance_amount are derived
+ * ONLY from opening_cash_amount + cash_in - cash_out. Nothing here may
+ * back-derive cash_out from closing_cash_amount, because that silently
+ * masks the real variance and produces inconsistent numbers between
+ * buildSessionSummary(), listSessions(), dailySummary(), and closeSession().
  */
 class CashierSessionService
 {
@@ -467,10 +474,16 @@ class CashierSessionService
         $closingBalance = ($session && isset($session['closing_cash_amount']))
             ? (float)$session['closing_cash_amount'] : null;
 
-        if (!empty($session['variance_reason']) && $cashOut == 0 && $closingBalance !== null) {
-            $expectedWithoutVariance = $openingBalance + $cashIn;
-            $cashOut = max(0, $expectedWithoutVariance - $closingBalance);
-        }
+        // ─────────────────────────────────────────────────────────────────────
+        // NOTE: cash_out is ALWAYS derived strictly from cash_transactions above.
+        // We intentionally do NOT back-derive cash_out from closing_cash_amount
+        // when a variance_reason is present — doing so silently masked the real
+        // variance (forcing variance_amount to 0) and caused this endpoint to
+        // disagree with listSessions()/dailySummary()/closeSession(), which all
+        // compute variance directly from opening + cash_in - cash_out.
+        // variance_reason is purely descriptive metadata and must never affect
+        // the calculation itself.
+        // ─────────────────────────────────────────────────────────────────────
 
         $expectedCash   = $openingBalance + $cashIn - $cashOut;
         $varianceAmount = $closingBalance !== null ? $closingBalance - $expectedCash : null;

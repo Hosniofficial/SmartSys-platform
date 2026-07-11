@@ -130,7 +130,13 @@ class StrictSubscriptionHandler extends BaseHandler
             $this->initializeSecureAccounting($tenantId, $userId);
 
             if ($this->config['require_email_verification'] && $verificationToken) {
-                $this->sendVerificationEmail($data['email'], $userId, $verificationToken);
+                $this->sendVerificationEmail($data['email'], $userId, $verificationToken, $ip);
+                
+                $this->logger->info('Verification email sent during trial signup', [
+                    'user_id' => $userId,
+                    'email' => $data['email'],
+                    'token_length' => strlen($verificationToken),
+                ]);
             }
 
             $this->recordSubscriptionAttempt($ip, $data['email'], 'trial_signup', 'success', [
@@ -294,94 +300,6 @@ class StrictSubscriptionHandler extends BaseHandler
             ]);
 
             return $this->errorResponse($response, 'فشل ترقية الاشتراك. يرجى المحاولة مرة أخرى أو التواصل مع الدعم.', 500);
-        }
-    }
-
-    public function verifyEmail(Request $request, Response $response): Response
-    {
-        $data = $request->getParsedBody();
-        if (!is_array($data)) {
-            $data = [];
-        }
-
-        $token = isset($data['token']) ? trim((string) $data['token']) : '';
-        $ip = $this->getClientIp($request);
-
-        try {
-            if ($token === '') {
-                return $this->errorResponse($response, 'Verification token is required', 400);
-            }
-
-            $stmt = $this->db->prepare(
-                "SELECT id, tenant_id, email, verification_token_expires
-                 FROM users
-                 WHERE verification_token = ?
-                   AND email_verified_at IS NULL
-                 LIMIT 1"
-            );
-            $stmt->execute([$token]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                return $this->errorResponse($response, 'Invalid or expired verification token', 400);
-            }
-
-            if (
-                empty($user['verification_token_expires']) ||
-                strtotime((string) $user['verification_token_expires']) < time()
-            ) {
-                return $this->errorResponse($response, 'Verification token expired', 400);
-            }
-
-            $this->db->beginTransaction();
-
-            $stmt = $this->db->prepare(
-                "UPDATE users
-                 SET email_verified_at = NOW(),
-                     verification_token = NULL,
-                     verification_token_expires = NULL
-                 WHERE id = ?"
-            );
-            $stmt->execute([(int) $user['id']]);
-
-            $stmt = $this->db->prepare(
-                "UPDATE subscriptions
-                 SET security_flags = JSON_SET(
-                        COALESCE(security_flags, '{}'),
-                        '$.email_verified',
-                        true
-                    ),
-                    last_security_check = NOW(),
-                    risk_score = GREATEST(COALESCE(risk_score, 0) - 1, 0)
-                 WHERE tenant_id = ?"
-            );
-            $stmt->execute([(int) $user['tenant_id']]);
-
-            $this->db->commit();
-
-            $this->logSecurityEvent('email_verified', 'low', 'User email verified successfully', [
-                'user_id' => (int) $user['id'],
-                'tenant_id' => (int) $user['tenant_id'],
-                'email' => $user['email'],
-                'ip' => $ip
-            ]);
-
-            return $this->successResponse($response, [
-                'message' => 'Email verified successfully'
-            ], 200);
-        } catch (Exception $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-
-            $this->logger->error('Email verification failed', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'ip' => $ip,
-                'token_prefix' => substr($token, 0, 8) . '...'
-            ]);
-
-            return $this->errorResponse($response, 'فشل التحقق من البريد الإلكتروني. يرجى التأكد من صحة الرابط أو طلب رابط جديد.', 500);
         }
     }
 
@@ -882,21 +800,99 @@ class StrictSubscriptionHandler extends BaseHandler
         }
     }
 
-    private function sendVerificationEmail(string $email, int $userId, string $token): void
+    private function sendVerificationEmail(string $email, int $userId, string $token, string $clientIp): void
     {
-        $appUrl = getenv('APP_URL') ?: 'https://yourapp.com';
-        $verificationUrl = rtrim($appUrl, '/') . '/verify-email?token=' . urlencode($token);
+        // استخدام EmailVerificationService لإرسال البريد بشكل صحيح
+        try {
+            // حفظ الـ token في جدول email_verification_tokens
+            $tokenHash = hash('sha256', $token);
+            $expiresAt = date('Y-m-d H:i:s', time() + 86400); // 24 ساعة
+            
+            $user = $this->getUserById($userId);
+            $tenantId = (int) ($user['tenant_id'] ?? 0);
+            
+            $this->db->prepare(
+                "INSERT INTO email_verification_tokens
+                     (tenant_id, user_id, email, token_hash, purpose,
+                      expires_at, ip_address, device_fingerprint, attempts, max_attempts, is_revoked, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, NOW())"
+            )->execute([
+                $tenantId,
+                $userId,
+                $email,
+                $tokenHash,
+                'registration',
+                $expiresAt,
+                $clientIp,
+                null,
+                5,
+            ]);
+            
+            // إرسال البريد بـ token الحقيقي
+            $frontendUrl = getenv('FRONTEND_URL') ?: 'http://localhost:5173';
+            $verificationUrl = rtrim($frontendUrl, '/') . '/verify-email?token=' . urlencode($token);
 
-        $this->logger->info('Verification email prepared', [
-            'user_id' => $userId,
-            'email' => $email,
-            'verification_url' => $verificationUrl
-        ]);
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            try {
+                $mail->isSMTP();
+                $mail->Host     = (string) ($_ENV['SMTP_HOST'] ?? '');
+                $mail->SMTPAuth = true;
+                $mail->Username = (string) ($_ENV['SMTP_USER'] ?? '');
+                $mail->Password = (string) ($_ENV['SMTP_PASS'] ?? '');
+                $mail->Port     = (int) ($_ENV['SMTP_PORT'] ?? 587);
+                $mail->Timeout  = (int) ($_ENV['SMTP_TIMEOUT'] ?? 15);
 
-        $this->logSecurityEvent('verification_email_sent', 'low', 'Verification email sent', [
-            'user_id' => $userId,
-            'email' => $email
-        ]);
+                $secure = strtolower((string) ($_ENV['SMTP_SECURE'] ?? 'tls'));
+                $mail->SMTPSecure = ($secure === 'ssl')
+                    ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
+                    : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+
+                $mail->CharSet  = 'UTF-8';
+                $mail->Encoding = 'base64';
+                $mail->setFrom(
+                    (string) ($_ENV['SMTP_FROM'] ?? $_ENV['SMTP_USER'] ?? ''),
+                    (string) ($_ENV['SMTP_FROM_NAME'] ?? 'SmartSys')
+                );
+                $mail->addAddress($email);
+                $mail->isHTML(true);
+                $mail->Subject = 'تأكيد البريد الإلكتروني';
+                $mail->Body    = 
+                    "<div dir=\"rtl\" style=\"font-family:Tahoma,Arial;line-height:1.8\">" .
+                    "<h2 style=\"margin:0 0 12px\">تأكيد البريد الإلكتروني</h2>" .
+                    "<p>مرحباً {$user['name']}</p>" .
+                    "<p>الرجاء الضغط على الرابط التالي لإكمال عملية التسجيل.</p>" .
+                    "<p><a href=\"{$verificationUrl}\" style=\"display:inline-block;background:#2563eb;color:#fff;padding:10px 16px;border-radius:12px;text-decoration:none;font-weight:bold\">فتح الرابط</a></p>" .
+                    "</div>";
+                $mail->send();
+
+                $this->logger->info('Verification email sent successfully', [
+                    'user_id' => $userId,
+                    'email'   => $email,
+                ]);
+            } catch (\Exception $e) {
+                $this->logger->error('Email sending failed', [
+                    'user_id' => $userId,
+                    'email'   => $email,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error('sendVerificationEmail failed', [
+                'user_id' => $userId,
+                'email'   => $email,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+    }
+    
+    private function getUserById(int $userId): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, username, email, name, tenant_id, role_id
+             FROM users WHERE id = ? LIMIT 1"
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
     }
 
     private function validateAndGetPlan(string $planCode): ?array

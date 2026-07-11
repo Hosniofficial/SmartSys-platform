@@ -8,6 +8,8 @@ use PDO;
 use App\Services\MonologHandler;
 use App\Handlers\AuditHandler;
 use App\Utils\PaginationHelper;
+use App\Resources\ProductListResource;
+use App\Resources\ProductDetailResource;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -31,35 +33,32 @@ class InventoryHandler extends BaseHandler
             [$page, $limit, $offset] = PaginationHelper::fromArray($queryParams, 10, 100);
             $search   = trim((string) ($queryParams['search'] ?? ''));
             $category = $queryParams['category'] ?? null;
+            $branchId = isset($queryParams['branch_id']) && $queryParams['branch_id'] !== ''
+                ? (int) $queryParams['branch_id']
+                : null;
 
+            // Build products query with proper JOINs
             $query = "
                 SELECT
                     p.*,
-                    c.name AS category_name,
-                    u.name AS unit_name
+                    c.name AS category_name
                 FROM products p
-                LEFT JOIN categories c
-                    ON p.category_id = c.id
-                LEFT JOIN product_units pu
-                    ON pu.product_id = p.id
-                   AND pu.is_main_unit = 1
-                   AND pu.tenant_id = p.tenant_id
-                LEFT JOIN units u
-                    ON pu.unit_id = u.id
+                LEFT JOIN categories c ON p.category_id = c.id
                 WHERE p.tenant_id = ?
             ";
 
             $params = [(int) $tenantId];
 
             if ($search !== '') {
-                $query .= " AND (p.name LIKE ? OR p.barcode LIKE ?)";
+                $query .= " AND (p.name LIKE ? OR p.barcode LIKE ? OR p.product_code LIKE ?)";
+                $params[] = '%' . $search . '%';
                 $params[] = '%' . $search . '%';
                 $params[] = '%' . $search . '%';
             }
 
             if (!empty($category)) {
                 $query .= " AND p.category_id = ?";
-                $params[] = $category;
+                $params[] = (int) $category;
             }
 
             $query .= " ORDER BY p.id DESC LIMIT ? OFFSET ?";
@@ -76,6 +75,83 @@ class InventoryHandler extends BaseHandler
             $stmt->execute();
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+            // Get branch inventory data for each product
+            $branchProducts = [];
+            if (!empty($products)) {
+                $productIds = array_column($products, 'id');
+                $branchQuery = "
+                    SELECT
+                        product_id,
+                        SUM(quantity) as quantity,
+                        MIN(minimum_quantity) as minimum_quantity,
+                        SUM(quantity_cost) as quantity_cost
+                    FROM branch_products
+                    WHERE product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
+                      AND tenant_id = ?
+                ";
+                
+                if ($branchId) {
+                    $branchQuery .= " AND branch_id = ? GROUP BY product_id";
+                    $branchParams = array_merge($productIds, [(int) $tenantId, (int) $branchId]);
+                } else {
+                    $branchQuery .= " GROUP BY product_id HAVING SUM(quantity) > 0";
+                    $branchParams = array_merge($productIds, [(int) $tenantId]);
+                }
+
+                $branchStmt = $this->db->prepare($branchQuery);
+                $branchStmt->execute($branchParams);
+                $branchData = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                
+                foreach ($branchData as $bp) {
+                    $pid = (int) $bp['product_id'];
+                    $branchProducts[$pid] = $bp;
+                }
+            }
+
+            // Get units for each product
+            $allUnits = [];
+            if (!empty($products)) {
+                $productIds = array_column($products, 'id');
+                $unitsQuery = "
+                    SELECT
+                        pu.product_id,
+                        pu.unit_id,
+                        pu.conversion_factor,
+                        pu.is_main_unit,
+                        u.name as unit_name,
+                        u.code as unit_code
+                    FROM product_units pu
+                    JOIN units u ON pu.unit_id = u.id
+                    WHERE pu.product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
+                      AND pu.tenant_id = ?
+                    ORDER BY pu.is_main_unit DESC, u.name ASC
+                ";
+
+                $unitsStmt = $this->db->prepare($unitsQuery);
+                $unitsStmt->execute(array_merge($productIds, [(int) $tenantId]));
+                $unitsData = $unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                
+                foreach ($unitsData as $unit) {
+                    $pid = (int) $unit['product_id'];
+                    if (!isset($allUnits[$pid])) {
+                        $allUnits[$pid] = [];
+                    }
+                    $allUnits[$pid][] = $unit;
+                }
+            }
+
+            // Transform products using ProductListResource
+            $transformedProducts = [];
+            foreach ($products as $product) {
+                $pid = (int) $product['id'];
+                $transformedProducts[] = ProductListResource::transform(
+                    $product,
+                    $branchProducts[$pid] ?? [],
+                    $allUnits[$pid] ?? []
+                );
+            }
+
+            // Count total
             $countQuery = "
                 SELECT COUNT(*)
                 FROM products p
@@ -84,14 +160,15 @@ class InventoryHandler extends BaseHandler
             $countParams = [(int) $tenantId];
 
             if ($search !== '') {
-                $countQuery .= " AND (p.name LIKE ? OR p.barcode LIKE ?)";
+                $countQuery .= " AND (p.name LIKE ? OR p.barcode LIKE ? OR p.product_code LIKE ?)";
+                $countParams[] = '%' . $search . '%';
                 $countParams[] = '%' . $search . '%';
                 $countParams[] = '%' . $search . '%';
             }
 
             if (!empty($category)) {
                 $countQuery .= " AND p.category_id = ?";
-                $countParams[] = $category;
+                $countParams[] = (int) $category;
             }
 
             $countStmt = $this->db->prepare($countQuery);
@@ -99,7 +176,7 @@ class InventoryHandler extends BaseHandler
             $total = (int) $countStmt->fetchColumn();
 
             return $this->successResponse($response, [
-                'items' => $products,
+                'items' => $transformedProducts,
                 'total' => $total,
                 'page' => $page,
                 'limit' => $limit,
@@ -128,35 +205,44 @@ class InventoryHandler extends BaseHandler
                 return $this->errorResponse($response, 'Product ID is required', 400);
             }
 
+            // Get product details
             $stmt = $this->db->prepare("
                 SELECT
                     p.*,
-                    c.name AS category_name,
-                    u.name AS unit_name,
-                    (
-                        SELECT COALESCE(SUM(quantity), 0)
-                        FROM branch_products
-                        WHERE product_id = p.id
-                          AND tenant_id = ?
-                    ) AS current_stock
+                    c.name AS category_name
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
-                LEFT JOIN units u ON p.unit_id = u.id
                 WHERE p.id = ? AND p.tenant_id = ?
             ");
-            $stmt->execute([(int) $tenantId, $id, (int) $tenantId]);
+            $stmt->execute([$id, (int) $tenantId]);
             $product = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$product) {
                 return $this->errorResponse($response, 'المنتج غير موجود', 404);
             }
 
+            // Get branch inventory data (total across all branches)
             $stmt = $this->db->prepare("
                 SELECT
-                    u.id,
-                    u.name,
+                    product_id,
+                    SUM(quantity) as quantity,
+                    MIN(minimum_quantity) as minimum_quantity,
+                    SUM(quantity_cost) as quantity_cost
+                FROM branch_products
+                WHERE product_id = ? AND tenant_id = ?
+                GROUP BY product_id
+            ");
+            $stmt->execute([$id, (int) $tenantId]);
+            $branchProduct = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            // Get all units for the product
+            $stmt = $this->db->prepare("
+                SELECT
+                    pu.unit_id,
                     pu.conversion_factor,
-                    pu.is_main_unit
+                    pu.is_main_unit,
+                    u.name as unit_name,
+                    u.code as unit_code
                 FROM product_units pu
                 JOIN units u ON pu.unit_id = u.id
                 WHERE pu.product_id = ? AND pu.tenant_id = ?
@@ -165,10 +251,14 @@ class InventoryHandler extends BaseHandler
             $stmt->execute([$id, (int) $tenantId]);
             $units = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-            return $this->successResponse($response, [
-                'product' => $product,
-                'units' => $units
-            ], 200);
+            // Transform using ProductDetailResource
+            $transformedProduct = ProductDetailResource::transform(
+                $product,
+                $branchProduct,
+                $units
+            );
+
+            return $this->successResponse($response, $transformedProduct, 200);
         } catch (\Throwable $e) {
             $this->logger->error('Error getting product', [
                 'error' => $e->getMessage(),
@@ -292,6 +382,14 @@ class InventoryHandler extends BaseHandler
 
             $productId = (int) $this->db->lastInsertId();
 
+            // ── Auto-generate SKU based on product ID ───────────────────────
+            $sku = 'PRD-' . str_pad((string) $productId, 6, '0', STR_PAD_LEFT);
+            $this->db->prepare("
+                UPDATE products 
+                SET product_code = ?
+                WHERE id = ? AND tenant_id = ?
+            ")->execute([$sku, $productId, (int) $tenantId]);
+
             $stmt = $this->db->prepare("
                 INSERT INTO product_units (
                     product_id,
@@ -392,6 +490,20 @@ class InventoryHandler extends BaseHandler
         ]);
 
         try {
+            // ── Validate SKU uniqueness if provided ────────────────────────
+            if (isset($data['product_code']) && $data['product_code'] !== '') {
+                $skuStmt = $this->db->prepare("
+                    SELECT COUNT(*) FROM products
+                    WHERE product_code = ?
+                      AND id != ?
+                      AND tenant_id = ?
+                ");
+                $skuStmt->execute([$data['product_code'], $id, (int) $tenantId]);
+                if ((int) $skuStmt->fetchColumn() > 0) {
+                    return $this->errorResponse($response, 'كود المنتج (SKU) مكرر بالفعل في النظام.', 409);
+                }
+            }
+
             $this->db->beginTransaction();
 
             $stmt = $this->db->prepare("
@@ -532,6 +644,23 @@ class InventoryHandler extends BaseHandler
         }
 
         try {
+            // ── Check if product has posted opening balance ──────────────
+            $postedStmt = $this->db->prepare("
+                SELECT opening_balance_posted 
+                FROM products 
+                WHERE id = ? AND tenant_id = ?
+            ");
+            $postedStmt->execute([$id, (int) $tenantId]);
+            $product = $postedStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($product && (int) ($product['opening_balance_posted'] ?? 0) === 1) {
+                return $this->errorResponse(
+                    $response,
+                    'لا يمكن حذف منتج تم ترصيد رصيده الافتتاحي. يرجى عمل قيد عكسي أولاً من خلال صفحة المحاسبة.',
+                    409
+                );
+            }
+
             $stmt = $this->db->prepare("
                 SELECT
                     (
@@ -636,18 +765,15 @@ class InventoryHandler extends BaseHandler
                 return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
             }
 
+            $queryParams = $request->getQueryParams();
+            $branchId = isset($queryParams['branch_id']) && $queryParams['branch_id'] !== ''
+                ? (int) $queryParams['branch_id']
+                : null;
+
+            // Get all active products
             $query = "
-                SELECT
-                    p.*,
-                    c.name AS category_name,
-                    u.name AS unit_name
+                SELECT p.*
                 FROM products p
-                LEFT JOIN categories c ON p.category_id = c.id
-                LEFT JOIN product_units pu
-                    ON pu.product_id = p.id
-                   AND pu.is_main_unit = 1
-                   AND pu.tenant_id = p.tenant_id
-                LEFT JOIN units u ON pu.unit_id = u.id
                 WHERE p.active = 1 AND p.tenant_id = ?
                 ORDER BY p.name ASC
             ";
@@ -656,7 +782,84 @@ class InventoryHandler extends BaseHandler
             $stmt->execute([(int) $tenantId]);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-            return $this->successResponse($response, $products, 200);
+            if (empty($products)) {
+                return $this->successResponse($response, [], 200);
+            }
+
+            // Batch fetch branch products and units
+            $productIds = array_column($products, 'id');
+            
+            $branchQuery = "
+                SELECT 
+                    product_id,
+                    SUM(quantity) as quantity,
+                    MIN(minimum_quantity) as minimum_quantity,
+                    SUM(quantity_cost) as quantity_cost
+                FROM branch_products
+                WHERE product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
+                  AND tenant_id = ?
+            ";
+            
+            if ($branchId) {
+                $branchQuery .= " AND branch_id = ?";
+                $branchParams = array_merge($productIds, [(int) $tenantId, (int) $branchId]);
+            } else {
+                $branchParams = array_merge($productIds, [(int) $tenantId]);
+            }
+            
+            $branchQuery .= " GROUP BY product_id";
+            
+            $branchStmt = $this->db->prepare($branchQuery);
+            $branchStmt->execute($branchParams);
+            $branchData = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            
+            $branchProducts = [];
+            foreach ($branchData as $bp) {
+                $pid = (int) $bp['product_id'];
+                $branchProducts[$pid] = $bp;
+            }
+
+            // Batch fetch units
+            $unitsQuery = "
+                SELECT
+                    pu.product_id,
+                    pu.unit_id,
+                    pu.conversion_factor,
+                    pu.is_main_unit,
+                    u.name as unit_name,
+                    u.code as unit_code
+                FROM product_units pu
+                JOIN units u ON pu.unit_id = u.id
+                WHERE pu.product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
+                  AND pu.tenant_id = ?
+                ORDER BY pu.is_main_unit DESC, u.name ASC
+            ";
+
+            $unitsStmt = $this->db->prepare($unitsQuery);
+            $unitsStmt->execute(array_merge($productIds, [(int) $tenantId]));
+            $unitsData = $unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            
+            $allUnits = [];
+            foreach ($unitsData as $unit) {
+                $pid = (int) $unit['product_id'];
+                if (!isset($allUnits[$pid])) {
+                    $allUnits[$pid] = [];
+                }
+                $allUnits[$pid][] = $unit;
+            }
+
+            // Transform using ProductListResource
+            $transformedProducts = [];
+            foreach ($products as $product) {
+                $pid = (int) $product['id'];
+                $transformedProducts[] = ProductListResource::transform(
+                    $product,
+                    $branchProducts[$pid] ?? [],
+                    $allUnits[$pid] ?? []
+                );
+            }
+
+            return $this->successResponse($response, $transformedProducts, 200);
         } catch (\Throwable $e) {
             $this->logger->error('Error listing active products', [
                 'error' => $e->getMessage(),
@@ -902,21 +1105,34 @@ class InventoryHandler extends BaseHandler
             $countStmt->execute($countParams);
             $countRow = $countStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-            // ── 2. Total value from GL accounts via branches.account_id ───
+            // ── 2. Total value from branch_products (actual inventory) ───
+            // NOTE 1: Changed from GL balance to actual inventory to avoid stale GL values
+            // when products are deleted without proper GL reversals.
+            // NOTE 2: Dynamic calculation using current quantity × current purchase_price
+            // to reflect actual inventory value even after price changes or stock movements.
+            // formula: value = bp.quantity * p.purchase_price
+            // This avoids the outdated quantity_cost set at opening balance posting.
             if ($branchId) {
                 $valueSql = "
-                    SELECT COALESCE(a.debit_balance - a.credit_balance, 0) AS total_value
-                    FROM branches b
-                    JOIN accounts a ON a.id = b.account_id AND a.tenant_id = b.tenant_id
-                    WHERE b.id = ? AND b.tenant_id = ?
+                    SELECT COALESCE(SUM(bp.quantity * p.purchase_price), 0) AS total_value
+                    FROM branch_products bp
+                    JOIN products p 
+                        ON p.id = bp.product_id 
+                       AND p.tenant_id = bp.tenant_id
+                    WHERE bp.branch_id = ? 
+                      AND bp.tenant_id = ?
+                      AND p.active = 1
                 ";
                 $valueParams = [$branchId, (int) $tenantId];
             } else {
                 $valueSql = "
-                    SELECT COALESCE(SUM(a.debit_balance - a.credit_balance), 0) AS total_value
-                    FROM branches b
-                    JOIN accounts a ON a.id = b.account_id AND a.tenant_id = b.tenant_id
-                    WHERE b.tenant_id = ?
+                    SELECT COALESCE(SUM(bp.quantity * p.purchase_price), 0) AS total_value
+                    FROM branch_products bp
+                    JOIN products p 
+                        ON p.id = bp.product_id 
+                       AND p.tenant_id = bp.tenant_id
+                    WHERE bp.tenant_id = ?
+                      AND p.active = 1
                 ";
                 $valueParams = [(int) $tenantId];
             }
