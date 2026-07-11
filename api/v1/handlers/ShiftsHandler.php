@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Handlers;
 
 use PDO;
@@ -349,7 +351,7 @@ class ShiftsHandler extends BaseHandler
         try {
             $tenantId = $this->extractTenantId($request);
             if (!$tenantId) {
-                return $this->errorResponse($response, 'مطلوب معرف المستأجر.', 403);
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
             }
 
             $shiftId = (int)($args['id'] ?? 0);

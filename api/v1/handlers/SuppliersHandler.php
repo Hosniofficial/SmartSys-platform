@@ -39,7 +39,7 @@ class SuppliersHandler extends BaseContactHandler
     {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
-            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID)', 403);
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
         }
 
         $supplierId = $args['id'] ?? null;
