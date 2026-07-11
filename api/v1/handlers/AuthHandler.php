@@ -734,7 +734,7 @@ class AuthHandler extends BaseHandler
             $userId = $requestUserId;
             $code   = (string) $data['code'];
 
-            // ✅ Security: scope query by tenant_id to prevent cross-tenant reads
+            // Security: Scope query by tenant_id to prevent cross-tenant reads
             $tenantId = $this->extractTenantId($request);
             $stmt = $this->db->prepare("
                 SELECT two_fa_secret
@@ -812,8 +812,8 @@ class AuthHandler extends BaseHandler
                 return $this->errorResponse($response, 'Invalid verification code', 400);
             }
 
-            // ✅ Security: WHERE includes tenant_id — prevents cross-tenant update
-            // ✅ Encrypt secret before storing
+            // Security: WHERE includes tenant_id to prevent cross-tenant updates
+            // Encrypt secret before storing for security
             $encryptedSecret = $this->twoFaEncryption->encrypt($secret);
             $stmt = $this->db->prepare("
                 UPDATE users

@@ -253,7 +253,7 @@ class SessionsHandler extends BaseHandler
             $device      = $q['device']       ?? $q['device_name'] ?? null;
             $fromDate    = $q['from_date']    ?? null;
             $toDate      = $q['to_date']      ?? null;
-            // ✅ Accept 'yes', 'true', '1' uniformly
+            // Normalize variance filter: accept 'yes', 'true', '1' uniformly
             $hasVarianceRaw = $q['has_variance'] ?? null;
             $hasVariance    = in_array($hasVarianceRaw, ['yes','true','1'], true)
                                 ? 'yes'
@@ -485,7 +485,7 @@ class SessionsHandler extends BaseHandler
             }
         }
         if (isset($query['has_variance'])) {
-            // ✅ Normalize the same way as listSessions(): accept 'yes'/'true'/'1' and 'no'/'false'/'0'
+            // Normalize variance filter: accept 'yes'/'true'/'1' and 'no'/'false'/'0'
             $hasVarianceRaw = $query['has_variance'];
             $hasVariance    = in_array($hasVarianceRaw, ['yes', 'true', '1', 1, true], true)
                                 ? 'yes'

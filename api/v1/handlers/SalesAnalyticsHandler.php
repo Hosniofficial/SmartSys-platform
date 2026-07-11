@@ -637,8 +637,8 @@ class SalesAnalyticsHandler extends BaseHandler
                 $cogsTotal = 0.0;
             }
 
-            // Returns COGS
-            // ✅ Single batch query instead of one query per return (N+1 fix)
+            // Returns COGS calculation
+            // Use single batch query instead of one query per return (N+1 fix)
             $returnsCOGS = 0.0;
             try {
                 $stmt = $this->db->prepare("SELECT r.id, r.sale_id FROM returns r {$clauseReturns}");

@@ -566,7 +566,7 @@ class SalesHandler extends BaseHandler
                 'id'      => $saleId,
             ]), 201);
         } catch (\App\Exceptions\InsufficientStockException $e) {
-            // ✅ معالجة خاصة لخطأ المخزون غير الكافي
+            // Handle insufficient stock error with specific logging
             $this->logger->warning('Sales invoice creation failed - insufficient stock', [
                 'product_id' => $e->productId,
                 'available_qty' => $e->availableQty,
@@ -684,7 +684,7 @@ class SalesHandler extends BaseHandler
             ], 200);
 
         } catch (\App\Exceptions\InsufficientStockException $e) {
-            // ✅ معالجة خاصة لخطأ المخزون غير الكافي عند الموافقة
+            // Handle insufficient stock error on approval with specific logging
             $this->logger->warning('Sales approval failed - insufficient stock', [
                 'product_id' => $e->productId,
                 'available_qty' => $e->availableQty,

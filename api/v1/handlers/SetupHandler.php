@@ -518,7 +518,7 @@ class SetupHandler extends BaseHandler
                 'tenant_id' => $tenantId,
                 'branch_name' => $branchName
             ]);
-            return; // ✅ إذا كانت موجودة، لا تُنشئ نسخة جديدة
+            return; // Skip if branch already exists
         }
 
         $inTransaction = $this->db->inTransaction();
@@ -606,7 +606,7 @@ class SetupHandler extends BaseHandler
                     'branch_name' => $branch['name'] ?? null,
                     'message' => $e->getMessage()
                 ]);
-                // ✅ Cleanup orphaned account if cost center creation fails
+                // Cleanup orphaned account if cost center creation fails
                 try {
                     $this->db->prepare("DELETE FROM accounts WHERE id = ? AND tenant_id = ?")
                         ->execute([$newAccountId, $tenantId]);
@@ -646,7 +646,7 @@ class SetupHandler extends BaseHandler
                     $this->db->commit();
                 }
             } catch (Exception $branchErr) {
-                // ✅ Cleanup orphaned account and cost center if branch creation fails
+                // Cleanup orphaned account and cost center if branch creation fails
                 try {
                     $this->db->prepare("DELETE FROM accounts WHERE id = ? AND tenant_id = ?")
                         ->execute([$newAccountId, $tenantId]);

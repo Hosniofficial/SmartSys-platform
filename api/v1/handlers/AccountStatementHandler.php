@@ -623,8 +623,8 @@ private function normalizeInvoiceStatus(
                 'discount_value' => isset($r['discount_value']) ? (float)$r['discount_value'] : 0.0,
                 'discount_type' => $r['discount_type'] ?? null,
                 'tax_amount' => isset($r['tax_amount']) ? (float)$r['tax_amount'] : 0.0,
-                'paid_amount' => $paid,  // ✅ Now using calculated_paid_amount from payments table
-                'outstanding' => $outstanding,  // ✅ This will now be correct since $paid is accurate
+                'paid_amount' => $paid,  // Calculated from payments table
+                'outstanding' => $outstanding,  // Accurate based on actual payments
                 'due_date' => isset($r['due_date']) ? $r['due_date'] : null,
                 'days_overdue' => isset($r['days_overdue']) ? (int)$r['days_overdue'] : 0,
                 'items_count' => isset($r['items_count']) ? (int)$r['items_count'] : 0,
@@ -691,7 +691,7 @@ private function normalizeInvoiceStatus(
         }
         $stmtSales->execute($salesParams);
         $sales = array_map(function($r) {
-            // ✅ تطبيع الـ status باستخدام الدالة الموحدة
+            // Normalize status using unified logic
             $net = isset($r['net_total_amount']) ? (float)$r['net_total_amount'] : 0.0;
             $paid = isset($r['paid_amount']) ? (float)$r['paid_amount'] : 0.0;
             $returnCredits = isset($r['return_credits_applied']) ? (float)$r['return_credits_applied'] : 0.0;
@@ -865,7 +865,7 @@ private function normalizeInvoiceStatus(
                 $paymentTypeLabel = 'استرجاع نقدي للعميل';
             }
             
-            // ✅ FIX: Use related_sale_invoice_number if available (for receipts linked to sales)
+            // Use related_sale_invoice_number if available (for receipts linked to sales)
             // Otherwise use reference_number (payment reference), or null if neither available
             $invoiceNumber = !empty($r['related_sale_invoice_number']) 
                 ? $r['related_sale_invoice_number'] 
@@ -944,7 +944,7 @@ private function normalizeInvoiceStatus(
             ':end_date_full' => $endDate . ' 23:59:59',
         ]);
         $purchases = array_map(function($r) {
-            // ✅ تطبيع الـ status باستخدام الدالة الموحدة
+            // Normalize status using unified logic
             $net = isset($r['net_total_amount']) ? (float)$r['net_total_amount'] : 0.0;
             $paid = isset($r['paid_amount']) ? (float)$r['paid_amount'] : 0.0;
             $returnCredits = isset($r['return_credits_applied']) ? (float)$r['return_credits_applied'] : 0.0;

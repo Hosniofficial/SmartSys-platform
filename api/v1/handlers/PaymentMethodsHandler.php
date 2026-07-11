@@ -79,12 +79,12 @@ class PaymentMethodsHandler extends BaseHandler
                 );
             }
 
-            // ✅ account_id اختياري — null يعني "إزالة الربط"
+            // account_id is optional — null means "remove the link"
             $accountId = array_key_exists('account_id', $body)
                 ? ($body['account_id'] !== null && $body['account_id'] !== '' ? (int) $body['account_id'] : null)
-                : false; // false = لم يُرسل → لا تغيير
+                : false; // false = not sent → don't change
 
-            // ✅ Auto-provision: wallet بدون account_id → ننشئ حساب 1003 تلقائياً
+            // Auto-provision wallet without account_id → create account 1003 automatically
             $walletKinds = ['wallet'];
             if (in_array($kind, $walletKinds, true) && ($accountId === false || $accountId === null)) {
                 try {
