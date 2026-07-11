@@ -189,24 +189,6 @@ class BaseHandler
     }
 
     /**
-     * Shorthand for successful response
-     * Equivalent to successResponse($response, $data, 200)
-     */
-    protected function ok(Response $response, array $data = []): Response
-    {
-        return $this->successResponse($response, $data, 200);
-    }
-
-    /**
-     * Shorthand for error response
-     * Equivalent to errorResponse($response, $message, 400)
-     */
-    protected function err(Response $response, string $message, int $status = 400): Response
-    {
-        return $this->errorResponse($response, $message, $status);
-    }
-
-    /**
      * قراءة قيمة إعداد واحدة من جدول settings
      */
     protected function getSetting(int $tenantId, string $key): ?string
@@ -307,8 +289,13 @@ class BaseHandler
     /**
      * @deprecated تجنب استخدامها في PSR-7 handlers
      */
+    /**
+     * @deprecated This method should not be used. Use errorResponse() or successResponse() instead.
+     * These methods are kept only for backward compatibility and will be removed in the next major version.
+     */
     protected function sendResponse(int $status = 200): void
     {
+        trigger_error('sendResponse() is deprecated. Use jsonResponse() instead.', E_USER_DEPRECATED);
         http_response_code($status);
         header('Content-Type: application/json');
         echo json_encode([
@@ -320,10 +307,12 @@ class BaseHandler
     }
 
     /**
-     * @deprecated تجنب استخدامها في PSR-7 handlers
+     * @deprecated This method should not be used. Use errorResponse() instead.
+     * This method is kept only for backward compatibility and will be removed in the next major version.
      */
     protected function sendError(string $message, int $status = 400): void
     {
+        trigger_error('sendError() is deprecated. Use errorResponse() instead.', E_USER_DEPRECATED);
         http_response_code($status);
         header('Content-Type: application/json');
         echo json_encode([
@@ -360,9 +349,12 @@ class BaseHandler
 
     /**
      * @deprecated الأفضل أن تُرجع array أو تُرمي exception بدل sendError()
+     * This method is kept only for backward compatibility and will be removed in the next major version.
+     * Use extractAndValidateRequestData() instead.
      */
     protected function validateRequest(array $requiredFields = []): array
     {
+        trigger_error('validateRequest() is deprecated. Use extractAndValidateRequestData() instead.', E_USER_DEPRECATED);
         $data = json_decode(file_get_contents('php://input'), true);
 
         if (!$data && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {

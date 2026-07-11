@@ -672,8 +672,23 @@ class RBACHandler extends BaseHandler
 
     public function getRolePermissions(Request $request, Response $response, array $args): Response
     {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
         try {
             $roleId = (int) ($args['id'] ?? 0);
+
+            // Verify role belongs to tenant
+            $stmt = $this->db->prepare("
+                SELECT id FROM roles
+                WHERE id = ? AND tenant_id = ?
+            ");
+            $stmt->execute([$roleId, $tenantId]);
+            if (!$stmt->fetch()) {
+                return $this->errorResponse($response, 'الدور غير موجود', 404);
+            }
 
             $stmt = $this->db->prepare("
                 SELECT
@@ -694,6 +709,7 @@ class RBACHandler extends BaseHandler
             return $this->successResponse($response, $permissions, 200);
         } catch (\Throwable $e) {
             $this->logger->error('Failed to get role permissions', [
+                'tenant_id' => $tenantId,
                 'role_id' => $args['id'] ?? null,
                 'message' => $e->getMessage()
             ]);
@@ -704,8 +720,24 @@ class RBACHandler extends BaseHandler
 
     public function updateRolePermissions(Request $request, Response $response, array $args): Response
     {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
         try {
             $roleId = (int) ($args['id'] ?? 0);
+            
+            // Verify role belongs to tenant
+            $stmt = $this->db->prepare("
+                SELECT id FROM roles
+                WHERE id = ? AND tenant_id = ?
+            ");
+            $stmt->execute([$roleId, $tenantId]);
+            if (!$stmt->fetch()) {
+                return $this->errorResponse($response, 'الدور غير موجود', 404);
+            }
+
             $data = $request->getParsedBody() ?? [];
 
             if (!isset($data['permissions']) || !is_array($data['permissions'])) {
@@ -749,6 +781,7 @@ class RBACHandler extends BaseHandler
             }
 
             $this->logger->error('Failed to update role permissions', [
+                'tenant_id' => $tenantId,
                 'role_id' => $args['id'] ?? null,
                 'message' => $e->getMessage()
             ]);

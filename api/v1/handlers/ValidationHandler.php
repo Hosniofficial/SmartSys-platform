@@ -92,6 +92,11 @@ class ValidationHandler extends BaseHandler {
                                 $query .= " AND tenant_id = ?";
                                 $params[] = $data['tenant_id'];
                             }
+                            // Note: This is a static method, so we need a way to access the database
+                            // Consider refactoring to use dependency injection instead of GLOBALS
+                            if (!isset($GLOBALS['db'])) {
+                                throw new \Exception('Database connection not available in ValidationHandler::validate()');
+                            }
                             $stmt = $GLOBALS['db']->prepare($query);
                             $stmt->execute($params);
                             if ($stmt->fetchColumn() == 0) {
@@ -113,6 +118,11 @@ class ValidationHandler extends BaseHandler {
                             if ($tenantField === 'tenant_id' && !empty($data['tenant_id'])) {
                                 $query .= " AND tenant_id = ?";
                                 $params[] = $data['tenant_id'];
+                            }
+                            // Note: This is a static method, so we need a way to access the database
+                            // Consider refactoring to use dependency injection instead of GLOBALS
+                            if (!isset($GLOBALS['db'])) {
+                                throw new \Exception('Database connection not available in ValidationHandler::validate()');
                             }
                             $stmt = $GLOBALS['db']->prepare($query);
                             $stmt->execute($params);

@@ -721,14 +721,19 @@ class UsersHandler extends BaseHandler
             return $this->errorResponse($response, 'مطلوب معرف المستخدم (User ID).', 403);
         }
 
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
         try {
             $body = $request->getParsedBody();
             $branchId = $body['selected_branch_id'] ?? null;
 
             if ($branchId) {
-                $branchSql = "SELECT id FROM branches WHERE id = ?";
+                $branchSql = "SELECT id FROM branches WHERE id = ? AND tenant_id = ?";
                 $branchStmt = $this->db->prepare($branchSql);
-                $branchStmt->execute([$branchId]);
+                $branchStmt->execute([$branchId, $tenantId]);
                 if (!$branchStmt->fetch()) {
                     return $this->errorResponse($response, 'معرف الفرع غير صحيح (Invalid Branch ID).', 422);
                 }
@@ -751,6 +756,7 @@ class UsersHandler extends BaseHandler
 
             $this->logger->info('User preferences saved', [
                 'user_id' => $userId,
+                'tenant_id' => $tenantId,
                 'branch_id' => $branchId
             ]);
 

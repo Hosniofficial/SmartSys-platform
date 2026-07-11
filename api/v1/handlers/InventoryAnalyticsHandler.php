@@ -97,66 +97,87 @@ class InventoryAnalyticsHandler extends BaseHandler
     // Internal helper (not a route — called programmatically)
     // =========================================================
 
-    public function forecastInventory(int $productId, int $days = 30): array
+    /**
+     * Forecast inventory levels for the next N days (internal helper)
+     * 
+     * @param int $productId Product ID
+     * @param int $tenantId Tenant ID (required for multi-tenant isolation)
+     * @param int $days Number of days to forecast (default: 30)
+     * @return array Forecast array with daily predictions
+     */
+    public function forecastInventory(int $productId, int $tenantId, int $days = 30): array
     {
-        $tenantId = $_SESSION['tenant_id'] ?? ($_SERVER['HTTP_X_TENANT_ID'] ?? null);
         if (!$tenantId) {
+            $this->logger->warning('forecastInventory called without tenantId', ['product_id' => $productId]);
             return [];
         }
 
+        // Get average daily consumption over last 90 days
         $stmt = $this->db->prepare("
             SELECT AVG(daily_quantity) as avg_daily_consumption
             FROM (
                 SELECT DATE(s.date) as date, SUM(si.quantity) as daily_quantity
                 FROM sales s
                 JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id
-                WHERE si.product_id = ? AND s.date >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+                WHERE si.product_id = ? AND s.tenant_id = ? AND s.date >= DATE_SUB(NOW(), INTERVAL 90 DAY)
                 GROUP BY DATE(s.date)
             ) daily_sales
         ");
-        $stmt->execute([$productId]);
+        $stmt->execute([$productId, $tenantId]);
         $avgConsumption = (float) ($stmt->fetchColumn() ?? 0);
 
+        // Get standard deviation of daily consumption
         $stmt = $this->db->prepare("
             SELECT STDDEV(daily_quantity) as consumption_stddev
             FROM (
                 SELECT DATE(s.date) as date, SUM(si.quantity) as daily_quantity
                 FROM sales s
                 JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id
-                WHERE si.product_id = ? AND s.date >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+                WHERE si.product_id = ? AND s.tenant_id = ? AND s.date >= DATE_SUB(NOW(), INTERVAL 90 DAY)
                 GROUP BY DATE(s.date)
             ) daily_sales
         ");
-        $stmt->execute([$productId]);
+        $stmt->execute([$productId, $tenantId]);
         $stdDev = (float) ($stmt->fetchColumn() ?? 0);
 
+        // Get product settings (min_quantity, maximum_quantity, lead_time_days)
         $stmt = $this->db->prepare("
-            SELECT COALESCE(wp.quantity, 0) as current_stock,
-                   p.minimum_stock, p.maximum_stock, p.reorder_point, p.lead_time_days
+            SELECT COALESCE(SUM(bp.quantity), 0) as current_stock,
+                   p.min_quantity, p.maximum_quantity, 
+                   COALESCE(p.lead_time_days, 5) as lead_time_days
             FROM products p
-            LEFT JOIN branch_products wp ON wp.product_id = p.id AND wp.tenant_id = ?
-            WHERE p.id = ?
+            LEFT JOIN branch_products bp ON bp.product_id = p.id AND bp.tenant_id = ?
+            WHERE p.id = ? AND p.tenant_id = ?
+            GROUP BY p.id, p.min_quantity, p.maximum_quantity, p.lead_time_days
         ");
-        $stmt->execute([$tenantId, $productId]);
+        $stmt->execute([$tenantId, $productId, $tenantId]);
         $product = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$product) {
+            $this->logger->warning('Product not found for forecast', [
+                'product_id' => $productId,
+                'tenant_id' => $tenantId
+            ]);
             return [];
         }
 
-        $safetyStock  = $stdDev * sqrt((float) ($product['lead_time_days'] ?? 0));
+        $safetyStock  = $stdDev * sqrt((float) ($product['lead_time_days'] ?? 5));
         $currentStock = (float) $product['current_stock'];
+        $minQuantity  = (float) ($product['min_quantity'] ?? 0);
         $forecast     = [];
 
         for ($i = 1; $i <= $days; $i++) {
             $expectedStock = $currentStock - ($avgConsumption * $i);
+            $reorderPoint  = $minQuantity + $safetyStock;
+            
             $forecast[] = [
                 'day'                  => $i,
                 'date'                 => date('Y-m-d', strtotime("+{$i} days")),
-                'expected_stock'       => round($expectedStock),
-                'expected_consumption' => round($avgConsumption),
-                'needs_reorder'        => $expectedStock <= ((float) ($product['reorder_point'] ?? 0) + $safetyStock),
-                'safety_stock'         => round($safetyStock),
+                'expected_stock'       => round($expectedStock, 2),
+                'expected_consumption' => round($avgConsumption, 2),
+                'needs_reorder'        => $expectedStock <= $reorderPoint,
+                'reorder_point'        => round($reorderPoint, 2),
+                'safety_stock'         => round($safetyStock, 2),
             ];
         }
 

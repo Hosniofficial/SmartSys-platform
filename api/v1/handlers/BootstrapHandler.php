@@ -126,11 +126,17 @@ class BootstrapHandler extends BaseHandler
             ]);
             
         } catch (\Exception $e) {
-            error_log("Bootstrap POS Data Error: " . $e->getMessage());
+            // Log the actual error for debugging
+            $this->logger->error('Bootstrap POS Data Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
                 'message' => 'فشل في تحميل بيانات نقطة البيع',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -205,11 +211,17 @@ class BootstrapHandler extends BaseHandler
             ]);
             
         } catch (\Exception $e) {
-            error_log("Bootstrap Payments Data Error: " . $e->getMessage());
+            // Log the actual error for debugging
+            $this->logger->error('Bootstrap Payments Data Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
                 'message' => 'فشل في تحميل بيانات الدفعات',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -248,11 +260,17 @@ class BootstrapHandler extends BaseHandler
             ]);
             
         } catch (\Exception $e) {
-            error_log("Bootstrap Sessions Data Error: " . $e->getMessage());
+            // Log the actual error for debugging
+            $this->logger->error('Bootstrap Sessions Data Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
                 'message' => 'فشل في تحميل بيانات الجلسات',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -307,11 +325,17 @@ class BootstrapHandler extends BaseHandler
             ]);
             
         } catch (\Exception $e) {
-            error_log("Bootstrap Management Data Error: " . $e->getMessage());
+            // Log the actual error for debugging
+            $this->logger->error('Bootstrap Management Data Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
                 'message' => 'فشل في تحميل بيانات الإدارة',
-                'error' => $e->getMessage()
             ], 500);
         }
     }

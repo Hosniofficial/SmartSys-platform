@@ -173,13 +173,6 @@ class ProductsHandler extends BaseHandler
                 ? (int) $queryParams['branch_id']
                 : null;
 
-            $this->logger->info('ProductsHandler::getAll - DEBUG', [
-                'tenant_id' => $tenantId,
-                'branch_id_param' => $queryParams['branch_id'] ?? 'NOT_PROVIDED',
-                'branch_id_parsed' => $branchId,
-                'all_params' => $queryParams
-            ]);
-
             // Get products - filter by branch if specified
             $productQuery = "
                 SELECT p.*, c.name AS category_name
@@ -293,13 +286,6 @@ class ProductsHandler extends BaseHandler
                 $glStmt = $this->db->prepare($glQuery);
                 $glStmt->execute($glParams);
                 $glData = $glStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-                
-                $this->logger->info('GL Mappings query', [
-                    'branch_id' => $branchId,
-                    'product_count' => count($productIds),
-                    'gl_mapping_count' => count($glData),
-                    'mappings' => $glData
-                ]);
                 
                 foreach ($glData as $gl) {
                     $pid = (int) $gl['product_id'];

@@ -318,10 +318,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب جداول الصيانة
      */
-    public function getMaintenanceSchedules($filters = [], $page = 1, $perPage = 20) {
+    public function getMaintenanceSchedules($filters = [], $page = 1, $perPage = 20, $tenantId = null) {
+        if (!$tenantId) {
+            return [];
+        }
+
         $offset = ($page - 1) * $perPage;
-        $where = [];
-        $params = [];
+        $where = ["s.tenant_id = ?"];
+        $params = [$tenantId];
 
         if (!empty($filters['asset_id'])) {
             $where[] = "s.asset_id = ?";
@@ -338,7 +342,7 @@ class MaintenanceHandler extends BaseHandler {
             $params[] = $filters['assigned_to'];
         }
 
-        $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        $whereClause = implode(" AND ", $where);
 
         $stmt = $this->db->prepare("
             SELECT 
@@ -348,7 +352,7 @@ class MaintenanceHandler extends BaseHandler {
             FROM maintenance_schedules s
             JOIN assets a ON a.id = s.asset_id
             JOIN users u ON u.id = s.assigned_to
-            {$whereClause}
+            WHERE {$whereClause}
             ORDER BY s.next_date ASC
             LIMIT ? OFFSET ?
         ");
@@ -363,10 +367,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب سجلات الصيانة
      */
-    public function getMaintenanceLogs($filters = [], $page = 1, $perPage = 20) {
+    public function getMaintenanceLogs($filters = [], $page = 1, $perPage = 20, $tenantId = null) {
+        if (!$tenantId) {
+            return [];
+        }
+
         $offset = ($page - 1) * $perPage;
-        $where = [];
-        $params = [];
+        $where = ["l.tenant_id = ?"];
+        $params = [$tenantId];
 
         if (!empty($filters['asset_id'])) {
             $where[] = "l.asset_id = ?";
@@ -393,7 +401,7 @@ class MaintenanceHandler extends BaseHandler {
             $params[] = $filters['date_to'];
         }
 
-        $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        $whereClause = implode(" AND ", $where);
 
         $stmt = $this->db->prepare("
             SELECT 
@@ -403,7 +411,7 @@ class MaintenanceHandler extends BaseHandler {
             FROM maintenance_logs l
             JOIN assets a ON a.id = l.asset_id
             JOIN users u ON u.id = l.performed_by
-            {$whereClause}
+            WHERE {$whereClause}
             ORDER BY l.maintenance_date DESC
             LIMIT ? OFFSET ?
         ");
@@ -418,10 +426,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب مطالبات الضمان
      */
-    public function getWarrantyClaims($filters = [], $page = 1, $perPage = 20) {
+    public function getWarrantyClaims($filters = [], $page = 1, $perPage = 20, $tenantId = null) {
+        if (!$tenantId) {
+            return [];
+        }
+
         $offset = ($page - 1) * $perPage;
-        $where = [];
-        $params = [];
+        $where = ["w.tenant_id = ?"];
+        $params = [$tenantId];
 
         if (!empty($filters['asset_id'])) {
             $where[] = "w.asset_id = ?";
@@ -443,7 +455,7 @@ class MaintenanceHandler extends BaseHandler {
             $params[] = $filters['date_to'];
         }
 
-        $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        $whereClause = implode(" AND ", $where);
 
         $stmt = $this->db->prepare("
             SELECT 
@@ -453,7 +465,7 @@ class MaintenanceHandler extends BaseHandler {
             FROM warranty_claims w
             JOIN assets a ON a.id = w.asset_id
             JOIN users u ON u.id = w.submitted_by
-            {$whereClause}
+            WHERE {$whereClause}
             ORDER BY w.claim_date DESC
             LIMIT ? OFFSET ?
         ");
@@ -468,7 +480,11 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب تفاصيل جدول صيانة
      */
-    public function getMaintenanceSchedule($scheduleId) {
+    public function getMaintenanceSchedule($scheduleId, $tenantId = null) {
+        if (!$tenantId) {
+            return null;
+        }
+
         $stmt = $this->db->prepare("
             SELECT 
                 s.*,
@@ -477,17 +493,21 @@ class MaintenanceHandler extends BaseHandler {
             FROM maintenance_schedules s
             JOIN assets a ON a.id = s.asset_id
             JOIN users u ON u.id = s.assigned_to
-            WHERE s.id = ?
+            WHERE s.id = ? AND s.tenant_id = ?
         ");
 
-        $stmt->execute([$scheduleId]);
+        $stmt->execute([$scheduleId, $tenantId]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     /**
      * جلب تفاصيل مطالبة ضمان
      */
-    public function getWarrantyClaim($claimId) {
+    public function getWarrantyClaim($claimId, $tenantId = null) {
+        if (!$tenantId) {
+            return null;
+        }
+
         $stmt = $this->db->prepare("
             SELECT 
                 w.*,
@@ -496,10 +516,10 @@ class MaintenanceHandler extends BaseHandler {
             FROM warranty_claims w
             JOIN assets a ON a.id = w.asset_id
             JOIN users u ON u.id = w.submitted_by
-            WHERE w.id = ?
+            WHERE w.id = ? AND w.tenant_id = ?
         ");
 
-        $stmt->execute([$claimId]);
+        $stmt->execute([$claimId, $tenantId]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
@@ -540,11 +560,15 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * الحصول على اسم الأصل
      */
-    private function getAssetName($assetId) {
+    private function getAssetName($assetId, $tenantId = null) {
+        if (!$tenantId) {
+            return null;
+        }
+
         $stmt = $this->db->prepare("
-            SELECT name FROM assets WHERE id = ?
+            SELECT name FROM assets WHERE id = ? AND tenant_id = ?
         ");
-        $stmt->execute([$assetId]);
+        $stmt->execute([$assetId, $tenantId]);
         return $stmt->fetchColumn();
     }
 } 

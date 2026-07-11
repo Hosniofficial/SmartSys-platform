@@ -32,15 +32,13 @@ class AuthHandler extends BaseHandler
     public function __construct(
         PDO $db,
         ?JwtBlacklistService $jwtBlacklistService = null,
-        ?SecurityLogger $securityLogger = null,
-        ?SecurityEventDispatcher $eventDispatcher = null
+        ?SecurityLogger $securityLogger = null
     ) {
         parent::__construct($db);
 
         $this->logger = MonologHandler::getInstance('auth');
         $this->jwtBlacklistService = $jwtBlacklistService;
         $this->securityLogger = $securityLogger;
-        $this->eventDispatcher = $eventDispatcher;
 
         $securityConfigPath = __DIR__ . '/../../../config/security.php';
         $securityConfig = file_exists($securityConfigPath) ? require $securityConfigPath : [];
