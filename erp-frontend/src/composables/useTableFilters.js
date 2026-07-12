@@ -33,7 +33,7 @@ export const useTableFilters = (storagePrefix = 'table_filters', options = {}) =
   const perPage = ref(options.initialPageSize ?? 20);
   const page = ref(1);
   const sortKey = ref('created_at');
-  const sortAsc = ref(true);
+  const sortAsc = ref(false);  // ✅ Default: DESCENDING (newest first) for better UX
   const selectedIds = ref([]);
 
   // ✨ NEW: totalCount مُدارة مركزيًا هنا بدل ما كل صفحة تعرّف ref خاص بيها
@@ -238,7 +238,7 @@ export const useTableFilters = (storagePrefix = 'table_filters', options = {}) =
     page.value = 1;
     perPage.value = 20;
     sortKey.value = 'created_at';
-    sortAsc.value = true;
+    sortAsc.value = false;  // ✅ Default: DESCENDING for consistency
     selectedIds.value = [];
     saveToLocalStorage();
   };

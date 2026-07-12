@@ -664,10 +664,6 @@ const fetchDashboardData = async () => {
     const sTotals = summary?.totals || {};
     const sCalc = summary?.calculated || {};
 
-    console.log('=== CashierDashboard DEBUG ===');
-    console.log('Query params:', queryParams);
-    console.log('API response:', data);
-
     dashboardStats.value = {
       openingBalance: sCalc.opening_balance || data.openingBalance || 0,
       totalSales: sTotals.total_sales || data.net_grand_total || 0,
@@ -720,7 +716,7 @@ const fetchDashboardData = async () => {
     await fetchPaymentBreakdown();
     updateSalesChart(data.salesChart || data.sales_chart || { labels: [], data: [] });
 
-    // Top products
+    // Top products + sales analytics (single consolidated call)
     try {
       const useLocal = activeSessionId.value !== null;
       let startDate, endDate;
@@ -732,6 +728,8 @@ const fetchDashboardData = async () => {
         startDate = startUtcIso || (today + ' 00:00:00');
         endDate = endUtcIso || (today + ' 23:59:59');
       }
+      
+      // Single call that provides both top_products AND payment breakdown data
       const salesResp = await analyticsStore.fetchSalesAnalytics({ 
         startDate, 
         endDate, 
@@ -739,6 +737,18 @@ const fetchDashboardData = async () => {
         branchId: wid
       });
       const sData = salesResp?.data || salesResp || {};
+      
+      // Use this same response for payment breakdown to avoid duplicate call
+      paymentBreakdown.value = { 
+        cash_total: sData.cash_total || 0, 
+        card_total: sData.card_total || 0, 
+        credit_total: sData.credit_total || 0, 
+        bank_wallet_total: sData.bank_wallet_total || 0, 
+        returns_total: sData.returns_total || 0 
+      };
+      cashDrawerTotal.value = sData.cash_total || 0;
+      
+      // Process top products from same response
       if (Array.isArray(sData.top_products) && sData.top_products.length) {
         topProducts.value = sData.top_products
           .map(p => ({
@@ -775,30 +785,6 @@ const fetchDashboardData = async () => {
   } finally {
     isLoadingData.value = false;
   }
-};
-
-const fetchPaymentBreakdown = async () => {
-  try {
-    const today = getLocalDateISO();
-    const wid = authStore.user?.branch_id || null;
-
-    const analyticsRes = await analyticsStore.fetchSalesAnalytics({
-      startDate: today + ' 00:00:00',
-      endDate: today + ' 23:59:59',
-      branchId: wid,
-      sessionId: activeSessionId.value
-    });
-
-    const data = analyticsRes?.data || {};
-    paymentBreakdown.value = { 
-      cash_total: data.cash_total || 0, 
-      card_total: data.card_total || 0, 
-      credit_total: data.credit_total || 0, 
-      bank_wallet_total: data.bank_wallet_total || 0, 
-      returns_total: data.returns_total || 0 
-    };
-    cashDrawerTotal.value = data.cash_total || 0;
-  } catch { cashDrawerTotal.value = 0; }
 };
 
 // ─── Session Actions ──────────────────────────────────────────────────────────
