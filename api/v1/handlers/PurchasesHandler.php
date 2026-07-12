@@ -693,7 +693,7 @@ class PurchasesHandler extends BaseHandler
                         $costCenterId
                     ]);
                     break;
-                } catch (PDOException $e) {
+                } catch (\Throwable $e) {
                     if ($attempt >= $maxAttempts) {
                         throw $e;
                     }

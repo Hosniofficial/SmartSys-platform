@@ -278,7 +278,7 @@ class StockTransferHandler extends BaseHandler
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             return $this->successResponse($response, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب تحويلات الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تحويلات الفرع', 500);
         }
@@ -325,7 +325,7 @@ class StockTransferHandler extends BaseHandler
             $row['inventory_transactions'] = $stmtTx->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             return $this->successResponse($response, $row, 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب تفاصيل التحويل: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تفاصيل التحويل', 500);
         }
@@ -361,7 +361,7 @@ class StockTransferHandler extends BaseHandler
             ");
             $stmt->execute([$tenantId, $branchId, $branchId]);
             return $this->successResponse($response, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب تحويلات الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب التحويلات', 500);
         }
@@ -390,7 +390,7 @@ class StockTransferHandler extends BaseHandler
             ");
             $stmt->execute([$productId, $tenantId]);
             return $this->successResponse($response, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب تاريخ النقل: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تاريخ النقل', 500);
         }

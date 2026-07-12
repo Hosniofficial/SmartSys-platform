@@ -207,7 +207,7 @@ class BranchInventoryReportHandler extends BaseHandler
                     ? round((($totalBranches - $missingCount) / $totalBranches) * 100, 1)
                     : 100,
             ], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في تقرير تغطية الحسابات: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تقرير تغطية الحسابات', 500);
         }
@@ -225,7 +225,7 @@ class BranchInventoryReportHandler extends BaseHandler
             }
             $data = $this->getInventoryMovementsData($tenantId, $request->getQueryParams());
             return $this->successResponse($response, $data, 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في تقرير حركة المخزون: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تقرير حركة المخزون', 500);
         }
@@ -266,7 +266,7 @@ class BranchInventoryReportHandler extends BaseHandler
                 ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
             $response->getBody()->write($csv);
             return $response;
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في تصدير حركات المخزون: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في تصدير حركات المخزون', 500);
         }
@@ -295,7 +295,7 @@ class BranchInventoryReportHandler extends BaseHandler
             ");
             $stmt->execute([$tenantId, $branchId]);
             return $this->successResponse($response, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب عناصر المخزون المنخفض: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب عناصر المخزون المنخفض', 400);
         }
@@ -388,7 +388,7 @@ class BranchInventoryReportHandler extends BaseHandler
                 'categories' => array_values($catMap),
                 'totals'     => $totals,
             ], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في تقرير قيمة المخزون: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تقرير قيمة المخزون', 400);
         }
@@ -432,7 +432,7 @@ class BranchInventoryReportHandler extends BaseHandler
             }
 
             return $this->successResponse($response, ['rows' => $rows, 'totals' => $totals], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في تقرير قيمة المخزون حسب الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب تقرير قيمة المخزون', 400);
         }
@@ -539,7 +539,7 @@ class BranchInventoryReportHandler extends BaseHandler
                 'stats'  => $stats,
                 'totals' => $stats,
             ], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب مخزون الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب بيانات المخزون', 500);
         }
