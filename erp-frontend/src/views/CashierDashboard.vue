@@ -1015,7 +1015,8 @@ const ensureCashierSession = async () => {
   try {
     const user = getUser();
     const userId = user?.id || null;
-    const branchId = user?.branch_id ?? null;
+    // ✅ Use effectiveBranchId (selectedBranchId || user.branch_id || store branch)
+    const branchId = effectiveBranchId.value;
     if (!userId) {
       activeSessionId.value = null;
       return;

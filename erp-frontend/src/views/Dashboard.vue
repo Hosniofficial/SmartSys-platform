@@ -437,7 +437,7 @@ async function fetchDashboardData(refresh = false) {
 
       // ── POS Performance Chart ──
       try {
-        const posResponse = await reportsStore.fetchPosPerformance(startDate, endDate)
+        // ✅ Use posResponse from Promise.all above (no duplicate call)
         const posData = posResponse?.data || posResponse || []
         if (Array.isArray(posData) && posData.length) {
           updatePosPerformanceChart({
