@@ -572,7 +572,8 @@ class CashierSessionService
 
         // Cast and deduplicate
         $sessionIds = array_unique(array_map('intval', $sessionIds));
-        $placeholders = implode(',', array_fill(0, count($sessionIds), '?'));
+        $sessionIdCount = count($sessionIds);
+        $placeholders = implode(',', array_fill(0, $sessionIdCount, '?'));
 
         // ─── Query 1: Fetch all sessions data ────────────────────────────────
         $sessionsStmt = $this->db->prepare("
@@ -582,7 +583,8 @@ class CashierSessionService
             FROM cashier_sessions
             WHERE id IN ($placeholders) AND tenant_id = ?
         ");
-        $sessionsStmt->execute(array_merge($sessionIds, [$tenantId]));
+        $params = array_merge($sessionIds, [$tenantId]);
+        $sessionsStmt->execute($params);
         $sessionsData = $sessionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Index by session_id
@@ -601,11 +603,13 @@ class CashierSessionService
         // Fetch closed_by user names
         $closedByNames = [];
         if (!empty($closedByIds)) {
-            $closedByPlaceholders = implode(',', array_fill(0, count($closedByIds), '?'));
+            $closedByCount = count(array_unique($closedByIds));
+            $closedByPlaceholders = implode(',', array_fill(0, $closedByCount, '?'));
             $closedByStmt = $this->db->prepare("
                 SELECT id, name FROM users WHERE id IN ($closedByPlaceholders) AND tenant_id = ?
             ");
-            $closedByStmt->execute(array_merge(array_unique($closedByIds), [$tenantId]));
+            $closedByParams = array_merge(array_unique($closedByIds), [$tenantId]);
+            $closedByStmt->execute($closedByParams);
             $closedByNames = array_column($closedByStmt->fetchAll(PDO::FETCH_ASSOC), 'name', 'id');
         }
 
@@ -623,7 +627,8 @@ class CashierSessionService
             WHERE tenant_id = ? AND session_id IN ($placeholders)
             ORDER BY session_id, created_at ASC
         ");
-        $transactionsStmt->execute(array_merge([$tenantId], $sessionIds));
+        $txParams = array_merge([$tenantId], $sessionIds);
+        $transactionsStmt->execute($txParams);
         $allTransactions = $transactionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Group by session_id
@@ -640,11 +645,14 @@ class CashierSessionService
         // Fetch created_by user names
         $userNames = [];
         if (!empty($createdByIds)) {
-            $userPlaceholders = implode(',', array_fill(0, count(array_unique($createdByIds)), '?'));
+            $uniqueCreatedByIds = array_unique($createdByIds);
+            $userCount = count($uniqueCreatedByIds);
+            $userPlaceholders = implode(',', array_fill(0, $userCount, '?'));
             $userStmt = $this->db->prepare("
                 SELECT id, name FROM users WHERE id IN ($userPlaceholders) AND tenant_id = ?
             ");
-            $userStmt->execute(array_merge(array_unique($createdByIds), [$tenantId]));
+            $userParams = array_merge($uniqueCreatedByIds, [$tenantId]);
+            $userStmt->execute($userParams);
             $userNames = array_column($userStmt->fetchAll(PDO::FETCH_ASSOC), 'name', 'id');
         }
 
@@ -665,7 +673,8 @@ class CashierSessionService
             WHERE s.tenant_id = ? AND s.session_id IN ($placeholders) AND s.status != 'cancelled'
             GROUP BY s.session_id
         ");
-        $salesStmt->execute(array_merge([$tenantId], $sessionIds));
+        $salesParams = array_merge([$tenantId], $sessionIds);
+        $salesStmt->execute($salesParams);
         $salesBySession = array_column($salesStmt->fetchAll(PDO::FETCH_ASSOC), 'total_sales', 'session_id');
 
         // ─── Build summaries ───────────────────────────────────────────────────
