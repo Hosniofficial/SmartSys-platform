@@ -210,7 +210,9 @@ class StockAdjustmentHandler extends BaseHandler
             $this->db->commit();
             return $this->successResponse($response, ['status' => 'success', 'message' => 'Inventory item updated'], 200);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('خطأ في حفظ عنصر المخزون: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في حفظ عنصر المخزون', 500);
         }
@@ -263,11 +265,19 @@ class StockAdjustmentHandler extends BaseHandler
             $serial      = $data['serial']       ?? null;
 
             $txId = $this->insertInventoryAdjustment(
-                $tenantId, $productId, $unitId,
+                $tenantId,
+                $productId,
+                $unitId,
                 $delta < 0 ? $branchId : null,
                 $delta > 0 ? $branchId : null,
-                $delta, $unitCost, $movement,
-                $batchNumber, $expiryDate, $serial, $notes, $userId
+                $delta,
+                $unitCost,
+                $movement,
+                $batchNumber,
+                $expiryDate,
+                $serial,
+                $notes,
+                $userId
             );
 
             $costAdjustment = $delta * $unitCost;
@@ -297,7 +307,9 @@ class StockAdjustmentHandler extends BaseHandler
                 'warnings' => $warnings,
             ]);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('فشل في عملية التسوية: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في عملية التسوية', 500);
         }
@@ -338,7 +350,9 @@ class StockAdjustmentHandler extends BaseHandler
                 $expiryDate  = $it['expiry_date']  ?? null;
                 $serial      = $it['serial']       ?? null;
 
-                if ($branchId <= 0 || $delta == 0.0) continue;
+                if ($branchId <= 0 || $delta == 0.0) {
+                    continue;
+                }
 
                 // Prevent negative stock (same check as in adjustStockQuantity)
                 if ($delta < 0) {
@@ -347,7 +361,7 @@ class StockAdjustmentHandler extends BaseHandler
                     );
                     $stmt->execute([$tenantId, $branchId, $productId]);
                     $currentQty = (float) ($stmt->fetchColumn() ?? 0);
-                    
+
                     if ($currentQty + $delta < 0) {
                         throw new \Exception(sprintf(
                             'الكمية الحالية للمنتج في الفرع (%s) أقل من الكمية المراد سحبها (%s)',
@@ -359,11 +373,19 @@ class StockAdjustmentHandler extends BaseHandler
 
                 $movement = $delta > 0 ? 'adjustment_in' : 'adjustment_out';
                 $txId     = $this->insertInventoryAdjustment(
-                    $tenantId, $productId, $unitId,
+                    $tenantId,
+                    $productId,
+                    $unitId,
                     $delta < 0 ? $branchId : null,
                     $delta > 0 ? $branchId : null,
-                    $delta, $unitCost, $movement,
-                    $batchNumber, $expiryDate, $serial, $notes, $userId
+                    $delta,
+                    $unitCost,
+                    $movement,
+                    $batchNumber,
+                    $expiryDate,
+                    $serial,
+                    $notes,
+                    $userId
                 );
                 $upsertWp->execute([$tenantId, $branchId, $productId, $delta]);
 
@@ -385,7 +407,9 @@ class StockAdjustmentHandler extends BaseHandler
                 'warnings' => $warnings['journal_entry_skipped'] ? $warnings : null,
             ]);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('فشل في تنفيذ التسويات الجماعية: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في تنفيذ التسويات الجماعية', 500);
         }
@@ -451,7 +475,10 @@ class StockAdjustmentHandler extends BaseHandler
                     continue;
                 }
                 $line = array_combine($header, $row);
-                if (!$line) { $skipped++; continue; }
+                if (!$line) {
+                    $skipped++;
+                    continue;
+                }
 
                 $pId = $defaultProductId ?: (int) ($line['product_id'] ?? 0);
                 if (!$pId && !empty($line['product_code'])) {
@@ -463,15 +490,18 @@ class StockAdjustmentHandler extends BaseHandler
                     $findBranchByCode->execute([$tenantId, $line['branch_code'], $line['branch_code']]);
                     $branchId = (int) $findBranchByCode->fetchColumn();
                 }
-                $delta       = isset($line['quantity'])     ? (float) $line['quantity']     : 0.0;
+                $delta       = isset($line['quantity']) ? (float) $line['quantity'] : 0.0;
                 $notes       = $line['notes']               ?? null;
-                $unitId      = isset($line['unit_id'])      ? (int)   $line['unit_id']      : 1;
-                $unitCost    = isset($line['unit_cost'])    ? (float) $line['unit_cost']    : 0.0;
+                $unitId      = isset($line['unit_id']) ? (int)   $line['unit_id'] : 1;
+                $unitCost    = isset($line['unit_cost']) ? (float) $line['unit_cost'] : 0.0;
                 $batchNumber = $line['batch_number']        ?? null;
                 $expiryDate  = $line['expiry_date']         ?? null;
                 $serial      = $line['serial']              ?? null;
 
-                if (!$pId || !$branchId || $delta == 0.0) { $skipped++; continue; }
+                if (!$pId || !$branchId || $delta == 0.0) {
+                    $skipped++;
+                    continue;
+                }
 
                 // Prevent negative stock (same check as in bulkAdjustments)
                 if ($delta < 0) {
@@ -480,7 +510,7 @@ class StockAdjustmentHandler extends BaseHandler
                     );
                     $stmt->execute([$tenantId, $branchId, $pId]);
                     $currentQty = (float) ($stmt->fetchColumn() ?? 0);
-                    
+
                     if ($currentQty + $delta < 0) {
                         $this->db->rollBack();
                         fclose($handle);
@@ -494,11 +524,19 @@ class StockAdjustmentHandler extends BaseHandler
 
                 $movement = $delta > 0 ? 'adjustment_in' : 'adjustment_out';
                 $txId     = $this->insertInventoryAdjustment(
-                    $tenantId, $pId, $unitId,
+                    $tenantId,
+                    $pId,
+                    $unitId,
                     $delta < 0 ? $branchId : null,
                     $delta > 0 ? $branchId : null,
-                    $delta, $unitCost, $movement,
-                    $batchNumber, $expiryDate, $serial, $notes, $userId
+                    $delta,
+                    $unitCost,
+                    $movement,
+                    $batchNumber,
+                    $expiryDate,
+                    $serial,
+                    $notes,
+                    $userId
                 );
                 $upsertWp->execute([$tenantId, $branchId, $pId, $delta]);
 
@@ -522,7 +560,9 @@ class StockAdjustmentHandler extends BaseHandler
                 'warnings' => $warnings['journal_entry_skipped'] ? $warnings : null,
             ]);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('فشل استيراد CSV للتسويات: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في استيراد ملف CSV', 500);
         }

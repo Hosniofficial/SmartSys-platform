@@ -263,8 +263,11 @@ class CashVouchersHandler extends BaseHandler
             }
 
             $duplicateId = $svc->findDuplicateVoucher(
-                $data['type'], $data['date'], (float) $data['amount'],
-                $data['customer_id'], $data['supplier_id']
+                $data['type'],
+                $data['date'],
+                (float) $data['amount'],
+                $data['customer_id'],
+                $data['supplier_id']
             );
             if ($duplicateId) {
                 return $this->errorResponse($response, 'سند مطابق موجود بالفعل بنفس التاريخ والمبلغ والطرف.', 409);
@@ -290,7 +293,11 @@ class CashVouchersHandler extends BaseHandler
                     $sessionId = $this->requireOpenCashierSession((int) $tenantId, (int) $branchId, $userId);
                 } catch (Exception $ex) {
                     $fallback = $this->findOpenCashierSession((int) $tenantId, (int) $branchId, null);
-                    if ($fallback) { $sessionId = $fallback; } else { throw $ex; }
+                    if ($fallback) {
+                        $sessionId = $fallback;
+                    } else {
+                        throw $ex;
+                    }
                 }
             } elseif ($branchId && ($isExempt || !$sessionsEnabled)) {
                 $sessionId = $this->findOpenCashierSession((int) $tenantId, (int) $branchId, null);
@@ -308,7 +315,9 @@ class CashVouchersHandler extends BaseHandler
 
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) {
-                try { $this->db->rollBack(); } catch (Throwable $rb) {
+                try {
+                    $this->db->rollBack();
+                } catch (Throwable $rb) {
                     $this->logger->error('Error during rollback', ['message' => $rb->getMessage(), 'tenant_id' => $tenantId]);
                 }
             }

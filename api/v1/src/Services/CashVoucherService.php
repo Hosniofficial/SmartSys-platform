@@ -151,7 +151,10 @@ class CashVoucherService
             ];
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
-                try { $this->db->rollBack(); } catch (\Throwable $rb) {}
+                try {
+                    $this->db->rollBack();
+                } catch (\Throwable $rb) {
+                }
             }
             throw $e;
         }
@@ -165,8 +168,8 @@ class CashVoucherService
     {
         $merged = $isUpdate ? array_merge($existing, $data) : $data;
 
-        $merged['type']     = isset($merged['type'])   ? trim((string) $merged['type']) : null;
-        $merged['date']     = !empty($merged['date'])  ? (string) $merged['date']       : date('Y-m-d H:i:s');
+        $merged['type']     = isset($merged['type']) ? trim((string) $merged['type']) : null;
+        $merged['date']     = !empty($merged['date']) ? (string) $merged['date'] : date('Y-m-d H:i:s');
         $merged['amount']   = isset($merged['amount']) ? round((float) $merged['amount'], 2) : 0;
         $merged['currency'] = !empty($merged['currency']) ? (string) $merged['currency'] : $this->getCompanyCurrency();
 
@@ -184,15 +187,27 @@ class CashVoucherService
 
     public function validateVoucherPayload(array $data, bool $isUpdate = false): ?string
     {
-        if (empty($data['type'])) return 'حقل type مطلوب';
-        if (!in_array($data['type'], ['قبض','receipt','صرف','payment'], true)) return 'نوع السند غير مدعوم';
-        if (empty($data['date'])) return 'حقل date مطلوب';
-        if (!isset($data['amount']) || (float) $data['amount'] <= 0) return 'قيمة amount يجب أن تكون أكبر من صفر';
-        if (($data['type'] === 'قبض' || $data['type'] === 'receipt') && empty($data['customer_id']))
+        if (empty($data['type'])) {
+            return 'حقل type مطلوب';
+        }
+        if (!in_array($data['type'], ['قبض','receipt','صرف','payment'], true)) {
+            return 'نوع السند غير مدعوم';
+        }
+        if (empty($data['date'])) {
+            return 'حقل date مطلوب';
+        }
+        if (!isset($data['amount']) || (float) $data['amount'] <= 0) {
+            return 'قيمة amount يجب أن تكون أكبر من صفر';
+        }
+        if (($data['type'] === 'قبض' || $data['type'] === 'receipt') && empty($data['customer_id'])) {
             return 'مطلوب رقم العميل لسندات القبض';
-        if (($data['type'] === 'صرف' || $data['type'] === 'payment') && empty($data['supplier_id']) && empty($data['expense_account_id']))
+        }
+        if (($data['type'] === 'صرف' || $data['type'] === 'payment') && empty($data['supplier_id']) && empty($data['expense_account_id'])) {
             return 'مطلوب رقم المورد أو حساب المصروف لسندات الصرف';
-        if (!$isUpdate && empty($data['payment_method_id'])) return 'مطلوب تحديد طريقة الدفع';
+        }
+        if (!$isUpdate && empty($data['payment_method_id'])) {
+            return 'مطلوب تحديد طريقة الدفع';
+        }
         return null;
     }
 
@@ -210,7 +225,10 @@ class CashVoucherService
             }
             $asOfDate       = DateTime::createFromFormat('Y-m-d', $date) ?: new DateTime($date);
             $currentBalance = $this->balanceCalc->getAccountBalanceFromJournalEntries(
-                $customerAccountId, $this->tenantId, 'customer', $asOfDate
+                $customerAccountId,
+                $this->tenantId,
+                'customer',
+                $asOfDate
             );
             if ($currentBalance <= 0) {
                 throw new \Exception('لا يمكن إنشاء سند قبض لهذا العميل لأنه ليس عليه مديونية حالية (رصيده 0). استخدم سند صرف إذا كنت ترد مبلغًا للعميل.');
@@ -240,10 +258,14 @@ class CashVoucherService
         $binds = [':t' => $this->tenantId, ':type' => $type, ':date' => $date, ':amount' => $amount];
 
         $sql .= $customerId === null ? " AND customer_id IS NULL" : " AND customer_id = :customer_id";
-        if ($customerId !== null) $binds[':customer_id'] = $customerId;
+        if ($customerId !== null) {
+            $binds[':customer_id'] = $customerId;
+        }
 
         $sql .= $supplierId === null ? " AND supplier_id IS NULL" : " AND supplier_id = :supplier_id";
-        if ($supplierId !== null) $binds[':supplier_id'] = $supplierId;
+        if ($supplierId !== null) {
+            $binds[':supplier_id'] = $supplierId;
+        }
 
         $sql .= " LIMIT 1";
         $stmt = $this->db->prepare($sql);
@@ -269,13 +291,17 @@ class CashVoucherService
         );
         $stmt->execute([$voucherId, $this->tenantId]);
         $journalEntryId = (int) $stmt->fetchColumn();
-        if ($journalEntryId <= 0) return;
+        if ($journalEntryId <= 0) {
+            return;
+        }
 
         $chk = $this->db->prepare(
             "SELECT id FROM journal_entries WHERE tenant_id = ? AND reference_type = 'reversal' AND reference_id = ? LIMIT 1"
         );
         $chk->execute([$this->tenantId, $journalEntryId]);
-        if ($chk->fetchColumn()) return;
+        if ($chk->fetchColumn()) {
+            return;
+        }
 
         $this->reverseJournalEntryByVoucherId($voucherId);
     }
@@ -310,8 +336,14 @@ class CashVoucherService
         }
 
         $reversalJeId = $this->accounting->postJournalEntry(
-            $this->tenantId, 'reversal', (int) $originalJE['id'],
-            $desc, $reversalLines, date('Y-m-d'), $this->userId, null,
+            $this->tenantId,
+            'reversal',
+            (int) $originalJE['id'],
+            $desc,
+            $reversalLines,
+            date('Y-m-d'),
+            $this->userId,
+            null,
             'reversal_' . $voucherId . '_' . time()
         );
 
@@ -354,7 +386,8 @@ class CashVoucherService
         if (!$cashBankAccountId && !empty($voucherData['payment_method_id'])) {
             try {
                 $cashBankAccountId = $this->accounting->resolveLiquidityAccount(
-                    (int) $voucherData['payment_method_id'], $this->tenantId
+                    (int) $voucherData['payment_method_id'],
+                    $this->tenantId
                 );
             } catch (\Throwable $e) {
                 $this->logger->warning('CashVoucher: resolveLiquidityAccount failed, falling back to 1001', [
@@ -362,7 +395,9 @@ class CashVoucherService
                 ]);
             }
         }
-        if (!$cashBankAccountId) $cashBankAccountId = $this->getAccountIdByCode('1001');
+        if (!$cashBankAccountId) {
+            $cashBankAccountId = $this->getAccountIdByCode('1001');
+        }
         if (!$cashBankAccountId) {
             $this->logger->error('Journal entry failed - Cash/Bank account not found', ['tenant_id' => $this->tenantId]);
             return false;
@@ -374,14 +409,20 @@ class CashVoucherService
 
         if ($type === 'قبض' || $type === 'receipt') {
             $customerId = $voucherData['customer_id'] ?? null;
-            if (!$customerId) { $this->logger->error('Failed to post receipt voucher - customer ID missing'); return false; }
+            if (!$customerId) {
+                $this->logger->error('Failed to post receipt voucher - customer ID missing');
+                return false;
+            }
             $debitAccountId  = $cashBankAccountId;
             $creditAccountId = $this->getPartyAccountId('customer', (int) $customerId);
             $description     = "سند قبض من عميل رقم {$customerId} - {$notes}";
         } elseif ($type === 'صرف' || $type === 'payment') {
             $supplierId       = $voucherData['supplier_id']        ?? null;
             $expenseAccountId = $voucherData['expense_account_id'] ?? null;
-            if (!$supplierId && !$expenseAccountId) { $this->logger->error('Failed to post payment voucher - missing supplier/expense'); return false; }
+            if (!$supplierId && !$expenseAccountId) {
+                $this->logger->error('Failed to post payment voucher - missing supplier/expense');
+                return false;
+            }
             if ($supplierId) {
                 $debitAccountId = $this->getPartyAccountId('supplier', (int) $supplierId);
                 $description    = "سند صرف لمورد رقم {$supplierId} - {$notes}";
@@ -402,16 +443,23 @@ class CashVoucherService
 
         try {
             $jeId = $this->accounting->postJournalEntry(
-                $this->tenantId, 'cash_voucher', $voucherId, $description,
+                $this->tenantId,
+                'cash_voucher',
+                $voucherId,
+                $description,
                 [
                     ['account_id' => $debitAccountId,  'debit' => $amount, 'credit' => 0,       'description' => "[Dr] {$description}"],
                     ['account_id' => $creditAccountId, 'debit' => 0,       'credit' => $amount, 'description' => "[Cr] {$description}"],
                 ],
-                $date, $this->userId,
+                $date,
+                $this->userId,
                 $voucherData['cost_center_id']  ?? null,
                 $voucherData['idempotency_key'] ?? null
             );
-            if (!$jeId) { $this->logger->error('Failed to post cash voucher to journal'); return false; }
+            if (!$jeId) {
+                $this->logger->error('Failed to post cash voucher to journal');
+                return false;
+            }
             return $jeId;
         } catch (\Throwable $e) {
             $this->logger->error('Error posting cash voucher journal entry', ['voucher_id' => $voucherId, 'message' => $e->getMessage()]);
@@ -471,7 +519,7 @@ class CashVoucherService
     {
         $table   = $type === 'customer' ? 'customers' : 'suppliers';
         $fallback = $type === 'customer' ? '1101' : '2101';
-        $prefix   = $type === 'customer' ? '110'  : '210';
+        $prefix   = $type === 'customer' ? '110' : '210';
         $name     = $type === 'customer' ? 'العملاء' : 'الموردون';
 
         $stmt = $this->db->prepare("SELECT account_id FROM {$table} WHERE id = ? AND tenant_id = ? LIMIT 1");
@@ -482,9 +530,13 @@ class CashVoucherService
             $chk = $this->db->prepare("SELECT code FROM accounts WHERE id = ? AND tenant_id = ?");
             $chk->execute([$accId, $this->tenantId]);
             $code = $chk->fetchColumn();
-            if (!$code || strpos((string)$code, $prefix) !== 0) $accId = null;
+            if (!$code || strpos((string)$code, $prefix) !== 0) {
+                $accId = null;
+            }
         }
-        if (!$accId) $accId = $this->getAccountIdByCode($fallback) ?: $this->getAccountIdByName($name);
+        if (!$accId) {
+            $accId = $this->getAccountIdByCode($fallback) ?: $this->getAccountIdByName($name);
+        }
         return $accId ? (int) $accId : null;
     }
 
@@ -493,7 +545,9 @@ class CashVoucherService
         $stmt = $this->db->prepare("SELECT id FROM accounts WHERE code = ? AND tenant_id = ? AND is_active = 1");
         $stmt->execute([$code, $this->tenantId]);
         $result = $stmt->fetchColumn();
-        if (!$result) $this->logger->warning('Account not found by code', ['code' => $code, 'tenant_id' => $this->tenantId]);
+        if (!$result) {
+            $this->logger->warning('Account not found by code', ['code' => $code, 'tenant_id' => $this->tenantId]);
+        }
         return $result ? (int) $result : null;
     }
 

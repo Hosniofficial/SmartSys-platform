@@ -72,10 +72,19 @@ class InventoryOpeningBalanceService
 
         try {
             $jeId = $this->doPost(
-                $tenantId, $productId, $branchId, $unitId,
-                $quantity, $unitCost, $entryDate, $userId,
-                $productName, $branchName,
-                $inventoryGLAccountId, $costCenterId, $movementType
+                $tenantId,
+                $productId,
+                $branchId,
+                $unitId,
+                $quantity,
+                $unitCost,
+                $entryDate,
+                $userId,
+                $productName,
+                $branchName,
+                $inventoryGLAccountId,
+                $costCenterId,
+                $movementType
             );
             if ($ownTransaction) {
                 $this->db->commit();

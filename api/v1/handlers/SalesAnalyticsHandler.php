@@ -39,8 +39,14 @@ class SalesAnalyticsHandler extends BaseHandler
         $where   = ['s.tenant_id = ?'];
         $params  = [$tenantId];
 
-        if (!empty($filters['start_date'])) { $where[] = 's.date >= ?'; $params[] = $filters['start_date']; }
-        if (!empty($filters['end_date']))   { $where[] = 's.date <= ?'; $params[] = $filters['end_date']; }
+        if (!empty($filters['start_date'])) {
+            $where[] = 's.date >= ?';
+            $params[] = $filters['start_date'];
+        }
+        if (!empty($filters['end_date'])) {
+            $where[] = 's.date <= ?';
+            $params[] = $filters['end_date'];
+        }
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);
 
@@ -113,18 +119,27 @@ class SalesAnalyticsHandler extends BaseHandler
             } elseif (isset($params['pos_ids'])) {
                 $posIds = is_array($params['pos_ids']) ? $params['pos_ids'] : [$params['pos_ids']];
             }
-            $posIds = array_values(array_filter(array_map('intval', $posIds), fn($v) => $v > 0));
+            $posIds = array_values(array_filter(array_map('intval', $posIds), fn ($v) => $v > 0));
 
-            if (!empty($params['payment_kind'])) { $paymentKind = strtolower(trim((string) $params['payment_kind'])); }
-            if (isset($params['product_id']))    { $productId  = (int) $params['product_id']; }
-            if (isset($params['category_id']))   { $categoryId = (int) $params['category_id']; }
+            if (!empty($params['payment_kind'])) {
+                $paymentKind = strtolower(trim((string) $params['payment_kind']));
+            }
+            if (isset($params['product_id'])) {
+                $productId  = (int) $params['product_id'];
+            }
+            if (isset($params['category_id'])) {
+                $categoryId = (int) $params['category_id'];
+            }
 
             // Total sales
             $whereSales  = ['s.tenant_id = ?', 's.created_at BETWEEN ? AND ?'];
             $salesParams = [$tenantId, $dayStart, $dayEnd];
             $joins       = ['JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id'];
 
-            if ($productId)  { $whereSales[] = 'si.product_id = ?'; $salesParams[] = $productId; }
+            if ($productId) {
+                $whereSales[] = 'si.product_id = ?';
+                $salesParams[] = $productId;
+            }
             if ($categoryId) {
                 $joins[]      = 'JOIN products p ON p.id = si.product_id AND p.tenant_id = si.tenant_id';
                 $whereSales[] = 'p.category_id = ?';
@@ -132,7 +147,9 @@ class SalesAnalyticsHandler extends BaseHandler
             }
             if (!empty($posIds)) {
                 $whereSales[] = 's.branch_id IN (' . implode(',', array_fill(0, count($posIds), '?')) . ')';
-                foreach ($posIds as $pid) { $salesParams[] = $pid; }
+                foreach ($posIds as $pid) {
+                    $salesParams[] = $pid;
+                }
             }
             if ($paymentKind) {
                 $whereSales[] = "EXISTS (SELECT 1 FROM payments pmt LEFT JOIN payment_methods pm ON pm.id = pmt.payment_method_id AND pm.tenant_id = s.tenant_id WHERE pmt.sale_id = s.id AND pmt.is_draft = 0 AND pmt.status = 'completed' AND LOWER(pm.kind) = ?)";
@@ -160,14 +177,29 @@ class SalesAnalyticsHandler extends BaseHandler
                 $idParams   = [$tenantId, $dayStart, $dayEnd];
                 $idJoins    = [];
 
-                if ($productId)  { $idJoins[] = 'JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id'; $whereIds[] = 'si.product_id = ?'; $idParams[] = $productId; }
-                if ($categoryId) {
-                    if (!in_array('JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id', $idJoins)) { $idJoins[] = 'JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id'; }
-                    $idJoins[] = 'JOIN products p ON p.id = si.product_id AND p.tenant_id = si.tenant_id';
-                    $whereIds[] = 'p.category_id = ?'; $idParams[] = $categoryId;
+                if ($productId) {
+                    $idJoins[] = 'JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id';
+                    $whereIds[] = 'si.product_id = ?';
+                    $idParams[] = $productId;
                 }
-                if (!empty($posIds)) { $whereIds[] = 's.branch_id IN (' . implode(',', array_fill(0, count($posIds), '?')) . ')'; foreach ($posIds as $pid) { $idParams[] = $pid; } }
-                if ($paymentKind)    { $whereIds[] = "EXISTS (SELECT 1 FROM payments pmt LEFT JOIN payment_methods pm ON pm.id = pmt.payment_method_id AND pm.tenant_id = s.tenant_id WHERE pmt.sale_id = s.id AND pmt.is_draft = 0 AND pmt.status = 'completed' AND LOWER(pm.kind) = ?)"; $idParams[] = $paymentKind; }
+                if ($categoryId) {
+                    if (!in_array('JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id', $idJoins)) {
+                        $idJoins[] = 'JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id';
+                    }
+                    $idJoins[] = 'JOIN products p ON p.id = si.product_id AND p.tenant_id = si.tenant_id';
+                    $whereIds[] = 'p.category_id = ?';
+                    $idParams[] = $categoryId;
+                }
+                if (!empty($posIds)) {
+                    $whereIds[] = 's.branch_id IN (' . implode(',', array_fill(0, count($posIds), '?')) . ')';
+                    foreach ($posIds as $pid) {
+                        $idParams[] = $pid;
+                    }
+                }
+                if ($paymentKind) {
+                    $whereIds[] = "EXISTS (SELECT 1 FROM payments pmt LEFT JOIN payment_methods pm ON pm.id = pmt.payment_method_id AND pm.tenant_id = s.tenant_id WHERE pmt.sale_id = s.id AND pmt.is_draft = 0 AND pmt.status = 'completed' AND LOWER(pm.kind) = ?)";
+                    $idParams[] = $paymentKind;
+                }
 
                 $sqlIds = 'SELECT s.id, s.created_at FROM sales s ' . implode(' ', $idJoins) . ' WHERE ' . implode(' AND ', $whereIds);
                 $stmt   = $this->db->prepare($sqlIds);
@@ -238,11 +270,11 @@ class SalesAnalyticsHandler extends BaseHandler
                           LIMIT 20";
             $stmt = $this->db->prepare($sqlRecent);
             $stmt->execute([$tenantId, $dayStart, $dayEnd]);
-            
+
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
                 $saleId = (int) $row['id'];
                 $saleDate = $row['created_at'];
-                
+
                 // Calculate COGS for this sale
                 $saleCogs = 0.0;
                 try {
@@ -255,10 +287,10 @@ class SalesAnalyticsHandler extends BaseHandler
                     ]);
                     $saleCogs = 0.0;
                 }
-                
+
                 $amount = (float) $row['total_amount'];
                 $profit = $amount - $saleCogs;
-                
+
                 $recentTransactions[] = [
                     'id' => $saleId,
                     'time' => $row['created_at'],
@@ -303,9 +335,18 @@ class SalesAnalyticsHandler extends BaseHandler
             $where       = ['s.tenant_id = ?'];
             $queryParams = [$tenantId];
 
-            if (!empty($params['start_date'])) { $where[] = 'DATE(s.created_at) >= ?'; $queryParams[] = $params['start_date']; }
-            if (!empty($params['end_date']))   { $where[] = 'DATE(s.created_at) <= ?'; $queryParams[] = $params['end_date']; }
-            if (!empty($params['session_id'])) { $where[] = 's.session_id = ?';        $queryParams[] = $params['session_id']; }
+            if (!empty($params['start_date'])) {
+                $where[] = 'DATE(s.created_at) >= ?';
+                $queryParams[] = $params['start_date'];
+            }
+            if (!empty($params['end_date'])) {
+                $where[] = 'DATE(s.created_at) <= ?';
+                $queryParams[] = $params['end_date'];
+            }
+            if (!empty($params['session_id'])) {
+                $where[] = 's.session_id = ?';
+                $queryParams[] = $params['session_id'];
+            }
 
             $whereSql = 'WHERE ' . implode(' AND ', $where);
 
@@ -350,15 +391,20 @@ class SalesAnalyticsHandler extends BaseHandler
 
             foreach ($completedSalesRows as $row) {
                 $kind = $methodKindMap[$row['payment_method_id']] ?? 'other';
-                if ($kind === 'credit') continue;
+                if ($kind === 'credit') {
+                    continue;
+                }
                 $total        = (float) $row['total'];
                 $returnAmount = $returnsBySale[$row['sale_id']] ?? 0;
                 switch ($kind) {
-                    case 'cash':   $cashTotal   += $total - $returnAmount; break;
+                    case 'cash':   $cashTotal   += $total - $returnAmount;
+                        break;
                     case 'card':
-                    case 'bank_card': $cardTotal += $total - $returnAmount; break;
+                    case 'bank_card': $cardTotal += $total - $returnAmount;
+                        break;
                     case 'wallet':
-                    case 'bank_wallet': $walletTotal += $total - $returnAmount; break;
+                    case 'bank_wallet': $walletTotal += $total - $returnAmount;
+                        break;
                 }
                 unset($returnsBySale[$row['sale_id']]);
             }
@@ -376,12 +422,16 @@ class SalesAnalyticsHandler extends BaseHandler
                 $pmId = $stmt->fetchColumn();
                 $kind = $methodKindMap[$pmId] ?? 'other';
                 switch ($kind) {
-                    case 'cash':   $cashTotal   -= $amount; break;
-                    case 'credit': $creditTotal -= $amount; break;
+                    case 'cash':   $cashTotal   -= $amount;
+                        break;
+                    case 'credit': $creditTotal -= $amount;
+                        break;
                     case 'card':
-                    case 'bank_card': $cardTotal -= $amount; break;
+                    case 'bank_card': $cardTotal -= $amount;
+                        break;
                     case 'wallet':
-                    case 'bank_wallet': $walletTotal -= $amount; break;
+                    case 'bank_wallet': $walletTotal -= $amount;
+                        break;
                 }
             }
 
@@ -414,29 +464,59 @@ class SalesAnalyticsHandler extends BaseHandler
             $params  = $request->getQueryParams();
             $filters = [];
 
-            if (!empty($params['date']))       { $filters['start_date'] = $params['date']; $filters['end_date'] = $params['date']; }
-            if (!empty($params['start_date'])) { $filters['start_date'] = $params['start_date']; }
-            if (!empty($params['end_date']))   { $filters['end_date']   = $params['end_date']; }
-            if (!empty($params['product_id'])) { $filters['product_id'] = $params['product_id']; }
-            if (!empty($params['category_id'])){ $filters['category_id']= $params['category_id']; }
+            if (!empty($params['date'])) {
+                $filters['start_date'] = $params['date'];
+                $filters['end_date'] = $params['date'];
+            }
+            if (!empty($params['start_date'])) {
+                $filters['start_date'] = $params['start_date'];
+            }
+            if (!empty($params['end_date'])) {
+                $filters['end_date']   = $params['end_date'];
+            }
+            if (!empty($params['product_id'])) {
+                $filters['product_id'] = $params['product_id'];
+            }
+            if (!empty($params['category_id'])) {
+                $filters['category_id'] = $params['category_id'];
+            }
 
             $whereSales   = [];
             $whereReturns = [];
             $queryParams  = [];
 
-            if (!empty($filters['start_date'])) { $whereSales[] = 'DATE(s.created_at) >= ?'; $whereReturns[] = 'DATE(r.created_at) >= ?'; $queryParams[] = $filters['start_date']; }
-            if (!empty($filters['end_date']))   { $whereSales[] = 'DATE(s.created_at) <= ?'; $whereReturns[] = 'DATE(r.created_at) <= ?'; $queryParams[] = $filters['end_date']; }
-            if (!empty($filters['product_id'])) { $whereSales[] = 'si.product_id = ?';  $queryParams[] = $filters['product_id']; }
-            if (!empty($filters['category_id'])){ $whereSales[] = 'p.category_id = ?';  $queryParams[] = $filters['category_id']; }
+            if (!empty($filters['start_date'])) {
+                $whereSales[] = 'DATE(s.created_at) >= ?';
+                $whereReturns[] = 'DATE(r.created_at) >= ?';
+                $queryParams[] = $filters['start_date'];
+            }
+            if (!empty($filters['end_date'])) {
+                $whereSales[] = 'DATE(s.created_at) <= ?';
+                $whereReturns[] = 'DATE(r.created_at) <= ?';
+                $queryParams[] = $filters['end_date'];
+            }
+            if (!empty($filters['product_id'])) {
+                $whereSales[] = 'si.product_id = ?';
+                $queryParams[] = $filters['product_id'];
+            }
+            if (!empty($filters['category_id'])) {
+                $whereSales[] = 'p.category_id = ?';
+                $queryParams[] = $filters['category_id'];
+            }
 
             // POS filter
             $posIds = [];
-            if (isset($params['pos_id']))  { $posIds = is_array($params['pos_id'])  ? $params['pos_id']  : [$params['pos_id']]; }
-            elseif (isset($params['pos_ids'])) { $posIds = is_array($params['pos_ids']) ? $params['pos_ids'] : [$params['pos_ids']]; }
-            $posIds = array_values(array_filter(array_map('intval', $posIds), fn($v) => $v > 0));
+            if (isset($params['pos_id'])) {
+                $posIds = is_array($params['pos_id']) ? $params['pos_id'] : [$params['pos_id']];
+            } elseif (isset($params['pos_ids'])) {
+                $posIds = is_array($params['pos_ids']) ? $params['pos_ids'] : [$params['pos_ids']];
+            }
+            $posIds = array_values(array_filter(array_map('intval', $posIds), fn ($v) => $v > 0));
             if (!empty($posIds)) {
                 $whereSales[] = 's.branch_id IN (' . implode(',', array_fill(0, count($posIds), '?')) . ')';
-                foreach ($posIds as $pid) { $queryParams[] = $pid; }
+                foreach ($posIds as $pid) {
+                    $queryParams[] = $pid;
+                }
             }
 
             // Payment kind filter
@@ -453,17 +533,35 @@ class SalesAnalyticsHandler extends BaseHandler
 
             // Build per-query params
             $paramsSales = [];
-            if (!empty($filters['start_date'])) { $paramsSales[] = $filters['start_date']; }
-            if (!empty($filters['end_date']))   { $paramsSales[] = $filters['end_date'] . ' 23:59:59'; }
-            if (!empty($filters['product_id'])) { $paramsSales[] = $filters['product_id']; }
-            if (!empty($filters['category_id'])){ $paramsSales[] = $filters['category_id']; }
-            if (!empty($posIds)) { foreach ($posIds as $pid) { $paramsSales[] = $pid; } }
-            if ($paymentKind)    { $paramsSales[] = $paymentKind; }
+            if (!empty($filters['start_date'])) {
+                $paramsSales[] = $filters['start_date'];
+            }
+            if (!empty($filters['end_date'])) {
+                $paramsSales[] = $filters['end_date'] . ' 23:59:59';
+            }
+            if (!empty($filters['product_id'])) {
+                $paramsSales[] = $filters['product_id'];
+            }
+            if (!empty($filters['category_id'])) {
+                $paramsSales[] = $filters['category_id'];
+            }
+            if (!empty($posIds)) {
+                foreach ($posIds as $pid) {
+                    $paramsSales[] = $pid;
+                }
+            }
+            if ($paymentKind) {
+                $paramsSales[] = $paymentKind;
+            }
             $paramsSales[] = $tenantId;
 
             $paramsReturns = [];
-            if (!empty($filters['start_date'])) { $paramsReturns[] = $filters['start_date']; }
-            if (!empty($filters['end_date']))   { $paramsReturns[] = $filters['end_date'] . ' 23:59:59'; }
+            if (!empty($filters['start_date'])) {
+                $paramsReturns[] = $filters['start_date'];
+            }
+            if (!empty($filters['end_date'])) {
+                $paramsReturns[] = $filters['end_date'] . ' 23:59:59';
+            }
             $paramsReturns[] = $tenantId;
 
             // Total sales count
@@ -483,7 +581,9 @@ class SalesAnalyticsHandler extends BaseHandler
             $dailySales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $selectedDate    = !empty($params['date']) ? $params['date'] : null;
-            $todayOrders     = 0; $todayRevenue = 0.0; $todayAvgInvoice = 0.0;
+            $todayOrders     = 0;
+            $todayRevenue = 0.0;
+            $todayAvgInvoice = 0.0;
             if ($selectedDate) {
                 foreach ($dailySales as $row) {
                     if ($row['date'] === $selectedDate) {
@@ -525,22 +625,33 @@ class SalesAnalyticsHandler extends BaseHandler
             $netGrandTotal = $grandTotal - $returnsGrandTotal;
 
             // by_payment from breakdownData
-            $byPayment = []; $bestPaymentMethod = 'N/A';
+            $byPayment = [];
+            $bestPaymentMethod = 'N/A';
             $pmAmounts = ['cash' => $breakdownData['cash'] ?? 0, 'card' => $breakdownData['card'] ?? 0, 'wallet' => $breakdownData['wallet'] ?? 0, 'credit' => $breakdownData['credit'] ?? 0];
             $max = -1;
             foreach ($pmAmounts as $method => $amount) {
                 if ($amount > 0) {
                     $byPayment[] = ['method' => ucfirst($method), 'amount' => round($amount, 2)];
-                    if ($amount > $max) { $max = $amount; $bestPaymentMethod = ucfirst($method); }
+                    if ($amount > $max) {
+                        $max = $amount;
+                        $bestPaymentMethod = ucfirst($method);
+                    }
                 }
             }
 
             // by_pos
             $byPos = [];
             try {
-                $posWhere = ['s.tenant_id = ?']; $posParams = [$tenantId];
-                if (!empty($filters['start_date'])) { $posWhere[] = 'DATE(s.created_at) >= ?'; $posParams[] = $filters['start_date']; }
-                if (!empty($filters['end_date']))   { $posWhere[] = 'DATE(s.created_at) <= ?'; $posParams[] = $filters['end_date']; }
+                $posWhere = ['s.tenant_id = ?'];
+                $posParams = [$tenantId];
+                if (!empty($filters['start_date'])) {
+                    $posWhere[] = 'DATE(s.created_at) >= ?';
+                    $posParams[] = $filters['start_date'];
+                }
+                if (!empty($filters['end_date'])) {
+                    $posWhere[] = 'DATE(s.created_at) <= ?';
+                    $posParams[] = $filters['end_date'];
+                }
                 $pkFilter = $paymentKind ? " AND EXISTS (SELECT 1 FROM payments p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.tenant_id = s.tenant_id WHERE p.sale_id = s.id AND p.is_draft = 0 AND p.status = 'completed' AND LOWER(pm.kind) = ?)" : '';
                 $stmt = $this->db->prepare("SELECT s.branch_id as pos_id, b.name as pos_name, SUM(si.quantity * si.sale_price) as amount FROM sales s LEFT JOIN branches b ON b.id = s.branch_id AND (b.tenant_id = s.tenant_id OR b.tenant_id IS NULL) JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id WHERE " . implode(' AND ', $posWhere) . $pkFilter . " GROUP BY s.branch_id, b.name");
                 $stmt->execute($paymentKind ? array_merge($posParams, [$paymentKind]) : $posParams);
@@ -555,9 +666,16 @@ class SalesAnalyticsHandler extends BaseHandler
             // Latest transactions
             $latestTx = [];
             try {
-                $ltWhere = ['s.tenant_id = ?']; $ltParams = [$tenantId];
-                if (!empty($filters['start_date'])) { $ltWhere[] = 'DATE(s.created_at) >= ?'; $ltParams[] = $filters['start_date']; }
-                if (!empty($filters['end_date']))   { $ltWhere[] = 'DATE(s.created_at) <= ?'; $ltParams[] = $filters['end_date']; }
+                $ltWhere = ['s.tenant_id = ?'];
+                $ltParams = [$tenantId];
+                if (!empty($filters['start_date'])) {
+                    $ltWhere[] = 'DATE(s.created_at) >= ?';
+                    $ltParams[] = $filters['start_date'];
+                }
+                if (!empty($filters['end_date'])) {
+                    $ltWhere[] = 'DATE(s.created_at) <= ?';
+                    $ltParams[] = $filters['end_date'];
+                }
                 $pkExist = $paymentKind ? " AND EXISTS (SELECT 1 FROM payments p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.tenant_id = s.tenant_id WHERE p.sale_id = s.id AND p.is_draft = 0 AND p.status = 'completed' AND LOWER(pm.kind) = ?)" : '';
                 $stmt = $this->db->prepare("SELECT s.id as sale_id, s.created_at as time, s.branch_id as pos_id, (SELECT pm.name FROM payments p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.tenant_id = s.tenant_id WHERE p.sale_id = s.id AND p.is_draft = 0 AND p.status = 'completed' ORDER BY p.amount DESC LIMIT 1) as payment_method, (SELECT SUM(si2.quantity * si2.sale_price) FROM sales_items si2 WHERE si2.sale_id = s.id) as amount FROM sales s WHERE " . implode(' AND ', $ltWhere) . $pkExist . " ORDER BY s.created_at DESC LIMIT 10");
                 $stmt->execute($paymentKind ? array_merge($ltParams, [$paymentKind]) : $ltParams);
@@ -573,12 +691,15 @@ class SalesAnalyticsHandler extends BaseHandler
                             $fb = $this->db->prepare("SELECT COALESCE(SUM(si.quantity * si.purchase_price),0) FROM sales_items si WHERE si.sale_id = ? AND si.tenant_id = ?");
                             $fb->execute([$sid, (int) $tenantId]);
                             $pp = (float) $fb->fetchColumn();
-                            if ($pp > 0) $c = $pp;
+                            if ($pp > 0) {
+                                $c = $pp;
+                            }
                         }
                         $tx['cogs']   = round($c, 2);
                         $tx['profit'] = round((float) ($tx['amount'] ?? 0) - $c, 2);
                     } else {
-                        $tx['cogs'] = 0.0; $tx['profit'] = (float) ($tx['amount'] ?? 0);
+                        $tx['cogs'] = 0.0;
+                        $tx['profit'] = (float) ($tx['amount'] ?? 0);
                     }
                 }
                 unset($tx);
@@ -625,7 +746,9 @@ class SalesAnalyticsHandler extends BaseHandler
                     if ($c <= 0.0000001) {
                         // Use pre-fetched fallback — no extra DB round-trip per sale
                         $pp = $fallbackCogs[$sid] ?? 0.0;
-                        if ($pp > 0) $c = $pp;
+                        if ($pp > 0) {
+                            $c = $pp;
+                        }
                     }
                     $cogsTotal += $c;
                 }

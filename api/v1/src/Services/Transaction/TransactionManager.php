@@ -6,39 +6,42 @@ use PDO;
 use Throwable;
 use App\Services\MonologHandler;
 
-class TransactionManager {
+class TransactionManager
+{
     private PDO $pdo;
     private MonologHandler $logger;
     private int $depth = 0; // لدعم nested transactions
 
-    public function __construct(PDO $pdo, string $logChannel = 'transactions') {
+    public function __construct(PDO $pdo, string $logChannel = 'transactions')
+    {
         $this->pdo = $pdo;
         $this->logger = MonologHandler::getInstance($logChannel);
     }
 
     /**
      * تنفيذ عملية بكاملها ضمن transaction واحد
-     * 
+     *
      * @param callable $callback الدالة التي تحتوي على المنطق
      * @param string $operationName اسم العملية للـ logging
      * @param array $context بيانات إضافية للـ logging
      * @return mixed نتيجة الـ callback
      * @throws Throwable
      */
-    public function execute(callable $callback, string $operationName = '', array $context = []): mixed {
+    public function execute(callable $callback, string $operationName = '', array $context = []): mixed
+    {
         $startTime = microtime(true);
-        
+
         if ($this->depth === 0) {
             $this->pdo->beginTransaction();
             $this->logger->info("Transaction started: $operationName", $context);
         }
-        
+
         $this->depth++;
-        
+
         try {
             $result = $callback();
             $this->depth--;
-            
+
             if ($this->depth === 0) {
                 $this->pdo->commit();
                 $duration = round((microtime(true) - $startTime) * 1000, 2);
@@ -47,11 +50,11 @@ class TransactionManager {
                     'status' => 'success'
                 ]));
             }
-            
+
             return $result;
         } catch (Throwable $e) {
             $this->depth--;
-            
+
             if ($this->depth === 0) {
                 $this->pdo->rollBack();
                 $duration = round((microtime(true) - $startTime) * 1000, 2);
@@ -77,7 +80,7 @@ class TransactionManager {
                     ]));
                 }
             }
-            
+
             throw $e;
         }
     }
@@ -85,14 +88,16 @@ class TransactionManager {
     /**
      * الفحص إذا كانت هناك transaction مفتوحة
      */
-    public function isActive(): bool {
+    public function isActive(): bool
+    {
         return $this->pdo->inTransaction();
     }
 
     /**
      * الحصول على عمق الـ nesting الحالي
      */
-    public function getDepth(): int {
+    public function getDepth(): int
+    {
         return $this->depth;
     }
 }

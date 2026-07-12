@@ -15,6 +15,7 @@ use App\Services\CurrencyService;
 use App\Handlers\AuditHandler;
 use App\Repositories\PurchaseRepository;
 use App\Repositories\PaymentRepository;
+
 class SuppliersHandler extends BaseContactHandler
 {
     protected string $contactType = 'supplier';
@@ -73,7 +74,7 @@ class SuppliersHandler extends BaseContactHandler
     {
         try {
             $tenantId = isset($details['tenant_id']) ? (int) $details['tenant_id'] : null;
-            $userId   = isset($details['user_id'])   ? (int) $details['user_id']   : null;
+            $userId   = isset($details['user_id']) ? (int) $details['user_id'] : null;
             $entityId = isset($details['supplier_id']) ? (int) $details['supplier_id'] : null;
 
             $this->logger->info('Supplier action logged', [
@@ -250,9 +251,9 @@ class SuppliersHandler extends BaseContactHandler
         if (!is_array($data)) {
             $data = [];
         }
-        
+
         $userId = $this->extractUserId($request);
-        
+
         try {
             $this->db->beginTransaction();
 
@@ -287,9 +288,9 @@ class SuppliersHandler extends BaseContactHandler
                 ':id' => $id,
                 ':tenant_id' => $tenantId
             ]);
-            
+
             $this->db->commit();
-            
+
             try {
                 $this->logAction('supplier_updated', [
                     'supplier_id' => $id,
@@ -300,7 +301,7 @@ class SuppliersHandler extends BaseContactHandler
             } catch (\Throwable $e) {
                 $this->logger->error('logAction failed', ['message' => $e->getMessage()]);
             }
-            
+
             $this->logger->info('Supplier updated successfully', [
                 'tenant_id' => $tenantId,
                 'supplier_id' => $id,
@@ -326,13 +327,13 @@ class SuppliersHandler extends BaseContactHandler
                     ]);
                 }
             }
-            
+
             $this->logger->error('Supplier update failed', [
                 'message' => $e->getMessage(),
                 'tenant_id' => $tenantId,
                 'supplier_id' => $id
             ]);
-            
+
             return $this->errorResponse($response, 'فشل في تحديث المورد', 500);
         }
     }
@@ -448,7 +449,7 @@ class SuppliersHandler extends BaseContactHandler
                     ]);
                 }
             }
-            
+
             $this->logger->error('Supplier deletion failed', [
                 'message' => $e->getMessage(),
                 'tenant_id' => $tenantId,
@@ -500,7 +501,7 @@ class SuppliersHandler extends BaseContactHandler
             // Get additional transaction details (reference numbers, etc.)
             $transactionIds = array_column($transactionRows, 'journal_entry_id');
             $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
-            
+
             $sql = "
                 SELECT
                     je.id,

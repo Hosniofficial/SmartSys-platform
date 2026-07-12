@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Handlers;
 
 use Firebase\JWT\JWT;
@@ -157,7 +158,7 @@ class UsersHandler extends BaseHandler
         if (is_array($id)) {
             return $this->errorResponse($response, 'Invalid user ID format', 400);
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);

@@ -541,218 +541,222 @@ class ReturnsHandler extends BaseHandler
         return $this->successResponse($response, $details, 200);
     }
 
-   public function create(Request $request, Response $response): Response
-{
-    $data = $request->getParsedBody();
+    public function create(Request $request, Response $response): Response
+    {
+        $data = $request->getParsedBody();
 
-    if (!$data) {
-        return $this->errorResponse($response, 'بيانات الطلب غير صالحة', 400);
-    }
-
-    $requiredFields = ['return_type', 'return_date', 'items', 'paid_amount', 'payment_method_id', 'invoice_id'];
-    foreach ($requiredFields as $field) {
-        if (!isset($data[$field]) || (!in_array($field, ['paid_amount', 'discount_value'], true) && empty($data[$field]))) {
-            return $this->errorResponse($response, "الحقل المطلوب مفقود: {$field}", 400);
+        if (!$data) {
+            return $this->errorResponse($response, 'بيانات الطلب غير صالحة', 400);
         }
-    }
 
-    if (!in_array($data['return_type'], ['sale', 'purchase'], true)) {
-        return $this->errorResponse($response, 'نوع المرتجع غير صالح (return_type)، يجب أن يكون sale أو purchase', 400);
-    }
-
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-    }
-
-    try {
-        $this->applyDefaultCostCenter($data, $request);
-    } catch (\Throwable $e) {
-        $this->logger->warning('applyDefaultCostCenter failed in ReturnsHandler::create', ['message' => $e->getMessage()]);
-    }
-
-    // استخراج party_id من الفاتورة إذا لم يُمرَّر
-    if (empty($data['party_id'])) {
-        if ($data['return_type'] === 'sale') {
-            $stmt = $this->db->prepare("SELECT customer_id FROM sales WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$data['invoice_id'], $tenantId]);
-            $data['party_id'] = $stmt->fetchColumn() ?: null;
-        } else {
-            $stmt = $this->db->prepare("SELECT supplier_id FROM purchases WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$data['invoice_id'], $tenantId]);
-            $data['party_id'] = $stmt->fetchColumn() ?: null;
-        }
-    }
-
-    if (!is_array($data['items']) || count($data['items']) === 0) {
-        return $this->errorResponse($response, 'قائمة الأصناف (items) يجب أن تكون مصفوفة غير فارغة', 400);
-    }
-
-    $requiredItemFields = ['product_id', 'unit_id', 'quantity', 'unit_price', 'subtotal'];
-    foreach ($data['items'] as $index => $item) {
-        foreach ($requiredItemFields as $field) {
-            if (!isset($item[$field]) || $item[$field] === '' || $item[$field] === null) {
-                return $this->errorResponse($response, "حقل مفقود أو غير صالح '{$field}' في العنصر رقم {$index}", 400);
+        $requiredFields = ['return_type', 'return_date', 'items', 'paid_amount', 'payment_method_id', 'invoice_id'];
+        foreach ($requiredFields as $field) {
+            if (!isset($data[$field]) || (!in_array($field, ['paid_amount', 'discount_value'], true) && empty($data[$field]))) {
+                return $this->errorResponse($response, "الحقل المطلوب مفقود: {$field}", 400);
             }
         }
-    }
 
-    if (!is_numeric($data['paid_amount']) || $data['paid_amount'] < 0) {
-        return $this->errorResponse($response, 'paid_amount يجب أن يكون رقمًا غير سالب', 400);
-    }
-
-    if (!is_numeric($data['payment_method_id']) || $data['payment_method_id'] <= 0) {
-        return $this->errorResponse($response, 'payment_method_id يجب أن يكون رقمًا موجبًا صالحًا', 400);
-    }
-
-    $returnDateRaw = trim((string) ($data['return_date'] ?? ''));
-    $timestamp     = strtotime($returnDateRaw);
-    if ($timestamp === false) {
-        return $this->errorResponse($response, 'تاريخ المرتجع غير صالح. يرجى استخدام الصيغة YYYY-MM-DD.', 400);
-    }
-    $data['return_date'] = date('Y-m-d', $timestamp);
-
-    $userId = $request->getAttribute('user_id') ?? $this->extractUserId($request) ?? 1;
-
-    // حل cost_center_id
-    try {
-        $data['cost_center_id'] = $this->costCenterService->resolve($tenantId, $userId, $data['cost_center_id'] ?? null);
-    } catch (\Exception $e) {
-        $this->logger->error('Cost center resolution failed for return', [
-            'tenant_id' => $tenantId, 'user_id' => $userId, 'error' => $e->getMessage(),
-        ]);
-        return $this->errorResponse($response, 'فشل في إنشاء المرتجع', 400);
-    }
-
-    // حل session_id (HTTP concern — يبقى في الـ Handler)
-    $sessionId       = null;
-    $methodIsCash    = $this->isCashMethod((int) $data['payment_method_id'], (int) $tenantId);
-    $isCash          = $methodIsCash && $data['paid_amount'] > 0;
-    $isSessionsEnabled = $this->isSessionsEnabled((int) $tenantId);
-    $isExempt        = $this->isCashierSessionExempt($request);
-
-    // نحتاج branch_id لحل الجلسة — نجلبه من الفاتورة مؤقتاً
-    $branchIdForSession = null;
-    if ($data['return_type'] === 'sale') {
-        $stmtBr = $this->db->prepare("SELECT branch_id FROM sales WHERE id = ? AND tenant_id = ? LIMIT 1");
-        $stmtBr->execute([$data['invoice_id'], $tenantId]);
-        $branchIdForSession = $stmtBr->fetchColumn() ?: null;
-    } else {
-        $stmtBr = $this->db->prepare("SELECT branch_id FROM purchases WHERE id = ? AND tenant_id = ? LIMIT 1");
-        $stmtBr->execute([$data['invoice_id'], $tenantId]);
-        $branchIdForSession = $stmtBr->fetchColumn() ?: null;
-    }
-
-    if ($isSessionsEnabled && $isCash && !$isExempt) {
-        if (empty($branchIdForSession)) {
-            return $this->errorResponse($response, 'يجب تحديد المخزن لإتمام الدفعة النقدية للكاشير.', 400);
+        if (!in_array($data['return_type'], ['sale', 'purchase'], true)) {
+            return $this->errorResponse($response, 'نوع المرتجع غير صالح (return_type)، يجب أن يكون sale أو purchase', 400);
         }
+
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
         try {
-            $sessionId = $this->requireOpenCashierSession((int) $tenantId, (int) $branchIdForSession, $userId);
-        } catch (\Exception $ex) {
-            return $this->errorResponse($response, $ex->getMessage(), 400);
-        }
-    } elseif (($isExempt || !$isSessionsEnabled) && !empty($branchIdForSession)) {
-        $sessionId = $this->findOpenCashierSession((int) $tenantId, (int) $branchIdForSession, null);
-    }
-
-    // ── تفويض كل المنطق للـ Service ──────────────────────────────────────────
-    try {
-        if (!$this->db->inTransaction()) {
-            $this->db->beginTransaction();
+            $this->applyDefaultCostCenter($data, $request);
+        } catch (\Throwable $e) {
+            $this->logger->warning('applyDefaultCostCenter failed in ReturnsHandler::create', ['message' => $e->getMessage()]);
         }
 
-        $svc    = $this->returnService((int) $tenantId, $userId);
-        $result = $svc->createReturn($data, $tenantId, $userId, $sessionId);
+        // استخراج party_id من الفاتورة إذا لم يُمرَّر
+        if (empty($data['party_id'])) {
+            if ($data['return_type'] === 'sale') {
+                $stmt = $this->db->prepare("SELECT customer_id FROM sales WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$data['invoice_id'], $tenantId]);
+                $data['party_id'] = $stmt->fetchColumn() ?: null;
+            } else {
+                $stmt = $this->db->prepare("SELECT supplier_id FROM purchases WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$data['invoice_id'], $tenantId]);
+                $data['party_id'] = $stmt->fetchColumn() ?: null;
+            }
+        }
 
-        // Audit
+        if (!is_array($data['items']) || count($data['items']) === 0) {
+            return $this->errorResponse($response, 'قائمة الأصناف (items) يجب أن تكون مصفوفة غير فارغة', 400);
+        }
+
+        $requiredItemFields = ['product_id', 'unit_id', 'quantity', 'unit_price', 'subtotal'];
+        foreach ($data['items'] as $index => $item) {
+            foreach ($requiredItemFields as $field) {
+                if (!isset($item[$field]) || $item[$field] === '' || $item[$field] === null) {
+                    return $this->errorResponse($response, "حقل مفقود أو غير صالح '{$field}' في العنصر رقم {$index}", 400);
+                }
+            }
+        }
+
+        if (!is_numeric($data['paid_amount']) || $data['paid_amount'] < 0) {
+            return $this->errorResponse($response, 'paid_amount يجب أن يكون رقمًا غير سالب', 400);
+        }
+
+        if (!is_numeric($data['payment_method_id']) || $data['payment_method_id'] <= 0) {
+            return $this->errorResponse($response, 'payment_method_id يجب أن يكون رقمًا موجبًا صالحًا', 400);
+        }
+
+        $returnDateRaw = trim((string) ($data['return_date'] ?? ''));
+        $timestamp     = strtotime($returnDateRaw);
+        if ($timestamp === false) {
+            return $this->errorResponse($response, 'تاريخ المرتجع غير صالح. يرجى استخدام الصيغة YYYY-MM-DD.', 400);
+        }
+        $data['return_date'] = date('Y-m-d', $timestamp);
+
+        $userId = $request->getAttribute('user_id') ?? $this->extractUserId($request) ?? 1;
+
+        // حل cost_center_id
         try {
-            $this->audit->logAction('return_created', 'returns', $result['return_id'], [
-                'tenant_id'        => $tenantId,
-                'user_id'          => $userId,
-                'return_id'        => $result['return_id'],
-                'return_type'      => $data['return_type'],
-                'return_number'    => $result['return_number'],
-                'invoice_id'       => $data['invoice_id']        ?? null,
-                'return_date'      => $data['return_date']        ?? null,
-                'paid_amount'      => $data['paid_amount'],
-                'payment_method_id'=> $data['payment_method_id'],
-                'session_id'       => $sessionId,
-                'cost_center_id'   => $data['cost_center_id']    ?? null,
-                'journal_entry_id' => $result['journal_entry_id'] ?? null,
-            ], $tenantId, $userId);
-        } catch (\Throwable $auditError) {
-            $this->logger->warning('Failed to log return_created to audit', ['error' => $auditError->getMessage()]);
+            $data['cost_center_id'] = $this->costCenterService->resolve($tenantId, $userId, $data['cost_center_id'] ?? null);
+        } catch (\Exception $e) {
+            $this->logger->error('Cost center resolution failed for return', [
+                'tenant_id' => $tenantId, 'user_id' => $userId, 'error' => $e->getMessage(),
+            ]);
+            return $this->errorResponse($response, 'فشل في إنشاء المرتجع', 400);
         }
 
-        $this->db->commit();
+        // حل session_id (HTTP concern — يبقى في الـ Handler)
+        $sessionId       = null;
+        $methodIsCash    = $this->isCashMethod((int) $data['payment_method_id'], (int) $tenantId);
+        $isCash          = $methodIsCash && $data['paid_amount'] > 0;
+        $isSessionsEnabled = $this->isSessionsEnabled((int) $tenantId);
+        $isExempt        = $this->isCashierSessionExempt($request);
 
-        return $this->successResponse($response, [
-            'return_id' => $result['return_id'],
-            'message'   => 'تم إنشاء المرتجع بنجاح.',
-        ], 200);
-
-    } catch (\PDOException $e) {
-        if ($this->db->inTransaction()) $this->db->rollBack();
-        $this->logger->error('Return creation database error', ['message' => $e->getMessage(), 'tenant_id' => $tenantId]);
-        return $this->errorResponse($response, 'حدث خطأ في قاعدة البيانات أثناء إنشاء المرتجع', 500);
-    } catch (\Throwable $e) {
-        if ($this->db->inTransaction()) $this->db->rollBack();
-        $this->logger->error('Return creation failed', ['message' => $e->getMessage(), 'tenant_id' => $tenantId]);
-        $msg = $e->getMessage();
-        if (strpos($msg, 'لا يمكن') !== false || strpos($msg, 'فشل') !== false) {
-            return $this->errorResponse($response, $msg, 400);
+        // نحتاج branch_id لحل الجلسة — نجلبه من الفاتورة مؤقتاً
+        $branchIdForSession = null;
+        if ($data['return_type'] === 'sale') {
+            $stmtBr = $this->db->prepare("SELECT branch_id FROM sales WHERE id = ? AND tenant_id = ? LIMIT 1");
+            $stmtBr->execute([$data['invoice_id'], $tenantId]);
+            $branchIdForSession = $stmtBr->fetchColumn() ?: null;
+        } else {
+            $stmtBr = $this->db->prepare("SELECT branch_id FROM purchases WHERE id = ? AND tenant_id = ? LIMIT 1");
+            $stmtBr->execute([$data['invoice_id'], $tenantId]);
+            $branchIdForSession = $stmtBr->fetchColumn() ?: null;
         }
-        return $this->errorResponse($response, 'فشل في إنشاء المرتجع', 400);
-    }
-}
 
-public function approve(Request $request, Response $response, array $args): Response
-{
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        if ($isSessionsEnabled && $isCash && !$isExempt) {
+            if (empty($branchIdForSession)) {
+                return $this->errorResponse($response, 'يجب تحديد المخزن لإتمام الدفعة النقدية للكاشير.', 400);
+            }
+            try {
+                $sessionId = $this->requireOpenCashierSession((int) $tenantId, (int) $branchIdForSession, $userId);
+            } catch (\Exception $ex) {
+                return $this->errorResponse($response, $ex->getMessage(), 400);
+            }
+        } elseif (($isExempt || !$isSessionsEnabled) && !empty($branchIdForSession)) {
+            $sessionId = $this->findOpenCashierSession((int) $tenantId, (int) $branchIdForSession, null);
+        }
+
+        // ── تفويض كل المنطق للـ Service ──────────────────────────────────────────
+        try {
+            if (!$this->db->inTransaction()) {
+                $this->db->beginTransaction();
+            }
+
+            $svc    = $this->returnService((int) $tenantId, $userId);
+            $result = $svc->createReturn($data, $tenantId, $userId, $sessionId);
+
+            // Audit
+            try {
+                $this->audit->logAction('return_created', 'returns', $result['return_id'], [
+                    'tenant_id'        => $tenantId,
+                    'user_id'          => $userId,
+                    'return_id'        => $result['return_id'],
+                    'return_type'      => $data['return_type'],
+                    'return_number'    => $result['return_number'],
+                    'invoice_id'       => $data['invoice_id']        ?? null,
+                    'return_date'      => $data['return_date']        ?? null,
+                    'paid_amount'      => $data['paid_amount'],
+                    'payment_method_id' => $data['payment_method_id'],
+                    'session_id'       => $sessionId,
+                    'cost_center_id'   => $data['cost_center_id']    ?? null,
+                    'journal_entry_id' => $result['journal_entry_id'] ?? null,
+                ], $tenantId, $userId);
+            } catch (\Throwable $auditError) {
+                $this->logger->warning('Failed to log return_created to audit', ['error' => $auditError->getMessage()]);
+            }
+
+            $this->db->commit();
+
+            return $this->successResponse($response, [
+                'return_id' => $result['return_id'],
+                'message'   => 'تم إنشاء المرتجع بنجاح.',
+            ], 200);
+
+        } catch (\PDOException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->logger->error('Return creation database error', ['message' => $e->getMessage(), 'tenant_id' => $tenantId]);
+            return $this->errorResponse($response, 'حدث خطأ في قاعدة البيانات أثناء إنشاء المرتجع', 500);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->logger->error('Return creation failed', ['message' => $e->getMessage(), 'tenant_id' => $tenantId]);
+            $msg = $e->getMessage();
+            if (strpos($msg, 'لا يمكن') !== false || strpos($msg, 'فشل') !== false) {
+                return $this->errorResponse($response, $msg, 400);
+            }
+            return $this->errorResponse($response, 'فشل في إنشاء المرتجع', 400);
+        }
     }
 
-    $id = $args['id'];
-    $stmt = $this->db->prepare("
+    public function approve(Request $request, Response $response, array $args): Response
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
+        $id = $args['id'];
+        $stmt = $this->db->prepare("
         UPDATE returns
         SET status = 'approved'
         WHERE id = ? AND tenant_id = ?
     ");
-    $stmt->execute([$id, $tenantId]);
+        $stmt->execute([$id, $tenantId]);
 
-    return $this->successResponse($response, ['message' => 'تم اعتماد المرتجع بنجاح.'], 200);
-}
-
-public function reject(Request $request, Response $response, array $args): Response
-{
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        return $this->successResponse($response, ['message' => 'تم اعتماد المرتجع بنجاح.'], 200);
     }
 
-    $id = $args['id'];
-    $stmt = $this->db->prepare("
+    public function reject(Request $request, Response $response, array $args): Response
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
+
+        $id = $args['id'];
+        $stmt = $this->db->prepare("
         UPDATE returns
         SET status = 'rejected'
         WHERE id = ? AND tenant_id = ?
     ");
-    $stmt->execute([$id, $tenantId]);
+        $stmt->execute([$id, $tenantId]);
 
-    return $this->successResponse($response, ['message' => 'تم رفض المرتجع بنجاح.'], 200);
-}
-
-public function getPrintData(Request $request, Response $response, array $args): Response
-{
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        return $this->successResponse($response, ['message' => 'تم رفض المرتجع بنجاح.'], 200);
     }
 
-    $id = $args['id'];
+    public function getPrintData(Request $request, Response $response, array $args): Response
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
 
-    $stmt = $this->db->prepare("
+        $id = $args['id'];
+
+        $stmt = $this->db->prepare("
         SELECT
             r.*,
             CASE
@@ -777,14 +781,14 @@ public function getPrintData(Request $request, Response $response, array $args):
             ON r.created_by = u.id
         WHERE r.id = ? AND r.tenant_id = ?
     ");
-    $stmt->execute([$tenantId, $tenantId, $id, $tenantId]);
-    $return = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->execute([$tenantId, $tenantId, $id, $tenantId]);
+        $return = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$return) {
-        return $this->errorResponse($response, 'لم يتم العثور على المرتجع', 404);
-    }
+        if (!$return) {
+            return $this->errorResponse($response, 'لم يتم العثور على المرتجع', 404);
+        }
 
-    $stmt = $this->db->prepare("
+        $stmt = $this->db->prepare("
         SELECT
             ri.*,
             p.name AS product_name,
@@ -796,54 +800,54 @@ public function getPrintData(Request $request, Response $response, array $args):
         LEFT JOIN units u ON ri.unit_id = u.id
         WHERE ri.return_id = ? AND ri.tenant_id = ?
     ");
-    $stmt->execute([$tenantId, $id, $tenantId]);
-    $return['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute([$tenantId, $id, $tenantId]);
+        $return['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmt = $this->db->prepare("
+        $stmt = $this->db->prepare("
         SELECT *
         FROM settings
         WHERE category = 'company' AND tenant_id = ?
     ");
-    $stmt->execute([$tenantId]);
-    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        $stmt->execute([$tenantId]);
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    return $this->successResponse($response, [
-        'return' => $return,
-        'company' => $settings
-    ], 200);
-}
-public function searchInvoice(Request $request, Response $response): Response
-{
-    $tenantId = $this->extractTenantId($request);
-
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        return $this->successResponse($response, [
+            'return' => $return,
+            'company' => $settings
+        ], 200);
     }
+    public function searchInvoice(Request $request, Response $response): Response
+    {
+        $tenantId = $this->extractTenantId($request);
 
-    $queryParams = $request->getQueryParams();
-    $invoiceNumber = trim((string)($queryParams['q'] ?? ''));
-    $returnType = trim((string)($queryParams['type'] ?? ''));
-    $fromDate = trim((string)($queryParams['from_date'] ?? ''));
-    $toDate = trim((string)($queryParams['to_date'] ?? ''));
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
 
-    if (!in_array($returnType, ['sale', 'purchase'], true)) {
-        return $this->errorResponse($response, 'نوع المرتجع غير صالح، يجب أن يكون sale أو purchase', 400);
-    }
+        $queryParams = $request->getQueryParams();
+        $invoiceNumber = trim((string)($queryParams['q'] ?? ''));
+        $returnType = trim((string)($queryParams['type'] ?? ''));
+        $fromDate = trim((string)($queryParams['from_date'] ?? ''));
+        $toDate = trim((string)($queryParams['to_date'] ?? ''));
 
-    $isSale = $returnType === 'sale';
-    $table = $isSale ? 'sales' : 'purchases';
-    $dateField = $isSale ? 'sale_date' : 'created_at';
+        if (!in_array($returnType, ['sale', 'purchase'], true)) {
+            return $this->errorResponse($response, 'نوع المرتجع غير صالح، يجب أن يكون sale أو purchase', 400);
+        }
 
-    $partySelect = $isSale
-        ? 'c.name AS customer_name, c.id AS customer_id'
-        : 's.name AS supplier_name, s.id AS supplier_id';
+        $isSale = $returnType === 'sale';
+        $table = $isSale ? 'sales' : 'purchases';
+        $dateField = $isSale ? 'sale_date' : 'created_at';
 
-    $partyJoin = $isSale
-        ? 'LEFT JOIN customers c ON i.customer_id = c.id AND c.tenant_id = :tenant_id_party'
-        : 'LEFT JOIN suppliers s ON i.supplier_id = s.id AND s.tenant_id = :tenant_id_party';
+        $partySelect = $isSale
+            ? 'c.name AS customer_name, c.id AS customer_id'
+            : 's.name AS supplier_name, s.id AS supplier_id';
 
-    if ($isSale) {
-        $selectFields = "
+        $partyJoin = $isSale
+            ? 'LEFT JOIN customers c ON i.customer_id = c.id AND c.tenant_id = :tenant_id_party'
+            : 'LEFT JOIN suppliers s ON i.supplier_id = s.id AND s.tenant_id = :tenant_id_party';
+
+        if ($isSale) {
+            $selectFields = "
             i.total_amount,
             i.discount_type,
             i.discount_value,
@@ -872,8 +876,8 @@ public function searchInvoice(Request $request, Response $response): Response
             pm.kind AS payment_method_kind,
             (SELECT COUNT(*) FROM sales_items WHERE sale_id = i.id AND tenant_id = :tenant_id_subquery) AS items_count
         ";
-    } else {
-        $selectFields = "
+        } else {
+            $selectFields = "
             i.total_amount,
             NULL AS discount_type,
             IFNULL(i.discount_value, 0) AS discount_value,
@@ -911,9 +915,9 @@ public function searchInvoice(Request $request, Response $response): Response
             pm.kind AS payment_method_kind,
             (SELECT COUNT(*) FROM purchases_items WHERE purchase_id = i.id AND tenant_id = :tenant_id_subquery) AS items_count
         ";
-    }
+        }
 
-    $sql = "
+        $sql = "
         SELECT
             i.id,
             i.invoice_number,
@@ -935,96 +939,96 @@ public function searchInvoice(Request $request, Response $response): Response
         WHERE i.tenant_id = :tenant_id_where
     ";
 
-    $params = [
-        ':tenant_id_where' => $tenantId,
-        ':tenant_id_party' => $tenantId,
-        ':tenant_id_payment_method' => $tenantId,
-        ':tenant_id_branch' => $tenantId,
-        ':tenant_id_subquery' => $tenantId
-    ];
+        $params = [
+            ':tenant_id_where' => $tenantId,
+            ':tenant_id_party' => $tenantId,
+            ':tenant_id_payment_method' => $tenantId,
+            ':tenant_id_branch' => $tenantId,
+            ':tenant_id_subquery' => $tenantId
+        ];
 
-    if ($invoiceNumber !== '') {
-        $sql .= " AND (i.invoice_number LIKE :invoice_number";
+        if ($invoiceNumber !== '') {
+            $sql .= " AND (i.invoice_number LIKE :invoice_number";
 
-        if (ctype_digit($invoiceNumber)) {
-            $sql .= " OR i.id = :invoice_id";
-            $params[':invoice_id'] = (int)$invoiceNumber;
+            if (ctype_digit($invoiceNumber)) {
+                $sql .= " OR i.id = :invoice_id";
+                $params[':invoice_id'] = (int)$invoiceNumber;
+            }
+
+            if ($isSale) {
+                $sql .= " OR (c.name IS NOT NULL AND c.name LIKE :customer_name)";
+                $sql .= " OR (c.phone IS NOT NULL AND c.phone LIKE :phone)";
+                $params[':customer_name'] = "%{$invoiceNumber}%";
+                $params[':phone'] = "%{$invoiceNumber}%";
+            } else {
+                $sql .= " OR (s.name IS NOT NULL AND s.name LIKE :supplier_name)";
+                $sql .= " OR (s.phone IS NOT NULL AND s.phone LIKE :phone)";
+                $params[':supplier_name'] = "%{$invoiceNumber}%";
+                $params[':phone'] = "%{$invoiceNumber}%";
+            }
+
+            $sql .= ")";
+            $params[':invoice_number'] = "%{$invoiceNumber}%";
+        }
+
+        if ($fromDate !== '') {
+            $sql .= " AND DATE(i.{$dateField}) >= :from_date";
+            $params[':from_date'] = $fromDate;
+        }
+
+        if ($toDate !== '') {
+            $sql .= " AND DATE(i.{$dateField}) <= :to_date";
+            $params[':to_date'] = $toDate;
         }
 
         if ($isSale) {
-            $sql .= " OR (c.name IS NOT NULL AND c.name LIKE :customer_name)";
-            $sql .= " OR (c.phone IS NOT NULL AND c.phone LIKE :phone)";
-            $params[':customer_name'] = "%{$invoiceNumber}%";
-            $params[':phone'] = "%{$invoiceNumber}%";
-        } else {
-            $sql .= " OR (s.name IS NOT NULL AND s.name LIKE :supplier_name)";
-            $sql .= " OR (s.phone IS NOT NULL AND s.phone LIKE :phone)";
-            $params[':supplier_name'] = "%{$invoiceNumber}%";
-            $params[':phone'] = "%{$invoiceNumber}%";
+            $sql .= " GROUP BY i.id";
         }
 
-        $sql .= ")";
-        $params[':invoice_number'] = "%{$invoiceNumber}%";
+        $sql .= " ORDER BY i.{$dateField} DESC LIMIT 50";
+
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
+            return $this->successResponse(
+                $response,
+                $stmt->fetchAll(PDO::FETCH_ASSOC),
+                200
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error('Error in searchInvoice', [
+                'tenant_id' => $tenantId,
+                'return_type' => $returnType,
+                'invoice_number' => $invoiceNumber,
+                'from_date' => $fromDate,
+                'to_date' => $toDate,
+                'message' => $e->getMessage()
+            ]);
+
+            return $this->errorResponse($response, 'حدث خطأ أثناء البحث عن الفاتورة', 500);
+        }
     }
 
-    if ($fromDate !== '') {
-        $sql .= " AND DATE(i.{$dateField}) >= :from_date";
-        $params[':from_date'] = $fromDate;
-    }
+    public function getInvoiceItems(Request $request, Response $response): Response
+    {
+        $tenantId = $this->extractTenantId($request);
 
-    if ($toDate !== '') {
-        $sql .= " AND DATE(i.{$dateField}) <= :to_date";
-        $params[':to_date'] = $toDate;
-    }
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
 
-    if ($isSale) {
-        $sql .= " GROUP BY i.id";
-    }
+        $queryParams = $request->getQueryParams();
+        $invoiceId = (int)($queryParams['invoice_id'] ?? 0);
+        $returnType = trim((string)($queryParams['type'] ?? ''));
 
-    $sql .= " ORDER BY i.{$dateField} DESC LIMIT 50";
+        if ($invoiceId <= 0 || !in_array($returnType, ['sale', 'purchase'], true)) {
+            return $this->errorResponse($response, 'معرّف الفاتورة أو نوع المرتجع غير صالح', 400);
+        }
 
-    try {
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-
-        return $this->successResponse(
-            $response,
-            $stmt->fetchAll(PDO::FETCH_ASSOC),
-            200
-        );
-    } catch (\Throwable $e) {
-        $this->logger->error('Error in searchInvoice', [
-            'tenant_id' => $tenantId,
-            'return_type' => $returnType,
-            'invoice_number' => $invoiceNumber,
-            'from_date' => $fromDate,
-            'to_date' => $toDate,
-            'message' => $e->getMessage()
-        ]);
-
-        return $this->errorResponse($response, 'حدث خطأ أثناء البحث عن الفاتورة', 500);
-    }
-}
-
-public function getInvoiceItems(Request $request, Response $response): Response
-{
-    $tenantId = $this->extractTenantId($request);
-
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-    }
-
-    $queryParams = $request->getQueryParams();
-    $invoiceId = (int)($queryParams['invoice_id'] ?? 0);
-    $returnType = trim((string)($queryParams['type'] ?? ''));
-
-    if ($invoiceId <= 0 || !in_array($returnType, ['sale', 'purchase'], true)) {
-        return $this->errorResponse($response, 'معرّف الفاتورة أو نوع المرتجع غير صالح', 400);
-    }
-
-    try {
-        if ($returnType === 'sale') {
-            $itemsStmt = $this->db->prepare("
+        try {
+            if ($returnType === 'sale') {
+                $itemsStmt = $this->db->prepare("
                 SELECT
                     si.id,
                     p.id          AS product_id,
@@ -1047,7 +1051,7 @@ public function getInvoiceItems(Request $request, Response $response): Response
                   AND si.tenant_id = :tenant_id
             ");
 
-            $invoiceStmt = $this->db->prepare("
+                $invoiceStmt = $this->db->prepare("
                 SELECT
                     customer_id,
                     invoice_number,
@@ -1056,8 +1060,8 @@ public function getInvoiceItems(Request $request, Response $response): Response
                 WHERE id = :invoice_id
                   AND tenant_id = :tenant_id
             ");
-        } else {
-            $itemsStmt = $this->db->prepare("
+            } else {
+                $itemsStmt = $this->db->prepare("
                 SELECT
                     pi.id,
                     p.id AS product_id,
@@ -1082,7 +1086,7 @@ public function getInvoiceItems(Request $request, Response $response): Response
                   AND pi.tenant_id = :tenant_id
             ");
 
-            $invoiceStmt = $this->db->prepare("
+                $invoiceStmt = $this->db->prepare("
                 SELECT
                     supplier_id,
                     invoice_number,
@@ -1091,36 +1095,34 @@ public function getInvoiceItems(Request $request, Response $response): Response
                 WHERE id = :invoice_id
                   AND tenant_id = :tenant_id
             ");
+            }
+
+            $params = [
+                ':invoice_id' => $invoiceId,
+                ':tenant_id' => $tenantId
+            ];
+
+            $itemsStmt->execute($params);
+            $invoiceStmt->execute($params);
+
+            $invoice = $invoiceStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$invoice) {
+                return $this->errorResponse($response, 'الفاتورة غير موجودة', 404);
+            }
+
+            return $this->successResponse($response, [
+                'items' => $itemsStmt->fetchAll(PDO::FETCH_ASSOC),
+                'invoice' => $invoice
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('Error in getInvoiceItems', [
+                'tenant_id' => $tenantId,
+                'invoice_id' => $invoiceId,
+                'return_type' => $returnType,
+                'message' => $e->getMessage()
+            ]);
+
+            return $this->errorResponse($response, 'حدث خطأ أثناء جلب بيانات الفاتورة', 500);
         }
-
-        $params = [
-            ':invoice_id' => $invoiceId,
-            ':tenant_id' => $tenantId
-        ];
-
-        $itemsStmt->execute($params);
-        $invoiceStmt->execute($params);
-
-        $invoice = $invoiceStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$invoice) {
-            return $this->errorResponse($response, 'الفاتورة غير موجودة', 404);
-        }
-
-        return $this->successResponse($response, [
-            'items' => $itemsStmt->fetchAll(PDO::FETCH_ASSOC),
-            'invoice' => $invoice
-        ], 200);
-    } catch (\Throwable $e) {
-        $this->logger->error('Error in getInvoiceItems', [
-            'tenant_id' => $tenantId,
-            'invoice_id' => $invoiceId,
-            'return_type' => $returnType,
-            'message' => $e->getMessage()
-        ]);
-
-        return $this->errorResponse($response, 'حدث خطأ أثناء جلب بيانات الفاتورة', 500);
     }
-  }
 }
-
-

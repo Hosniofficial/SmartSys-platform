@@ -156,7 +156,8 @@ class EmailVerificationService
                 );
                 $stmt->execute([(int) $tokenInfo['tenant_id']]);
                 $isSetupComplete = (bool) $stmt->fetchColumn();
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
 
         return [

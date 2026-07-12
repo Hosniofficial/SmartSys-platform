@@ -26,7 +26,7 @@ class PaymentIntegrationHandler extends BaseHandler
 
     /**
      * إنشاء معاملة دفع جديدة (يتطلب Request للحصول على tenant_id)
-     * 
+     *
      * ⚠️ RACE CONDITION NOTE:
      * إذا نجحت عملية الدفع عند البوابة (Stripe/PayPal/etc) لكن فشل الـ INSERT في DB،
      * فسيكون المبلغ قد تم حجزه فعلاً عند البوابة بدون وجود سجل في قاعدة البيانات.

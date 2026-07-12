@@ -4,7 +4,7 @@ namespace App\Services;
 
 use PDO;
 use PDOException;
-use \Exception;
+use Exception;
 use App\Services\MonologHandler;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -28,7 +28,7 @@ class JwtBlacklistService
         // Table creation moved to migration: database/migrations/001_create_jwt_blacklist_table.sql
     }
 
-    
+
     public function addToBlacklist(string $token): bool
     {
         try {

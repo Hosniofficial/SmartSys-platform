@@ -184,7 +184,7 @@ class AuditTrailHandler extends BaseHandler
             $events = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             return $this->successResponse($response, [
-                'events' => array_map(static fn($e) => [
+                'events' => array_map(static fn ($e) => [
                     'id' => (int) $e['id'],
                     'event_type' => $e['event_type'],
                     'severity' => $e['event_severity'],

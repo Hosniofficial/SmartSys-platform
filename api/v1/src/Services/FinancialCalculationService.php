@@ -8,10 +8,10 @@ use App\Services\MonologHandler;
 
 /**
  * FinancialCalculationService
- * 
+ *
  * Unified service for financial calculations across the system.
  * Consolidates duplicated calculations for taxes, discounts, totals, and amounts.
- * 
+ *
  * Calculations unified:
  * 1. Grand Total = Net Total + Tax - (Discount if not already applied)
  * 2. Net Total = Gross - Discount (when discount not tax-inclusive)
@@ -19,21 +19,23 @@ use App\Services\MonologHandler;
  * 4. Discount Calculation = Amount * (Discount % / 100) OR fixed discount amount
  * 5. Amount Due = Total - Paid Amount
  */
-class FinancialCalculationService {
+class FinancialCalculationService
+{
     private $logger;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->logger = MonologHandler::getInstance('financial_calculation');
     }
 
     /**
      * Calculate grand total (final amount to be paid)
-     * 
+     *
      * Formula: (base_amount + tax_amount) or (base_amount + tax_amount - discount_amount)
      * depending on whether discount is already subtracted from base
-     * 
+     *
      * Used by: ReturnsHandler (multiple calculations), AnalyticsHandler, SalesHandler
-     * 
+     *
      * @param float $baseAmount - Amount before tax and discount
      * @param float $taxAmount - Tax amount (calculated or fixed)
      * @param float $discountAmount - Discount amount (optional, default 0)
@@ -74,12 +76,12 @@ class FinancialCalculationService {
 
     /**
      * Calculate net total (before tax)
-     * 
+     *
      * Formula: gross_amount - discount_amount
      * OR: gross_amount / (1 + tax_rate/100) if extracting tax from gross
-     * 
+     *
      * Used by: Sales calculations, Purchase calculations
-     * 
+     *
      * @param float $grossAmount - Gross amount (with or without tax)
      * @param float $discountAmount - Discount to apply (default 0)
      * @param string $context - 'discount_only' (simple) or 'extract_tax' (removes tax from gross)
@@ -116,13 +118,13 @@ class FinancialCalculationService {
 
     /**
      * Calculate tax amount
-     * 
+     *
      * Supports two modes:
      * 1. Percentage-based: amount * (tax_rate / 100)
      * 2. Fixed amount: direct tax value
-     * 
+     *
      * Used by: PurchasesHandler, SalesHandler, ReturnsHandler
-     * 
+     *
      * @param float $baseAmount - Amount to calculate tax on
      * @param float $taxValue - Tax rate (%) or fixed amount
      * @param string $taxType - 'percentage' or 'fixed'
@@ -175,10 +177,10 @@ class FinancialCalculationService {
 
     /**
      * Calculate tax-inclusive price (extract net from gross including tax)
-     * 
+     *
      * Used when total includes tax and we need to know base amount
      * Formula: gross_amount / (1 + tax_rate/100)
-     * 
+     *
      * @param float $grossAmount - Total amount including tax
      * @param float $taxRate - Tax rate percentage
      * @return float - Net amount before tax
@@ -210,13 +212,13 @@ class FinancialCalculationService {
 
     /**
      * Calculate discount amount
-     * 
+     *
      * Supports two modes:
      * 1. Percentage-based: amount * (discount_rate / 100)
      * 2. Fixed amount: direct discount value
-     * 
+     *
      * Used by: PurchasesHandler, AnalyticsHandler, ReturnsHandler
-     * 
+     *
      * @param float $baseAmount - Amount to calculate discount on
      * @param float $discountValue - Discount rate (%) or fixed amount
      * @param string $discountType - 'percentage' or 'fixed'
@@ -261,12 +263,12 @@ class FinancialCalculationService {
 
     /**
      * Calculate remaining amount (e.g., balance due, change, adjustment)
-     * 
+     *
      * Simple subtraction with validation
      * Formula: base_amount - paid_amount
-     * 
+     *
      * Used by: Payment processing, Balance calculations, Change calculations
-     * 
+     *
      * @param float $totalAmount - Total/base amount
      * @param float $paidAmount - Amount already paid/processed
      * @return float - Remaining amount (never negative), rounded to 2 decimal places
@@ -294,12 +296,12 @@ class FinancialCalculationService {
 
     /**
      * Complete financial calculation breakdown
-     * 
+     *
      * Calculates all financial components in one call for performance
      * Returns: [net_total, discount_amount, tax_amount, grand_total, amount_due]
-     * 
+     *
      * Used by: Invoice creation, Detailed calculations
-     * 
+     *
      * @param float $baseAmount - Base amount before any calculations
      * @param float $discountValue - Discount value
      * @param string $discountType - 'percentage' or 'fixed'

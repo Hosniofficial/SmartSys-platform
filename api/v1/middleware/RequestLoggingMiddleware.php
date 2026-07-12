@@ -117,7 +117,7 @@ class RequestLoggingMiddleware implements MiddlewareInterface
         if ($this->config['log_body'] && $request->getBody()->getSize() < 1048576) { // 1MB max
             $body = (string) $request->getBody();
             $contentType = $request->getHeaderLine('Content-Type');
-            
+
             if (strpos($contentType, 'application/json') !== false) {
                 $params = json_decode($body, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
@@ -133,7 +133,7 @@ class RequestLoggingMiddleware implements MiddlewareInterface
             } elseif (!empty($body)) {
                 $context['body'] = '***BINARY_OR_UNSUPPORTED_CONTENT_TYPE***';
             }
-            
+
             // Rewind the body for the next middleware
             $request->getBody()->rewind();
         }
@@ -175,7 +175,7 @@ class RequestLoggingMiddleware implements MiddlewareInterface
         // Log error responses with more details
         if ($statusCode >= 400) {
             $body = (string) $response->getBody();
-            
+
             // Try to parse error response
             if (strpos($contentType, 'application/json') !== false) {
                 $errorData = json_decode($body, true);
@@ -187,7 +187,7 @@ class RequestLoggingMiddleware implements MiddlewareInterface
             } else {
                 $context['error'] = $body;
             }
-            
+
             // Log to security logger for error responses
             $this->securityLogger->logSecurityEvent(
                 'http_error_response',
@@ -198,7 +198,7 @@ class RequestLoggingMiddleware implements MiddlewareInterface
                 $tenantId,
                 $request
             );
-            
+
             // Rewind the body for the next middleware
             $response->getBody()->rewind();
         }

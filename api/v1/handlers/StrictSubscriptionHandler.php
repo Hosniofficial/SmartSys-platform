@@ -133,7 +133,7 @@ class StrictSubscriptionHandler extends BaseHandler
 
             if ($this->config['require_email_verification'] && $verificationToken) {
                 $this->sendVerificationEmail($data['email'], $userId, $verificationToken, $ip, $request);
-                
+
                 $this->logger->info('Verification email sent during trial signup', [
                     'user_id' => $userId,
                     'email' => $data['email'],
@@ -778,9 +778,9 @@ class StrictSubscriptionHandler extends BaseHandler
         $walletAccountId = (int) ($createdIds['1003'] ?? 0);
 
         $paymentMethods = [
-            ['name' => 'نقدي',                'kind' => 'cash',   'account_id' => $cashAccountId   ?: null],
-            ['name' => 'تحويل بنكي',          'kind' => 'bank',   'account_id' => $bankAccountId   ?: null],
-            ['name' => 'بطاقة ائتمان',        'kind' => 'card',   'account_id' => $bankAccountId   ?: null],
+            ['name' => 'نقدي',                'kind' => 'cash',   'account_id' => $cashAccountId ?: null],
+            ['name' => 'تحويل بنكي',          'kind' => 'bank',   'account_id' => $bankAccountId ?: null],
+            ['name' => 'بطاقة ائتمان',        'kind' => 'card',   'account_id' => $bankAccountId ?: null],
             ['name' => 'محفظة إلكترونية',     'kind' => 'wallet', 'account_id' => $walletAccountId ?: null],
             ['name' => 'آجل / ذمم',           'kind' => 'credit', 'account_id' => null],
         ];
@@ -807,16 +807,16 @@ class StrictSubscriptionHandler extends BaseHandler
         try {
             // Use EmailVerificationService with proper method signature
             $verificationService = new \App\Services\EmailVerificationService($this->db);
-            
+
             // Call the correct method: sendVerification(email, purpose, request)
             // Pass the real Request object which contains all necessary data
             $verificationService->sendVerification($email, 'registration', $request);
-            
+
             $this->logger->info('Verification email sent successfully', [
                 'email' => $email,
                 'user_id' => $userId
             ]);
-            
+
         } catch (\Throwable $e) {
             $this->logger->error('Failed to send verification email', [
                 'email' => $email,
@@ -826,7 +826,7 @@ class StrictSubscriptionHandler extends BaseHandler
             throw new \Exception('فشل في إرسال بريد التحقق. يرجى المحاولة لاحقاً.');
         }
     }
-    
+
     private function getUserById(int $userId): ?array
     {
         $stmt = $this->db->prepare(

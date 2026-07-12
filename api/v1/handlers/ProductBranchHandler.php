@@ -273,11 +273,11 @@ class ProductBranchHandler extends BaseHandler
             // Support both mapping_id (legacy) and product_id + branch_id (new)
             $mappingId = !empty($body['mapping_id']) ? (int) $body['mapping_id'] : null;
             $productId = !empty($body['product_id']) ? (int) $body['product_id'] : null;
-            $branchId  = !empty($body['branch_id'])  ? (int) $body['branch_id']  : null;
-            $quantity  = isset($body['quantity'])   ? (float) $body['quantity']   : null;
-            $unitCost  = isset($body['unit_cost'])  ? (float) $body['unit_cost']  : null;
+            $branchId  = !empty($body['branch_id']) ? (int) $body['branch_id'] : null;
+            $quantity  = isset($body['quantity']) ? (float) $body['quantity'] : null;
+            $unitCost  = isset($body['unit_cost']) ? (float) $body['unit_cost'] : null;
             $entryDate = !empty($body['entry_date']) ? (string) $body['entry_date'] : date('Y-m-d');
-            $unitId    = !empty($body['unit_id'])   ? (int) $body['unit_id']      : 1;
+            $unitId    = !empty($body['unit_id']) ? (int) $body['unit_id'] : 1;
             $userId    = $this->extractUserId($request);
 
             if (($quantity === null || $unitCost === null)) {

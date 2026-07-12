@@ -37,8 +37,12 @@ class BranchInventoryReportHandler extends BaseHandler
     private function normalizeMovementType(string $referenceType, string $movementType): string
     {
         $ref = strtolower($referenceType);
-        if (in_array($ref, ['purchase', 'sale', 'return'], true)) return $ref;
-        if (strpos($movementType, 'adjustment') !== false) return 'adjustment';
+        if (in_array($ref, ['purchase', 'sale', 'return'], true)) {
+            return $ref;
+        }
+        if (strpos($movementType, 'adjustment') !== false) {
+            return 'adjustment';
+        }
         return $ref ?: $movementType;
     }
 
@@ -120,7 +124,7 @@ class BranchInventoryReportHandler extends BaseHandler
         foreach ($rows as $r) {
             $isIn  = strpos((string) $r['movement_type'], 'in')  !== false;
             $isOut = strpos((string) $r['movement_type'], 'out') !== false;
-            $inQty  = $isIn  ? (float) $r['quantity'] : 0.0;
+            $inQty  = $isIn ? (float) $r['quantity'] : 0.0;
             $outQty = $isOut ? (float) $r['quantity'] : 0.0;
             $balance += $inQty - $outQty;
             $finalBalance = $balance;
@@ -128,7 +132,9 @@ class BranchInventoryReportHandler extends BaseHandler
             $totalOut += $outQty;
 
             $ref = $r['reference_type'];
-            if (!empty($r['reference_id'])) $ref .= '#' . $r['reference_id'];
+            if (!empty($r['reference_id'])) {
+                $ref .= '#' . $r['reference_id'];
+            }
 
             $items[] = [
                 'id'        => (int) $r['id'],
@@ -192,7 +198,7 @@ class BranchInventoryReportHandler extends BaseHandler
             $totalBranches = count($all);
 
             // فلترة الفروع التي تفتقر لـ account_id (كما في الأصل)
-            $missingBranches = array_values(array_filter($all, fn($b) => empty($b['account_id']) || (int)$b['account_id'] === 0));
+            $missingBranches = array_values(array_filter($all, fn ($b) => empty($b['account_id']) || (int)$b['account_id'] === 0));
             $missingCount    = count($missingBranches);
 
             return $this->successResponse($response, [
@@ -374,8 +380,12 @@ class BranchInventoryReportHandler extends BaseHandler
                 $totals['total_qty']     += $qty;
                 $totals['total_value']   += $value;
                 $totals['total_products']++;
-                if ($qty == 0.0) $totals['out_of_stock_count']++;
-                if ($qty > 0 && $minQ > 0 && $qty <= $minQ) $totals['low_stock_count']++;
+                if ($qty == 0.0) {
+                    $totals['out_of_stock_count']++;
+                }
+                if ($qty > 0 && $minQ > 0 && $qty <= $minQ) {
+                    $totals['low_stock_count']++;
+                }
 
                 if (!empty($it['category_id'])) {
                     $cid = (int) $it['category_id'];

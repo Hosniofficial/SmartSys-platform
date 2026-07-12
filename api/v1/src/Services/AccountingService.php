@@ -62,7 +62,9 @@ class AccountingService
                 $stmt = $this->db->prepare("SELECT cost_center_id FROM branches WHERE id = ? AND (tenant_id = ? OR tenant_id IS NULL) LIMIT 1");
                 $stmt->execute([$providedBranchId, $tenantId]);
                 $cc = $stmt->fetchColumn();
-                if ($cc) return (int) $cc;
+                if ($cc) {
+                    return (int) $cc;
+                }
             }
 
             // 2️⃣ فرع المستخدم
@@ -74,24 +76,30 @@ class AccountingService
                     $stmt2 = $this->db->prepare("SELECT cost_center_id FROM branches WHERE id = ? AND (tenant_id = ? OR tenant_id IS NULL) LIMIT 1");
                     $stmt2->execute([$userBranchId, $tenantId]);
                     $cc = $stmt2->fetchColumn();
-                    if ($cc) return (int) $cc;
+                    if ($cc) {
+                        return (int) $cc;
+                    }
                 }
             }
 
             // 3️⃣ إعداد tenant الافتراضي — يستخدم SettingsRepository
             $val = $this->settingsRepo->getInt($tenantId, 'accounting.default_cost_center_id', 0);
-            if ($val > 0) return $val;
+            if ($val > 0) {
+                return $val;
+            }
 
             // 4️⃣ أول cost_center متاح للـ tenant (آخر fallback)
             $stmtCC = $this->db->prepare("SELECT id FROM cost_centers WHERE tenant_id = ? ORDER BY id ASC LIMIT 1");
             $stmtCC->execute([$tenantId]);
             $ccId = $stmtCC->fetchColumn();
-            if ($ccId) return (int) $ccId;
+            if ($ccId) {
+                return (int) $ccId;
+            }
 
             $this->logger->debug('resolveCostCenter: no cost_center found, returning NULL', [
                 'tenant_id'         => $tenantId,
                 'user_id'           => $userId,
-                'provided_branch_id'=> $providedBranchId,
+                'provided_branch_id' => $providedBranchId,
             ]);
         } catch (\Throwable $e) {
             $this->logger->warning('resolveCostCenter: error resolving', [
@@ -192,7 +200,9 @@ class AccountingService
     {
         foreach ($codes as $c) {
             $id = $this->getAccountIdByCode($tenantId, $c);
-            if ($id) return $id;
+            if ($id) {
+                return $id;
+            }
         }
         return null;
     }
@@ -204,7 +214,9 @@ class AccountingService
         $saleStmt = $this->db->prepare("SELECT id, created_at, branch_id FROM sales WHERE id = ? AND tenant_id = ? LIMIT 1");
         $saleStmt->execute([$saleId, $tenantId]);
         $sale = $saleStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$sale) return null;
+        if (!$sale) {
+            return null;
+        }
 
         $saleDate = $sale['created_at'] ?? null;
         $cogs     = (float) $costing->computeCOGSForSale($tenantId, $saleId, $saleDate);
@@ -214,8 +226,11 @@ class AccountingService
                 $fb = $this->db->prepare("SELECT COALESCE(SUM(quantity * purchase_price), 0) FROM sales_items WHERE sale_id = ? AND tenant_id = ?");
                 $fb->execute([$saleId, $tenantId]);
                 $ppSum = (float) $fb->fetchColumn();
-                if ($ppSum > 0) $cogs = $ppSum;
-            } catch (\Throwable $e) {}
+                if ($ppSum > 0) {
+                    $cogs = $ppSum;
+                }
+            } catch (\Throwable $e) {
+            }
         }
 
         if ($cogs <= 0.0000001) {
@@ -225,16 +240,23 @@ class AccountingService
                 $r   = $st->fetch(PDO::FETCH_ASSOC) ?: ['amt' => 0, 'tp' => 0];
                 $amt = (float) $r['amt'];
                 $tp  = (float) $r['tp'];
-                if ($tp > 0 && $amt > 0) $cogs = max(0.0, $amt - $tp);
-            } catch (\Throwable $e) {}
+                if ($tp > 0 && $amt > 0) {
+                    $cogs = max(0.0, $amt - $tp);
+                }
+            } catch (\Throwable $e) {
+            }
         }
 
         $cogs = round($cogs, 2);
-        if ($cogs <= 0.0) return null;
+        if ($cogs <= 0.0) {
+            return null;
+        }
 
         $cogsAccountId      = $this->getAccountIdFallback($tenantId, ['5103']);
         $inventoryAccountId = $this->getAccountIdFallback($tenantId, ['1301']);
-        if (!$cogsAccountId || !$inventoryAccountId) return null;
+        if (!$cogsAccountId || !$inventoryAccountId) {
+            return null;
+        }
 
         $entryDate    = $saleDate ? substr($saleDate, 0, 10) : date('Y-m-d');
         $costCenterId = $this->resolveCostCenterForService($tenantId, $userId, null);
@@ -257,7 +279,8 @@ class AccountingService
             try {
                 $this->db->prepare("UPDATE sales SET journal_entry_id = ? WHERE id = ? AND tenant_id = ?")
                     ->execute([$jeId, $saleId, $tenantId]);
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
 
         return $jeId;
@@ -267,12 +290,16 @@ class AccountingService
     public function postOpeningBalance(int $tenantId, int $purchaseId, float $totalCost, ?int $userId = null): ?int
     {
         $totalCost = round($totalCost, 2);
-        if ($totalCost <= 0) return null;
+        if ($totalCost <= 0) {
+            return null;
+        }
 
         $getSettingWithKey = function (int $tenantId, array $keys) {
             foreach ($keys as $key) {
                 $val = $this->settingsRepo->getInt($tenantId, $key, 0);
-                if ($val > 0) return ['id' => $val, 'key' => $key];
+                if ($val > 0) {
+                    return ['id' => $val, 'key' => $key];
+                }
             }
             return null;
         };
@@ -283,7 +310,9 @@ class AccountingService
         $equityLookup = $getSettingWithKey($tenantId, ['opening_balance_equity_account_id', 'accounting.opening_balance_equity_account_id', 'capital_account_id']);
         $equityAccountId = $equityLookup ? (int) $equityLookup['id'] : $this->getAccountIdFallback($tenantId, ['3001']);
 
-        if (!$inventoryAccountId || !$equityAccountId) return null;
+        if (!$inventoryAccountId || !$equityAccountId) {
+            return null;
+        }
 
         $st = $this->db->prepare("SELECT invoice_date, cost_center_id FROM purchases WHERE id = ? AND tenant_id = ?");
         $st->execute([$purchaseId, $tenantId]);
@@ -298,14 +327,19 @@ class AccountingService
                     $st = $this->db->prepare("SELECT account_id FROM branches WHERE id = ? AND tenant_id = ? LIMIT 1");
                     $st->execute([$branchId, $tenantId]);
                     $aid = $st->fetchColumn();
-                    if ($aid) return (int) $aid;
-                } catch (\Throwable $e) {}
+                    if ($aid) {
+                        return (int) $aid;
+                    }
+                } catch (\Throwable $e) {
+                }
 
                 $lk = $getSettingWithKey($tenantId, [
                     "branch.$branchId.inventory_account_id",
                     "inventory.branch.$branchId.account_id",
                 ]);
-                if ($lk && !empty($lk['id'])) return (int) $lk['id'];
+                if ($lk && !empty($lk['id'])) {
+                    return (int) $lk['id'];
+                }
             }
             return (int) $inventoryAccountId;
         };
@@ -326,7 +360,8 @@ class AccountingService
                     ];
                 }
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
 
         if (empty($lines)) {
             $lines[] = [
@@ -359,7 +394,8 @@ class AccountingService
             try {
                 $this->db->prepare("UPDATE purchases SET journal_entry_id = ? WHERE id = ? AND tenant_id = ?")
                     ->execute([$jeId, $purchaseId, $tenantId]);
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
 
         return $jeId;
@@ -382,7 +418,9 @@ class AccountingService
         ?int    $paymentMethodId   = null   // ✅ CRITICAL-2: لتحديد حساب السيولة الصحيح
     ): ?int {
         $amount = round($amount, 2);
-        if ($amount <= 0) return null;
+        if ($amount <= 0) {
+            return null;
+        }
 
         try {
             // ✅ B-1: تحقق مسبق قبل فتح transaction
@@ -401,7 +439,9 @@ class AccountingService
             $getSettingInt = function (int $tenantId, array $keys): ?int {
                 foreach ($keys as $key) {
                     $val = $this->settingsRepo->getInt($tenantId, $key, 0);
-                    if ($val > 0) return $val;
+                    if ($val > 0) {
+                        return $val;
+                    }
                 }
                 return null;
             };
@@ -425,14 +465,20 @@ class AccountingService
                             $finalDebitAccountId = $getSettingInt($tenantId, ['accounting.cash_account_id', 'cash_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1001']);
                         }
                     }
-                    if (!$finalCreditAccountId) $finalCreditAccountId = $getSettingInt($tenantId, ['ar_account', 'accounting.ar_account_id', 'ar_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1101']);
-                    if (!$finalDescription)     $finalDescription     = "دفعة مبيعات #" . ($saleId ?? 'N/A');
+                    if (!$finalCreditAccountId) {
+                        $finalCreditAccountId = $getSettingInt($tenantId, ['ar_account', 'accounting.ar_account_id', 'ar_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1101']);
+                    }
+                    if (!$finalDescription) {
+                        $finalDescription     = "دفعة مبيعات #" . ($saleId ?? 'N/A');
+                    }
                     $referenceType = 'sale';
                     $referenceId   = $saleId;
                     break;
 
                 case 'purchase':
-                    if (!$finalDebitAccountId)  $finalDebitAccountId  = $getSettingInt($tenantId, ['accounting.ap_account_id', 'ap_account_id']) ?? $this->getAccountIdFallback($tenantId, ['2101']);
+                    if (!$finalDebitAccountId) {
+                        $finalDebitAccountId  = $getSettingInt($tenantId, ['accounting.ap_account_id', 'ap_account_id']) ?? $this->getAccountIdFallback($tenantId, ['2101']);
+                    }
                     // ✅ B-2: سداد المشتريات يُخرج من الحساب الصحيح لطريقة الدفع
                     if (!$finalCreditAccountId) {
                         if ($paymentMethodId) {
@@ -446,7 +492,9 @@ class AccountingService
                             $finalCreditAccountId = $getSettingInt($tenantId, ['accounting.cash_account_id', 'cash_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1001']);
                         }
                     }
-                    if (!$finalDescription)     $finalDescription     = "دفعة مشتريات #" . ($purchaseId ?? 'N/A');
+                    if (!$finalDescription) {
+                        $finalDescription     = "دفعة مشتريات #" . ($purchaseId ?? 'N/A');
+                    }
                     $referenceType = 'purchase';
                     $referenceId   = $purchaseId;
                     break;
@@ -473,14 +521,20 @@ class AccountingService
                             $finalDebitAccountId = $getSettingInt($tenantId, ['accounting.cash_account_id', 'cash_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1001']);
                         }
                     }
-                    if (!$finalCreditAccountId) $finalCreditAccountId = $getSettingInt($tenantId, ['ar_account', 'accounting.ar_account_id', 'ar_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1101']);
-                    if (!$finalDescription)     $finalDescription     = "دفعة عميل #$paymentId";
+                    if (!$finalCreditAccountId) {
+                        $finalCreditAccountId = $getSettingInt($tenantId, ['ar_account', 'accounting.ar_account_id', 'ar_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1101']);
+                    }
+                    if (!$finalDescription) {
+                        $finalDescription     = "دفعة عميل #$paymentId";
+                    }
                     $referenceType = 'customer_payment';
                     $referenceId   = $paymentId;
                     break;
 
                 case 'supplier_payment':
-                    if (!$finalDebitAccountId)  $finalDebitAccountId  = $getSettingInt($tenantId, ['accounting.ap_account_id', 'ap_account_id']) ?? $this->getAccountIdFallback($tenantId, ['2101']);
+                    if (!$finalDebitAccountId) {
+                        $finalDebitAccountId  = $getSettingInt($tenantId, ['accounting.ap_account_id', 'ap_account_id']) ?? $this->getAccountIdFallback($tenantId, ['2101']);
+                    }
                     // ✅ CRITICAL-2: سداد المورد يُخرج من الحساب الصحيح لطريقة الدفع
                     if (!$finalCreditAccountId) {
                         if ($paymentMethodId) {
@@ -494,7 +548,9 @@ class AccountingService
                             $finalCreditAccountId = $getSettingInt($tenantId, ['accounting.cash_account_id', 'cash_account_id']) ?? $this->getAccountIdFallback($tenantId, ['1001']);
                         }
                     }
-                    if (!$finalDescription)     $finalDescription     = "دفعة مورد #$paymentId";
+                    if (!$finalDescription) {
+                        $finalDescription     = "دفعة مورد #$paymentId";
+                    }
                     $referenceType = 'supplier_payment';
                     $referenceId   = $paymentId;
                     break;
@@ -513,7 +569,9 @@ class AccountingService
                 ));
             }
 
-            if (!$costCenterId) $costCenterId = $this->resolveCostCenterForService($tenantId, $userId);
+            if (!$costCenterId) {
+                $costCenterId = $this->resolveCostCenterForService($tenantId, $userId);
+            }
 
             $entryDate = date('Y-m-d');
             try {
@@ -521,8 +579,11 @@ class AccountingService
                 $stmtPay = $this->db->prepare("SELECT payment_date FROM payments WHERE id = ? AND tenant_id = ? LIMIT 1");
                 $stmtPay->execute([$paymentId, $tenantId]);
                 $paymentDate = $stmtPay->fetchColumn();
-                if ($paymentDate) $entryDate = (new \DateTime($paymentDate))->format('Y-m-d');
-            } catch (\Throwable $e) {}
+                if ($paymentDate) {
+                    $entryDate = (new \DateTime($paymentDate))->format('Y-m-d');
+                }
+            } catch (\Throwable $e) {
+            }
 
             // ✅ idempotency: مفتاح فريد per-payment يمنع تكرار القيد حتى مع concurrency
             $idempotencyKey = "payment_{$paymentId}_t{$tenantId}";
@@ -623,7 +684,9 @@ class AccountingService
             if (abs($totalDebit - $totalCredit) > 0.001) {
                 throw new \Exception(sprintf(
                     'قيد غير متوازن: مدين = %.4f, دائن = %.4f (فرق = %.6f) — يرجى مراجعة سطور القيد',
-                    $totalDebit, $totalCredit, abs($totalDebit - $totalCredit)
+                    $totalDebit,
+                    $totalCredit,
+                    abs($totalDebit - $totalCredit)
                 ));
             }
 
@@ -634,8 +697,12 @@ class AccountingService
                 }
             }
 
-            if (!$entryDate)    $entryDate    = date('Y-m-d');
-            if (!$costCenterId) $costCenterId = $this->resolveCostCenterForService($tenantId, $userId);
+            if (!$entryDate) {
+                $entryDate    = date('Y-m-d');
+            }
+            if (!$costCenterId) {
+                $costCenterId = $this->resolveCostCenterForService($tenantId, $userId);
+            }
 
             // ✅ Period Close: رفض القيد إذا كانت التاريخ في دورة مغلقة
             $this->assertDateNotInClosedPeriod($tenantId, $entryDate);
@@ -723,7 +790,10 @@ class AccountingService
             return $jeId;
         } catch (\Throwable $e) {
             if (!empty($ownTransaction) && $ownTransaction) {
-                try { $this->db->rollBack(); } catch (\Throwable $re) {}
+                try {
+                    $this->db->rollBack();
+                } catch (\Throwable $re) {
+                }
             }
             $this->logger->error('postJournalEntry() error', [
                 'reference_type' => $referenceType,
@@ -819,7 +889,8 @@ class AccountingService
                 if ($this->db->inTransaction()) {
                     $this->db->rollBack();
                 }
-            } catch (\Throwable $re) {}
+            } catch (\Throwable $re) {
+            }
 
             $this->logger->error('Failed to delete journal entry', [
                 'journal_entry_id' => $journalEntryId,
@@ -895,7 +966,7 @@ class AccountingService
             throw new \Exception("القيد رقم {$jeId} لا يحتوي على سطور.");
         }
 
-        $reversedLines = array_map(fn($l) => [
+        $reversedLines = array_map(fn ($l) => [
             'account_id'  => $l['account_id'],
             'debit'       => floatval($l['credit_amount']),
             'credit'      => floatval($l['debit_amount']),
@@ -969,7 +1040,10 @@ class AccountingService
               AND pbm.average_cost > p.sale_price
         ";
         $bind = [(int) $tenantId];
-        if ($branchId) { $sql .= " AND bp.branch_id = ?"; $bind[] = $branchId; }
+        if ($branchId) {
+            $sql .= " AND bp.branch_id = ?";
+            $bind[] = $branchId;
+        }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($bind);
@@ -1002,7 +1076,10 @@ class AccountingService
 
         foreach ($byBranch as $bid => $data) {
             $amount = round($data['total'], 2);
-            if ($amount <= 0) { $skipped[] = $bid; continue; }
+            if ($amount <= 0) {
+                $skipped[] = $bid;
+                continue;
+            }
 
             // حساب المخزون الخاص بالفرع أو الافتراضي
             $invAccountId = null;
@@ -1010,11 +1087,15 @@ class AccountingService
                 $st = $this->db->prepare("SELECT account_id FROM branches WHERE id = ? AND tenant_id = ? LIMIT 1");
                 $st->execute([$bid, $tenantId]);
                 $invAccountId = $st->fetchColumn() ?: null;
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
             if (!$invAccountId) {
                 $invAccountId = $this->getAccountIdFallback($tenantId, ['1301']);
             }
-            if (!$invAccountId) { $skipped[] = $bid; continue; }
+            if (!$invAccountId) {
+                $skipped[] = $bid;
+                continue;
+            }
 
             $idempotencyKey = "nrv_writedown_{$tenantId}_{$bid}_{$today}";
             $costCenterId   = $this->resolveCostCenterForService($tenantId, $userId, null);
@@ -1153,12 +1234,16 @@ class AccountingService
             $stmt = $this->db->prepare("SELECT account_id FROM customers WHERE id = ? AND tenant_id = ?");
             $stmt->execute([$partyId, $tenantId]);
             $custAcc = $stmt->fetchColumn();
-            if ($custAcc) $customerAccountIdToUse = (int) $custAcc;
+            if ($custAcc) {
+                $customerAccountIdToUse = (int) $custAcc;
+            }
         } elseif ($returnType === 'purchase' && $partyId) {
             $stmt = $this->db->prepare("SELECT account_id FROM suppliers WHERE id = ? AND tenant_id = ?");
             $stmt->execute([$partyId, $tenantId]);
             $suppAcc = $stmt->fetchColumn();
-            if ($suppAcc) $supplierAccountIdToUse = (int) $suppAcc;
+            if ($suppAcc) {
+                $supplierAccountIdToUse = (int) $suppAcc;
+            }
         }
 
         // ── validation ────────────────────────────────────────────────────────
@@ -1280,7 +1365,9 @@ class AccountingService
                     $convStmt->execute([(int) $it['product_id'], (int) $it['unit_id'], $tenantId]);
                     $conv    = (float) ($convStmt->fetchColumn() ?: 1.0);
                     $baseQty = (float) $it['quantity'] * ($conv > 0 ? $conv : 1.0);
-                    if ($baseQty <= 0) continue;
+                    if ($baseQty <= 0) {
+                        continue;
+                    }
                     $wac = $costing->getWeightedAverageCost($tenantId, (int) $it['product_id'], $returnDate) ?? 0.0;
                     $totalInventoryAmount += $baseQty * $wac;
                 }
@@ -1455,11 +1542,11 @@ class AccountingService
         if ($sale) {
             $invoiceNumber = $sale['invoice_number'] ?? "#{$saleId}";
             $currentOutstanding = (float)$sale['grand_total'] - (float)$sale['current_paid_amount'];
-            
+
             // Check if this payment will complete the invoice
             $totalAfterPayment = (float)$sale['current_paid_amount'] + $amount;
             $isFullPayment = (abs($totalAfterPayment - (float)$sale['grand_total']) < 0.01);
-            
+
             if ($isFullPayment) {
                 $paymentDescription = 'سداد فاتورة رقم ' . $invoiceNumber;
             } else {
@@ -1759,9 +1846,13 @@ class AccountingService
                 $stmtBranch = $this->db->prepare("SELECT account_id FROM branches WHERE id = ? AND tenant_id = ? LIMIT 1");
                 $stmtBranch->execute([$branchId, $tenantId]);
                 $branchAccId = $stmtBranch->fetchColumn();
-                if ($branchAccId) $inventoryAccountId = (int) $branchAccId;
+                if ($branchAccId) {
+                    $inventoryAccountId = (int) $branchAccId;
+                }
             }
-            if (!$inventoryAccountId) $inventoryAccountId = $this->resolveAccountId($tenantId, 'inventory_account_id', '1301');
+            if (!$inventoryAccountId) {
+                $inventoryAccountId = $this->resolveAccountId($tenantId, 'inventory_account_id', '1301');
+            }
             if ($cogsAccountId && $inventoryAccountId) {
                 $lines[] = ['account_id' => $cogsAccountId,      'debit' => $cogsAmount, 'credit' => 0,           'description' => "تكلفة البضاعة المباعة لفاتورة #{$saleId}"];
                 $lines[] = ['account_id' => $inventoryAccountId, 'debit' => 0,           'credit' => $cogsAmount, 'description' => "خفض المخزون لفاتورة #{$saleId}"];
@@ -1788,12 +1879,16 @@ class AccountingService
         // سطر 5+6: ذمم العملاء
         if ($grossAmount > 0) {
             $arAccountId = $this->resolveAccountId($tenantId, 'ar_account', '1101');
-            if (!$arAccountId) throw new \Exception('حساب ذمم العملاء غير معرّف. يرجى التحقق من إعدادات الحسابات (ar_account).');
+            if (!$arAccountId) {
+                throw new \Exception('حساب ذمم العملاء غير معرّف. يرجى التحقق من إعدادات الحسابات (ar_account).');
+            }
             if ($customerId && !$customerAccountId) {
                 $custStmt = $this->db->prepare("SELECT account_id FROM customers WHERE id = ? AND tenant_id = ?");
                 $custStmt->execute([$customerId, $tenantId]);
                 $fetched = $custStmt->fetchColumn();
-                if ($fetched) $arAccountId = (int) $fetched;
+                if ($fetched) {
+                    $arAccountId = (int) $fetched;
+                }
             } elseif ($customerAccountId) {
                 $arAccountId = (int) $customerAccountId;
             }
@@ -1805,9 +1900,14 @@ class AccountingService
 
         $entryDate      = substr($saleDate, 0, 10) ?: date('Y-m-d');
         $journalEntryId = $this->postJournalEntry(
-            $tenantId, 'sale', $saleId,
+            $tenantId,
+            'sale',
+            $saleId,
             "قيد فاتورة بيع رقم #{$saleId}",
-            $lines, $entryDate, $userId, $costCenterId,
+            $lines,
+            $entryDate,
+            $userId,
+            $costCenterId,
             'sale_' . $saleId . '_' . md5($saleDate)
         );
 

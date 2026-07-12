@@ -42,7 +42,7 @@ class SessionsHandler extends BaseHandler
     private function logAction(int $tenantId, string $action, array $details = []): void
     {
         try {
-            $userId   = isset($details['user_id'])    ? (int)$details['user_id']    : null;
+            $userId   = isset($details['user_id']) ? (int)$details['user_id'] : null;
             $entityId = isset($details['session_id']) ? (int)$details['session_id'] : null;
 
             $details['ip']         = RequestHelper::getClientIpFromServer();
@@ -138,7 +138,7 @@ class SessionsHandler extends BaseHandler
                 (int)$tenantId,
                 (int)$sessionId,
                 $closingCash,
-                $closedBy  ? (int)$closedBy  : null,
+                $closedBy ? (int)$closedBy : null,
                 $data['variance_reason'] ?? null
             );
 
@@ -280,13 +280,35 @@ class SessionsHandler extends BaseHandler
             ";
             $params = [$tenantId, $tenantId];
 
-            if ($status      !== null && $status      !== '') { $baseSql .= " AND cs.status = ?";       $params[] = $status; }
-            if ($branchId    !== null && $branchId    !== '') { $baseSql .= " AND cs.branch_id = ?";    $params[] = $branchId; }
-            if ($cashierId   !== null && $cashierId   !== '') { $baseSql .= " AND cs.cashier_id = ?";   $params[] = $cashierId; }
-            if ($sessionType !== null && $sessionType !== '') { $baseSql .= " AND cs.session_type = ?"; $params[] = $sessionType; }
-            if ($device      !== null && $device      !== '') { $baseSql .= " AND (cs.device_name = ? OR cs.device_id = ?)"; $params[] = $device; $params[] = $device; }
-            if ($fromDate    !== null && $fromDate    !== '') { $baseSql .= " AND cs.start_time >= ?";  $params[] = $fromDate . ' 00:00:00'; }
-            if ($toDate      !== null && $toDate      !== '') { $baseSql .= " AND cs.start_time < ?";   $params[] = date('Y-m-d', strtotime($toDate . ' +1 day')) . ' 00:00:00'; }
+            if ($status      !== null && $status      !== '') {
+                $baseSql .= " AND cs.status = ?";
+                $params[] = $status;
+            }
+            if ($branchId    !== null && $branchId    !== '') {
+                $baseSql .= " AND cs.branch_id = ?";
+                $params[] = $branchId;
+            }
+            if ($cashierId   !== null && $cashierId   !== '') {
+                $baseSql .= " AND cs.cashier_id = ?";
+                $params[] = $cashierId;
+            }
+            if ($sessionType !== null && $sessionType !== '') {
+                $baseSql .= " AND cs.session_type = ?";
+                $params[] = $sessionType;
+            }
+            if ($device      !== null && $device      !== '') {
+                $baseSql .= " AND (cs.device_name = ? OR cs.device_id = ?)";
+                $params[] = $device;
+                $params[] = $device;
+            }
+            if ($fromDate    !== null && $fromDate    !== '') {
+                $baseSql .= " AND cs.start_time >= ?";
+                $params[] = $fromDate . ' 00:00:00';
+            }
+            if ($toDate      !== null && $toDate      !== '') {
+                $baseSql .= " AND cs.start_time < ?";
+                $params[] = date('Y-m-d', strtotime($toDate . ' +1 day')) . ' 00:00:00';
+            }
             if ($hasVariance !== null) {
                 if ($hasVariance === 'yes') {
                     $baseSql .= " AND cs.closing_cash_amount IS NOT NULL AND ABS(cs.closing_cash_amount - cs.opening_cash_amount - COALESCE(ct.cash_in,0) + COALESCE(ct.cash_out,0)) > 0.01";
@@ -316,8 +338,12 @@ class SessionsHandler extends BaseHandler
             $svc = $this->sessionService();
             foreach ($items as &$item) {
                 $item['session_type_label'] = $svc->getSessionTypeLabel($item['session_type'] ?? 'manual');
-                if (empty($item['cashier_name']))    $item['cashier_name']    = 'مستخدم #' . ($item['cashier_id'] ?? '');
-                if (!empty($item['closed_by']) && empty($item['closed_by_name'])) $item['closed_by_name'] = 'مستخدم #' . $item['closed_by'];
+                if (empty($item['cashier_name'])) {
+                    $item['cashier_name']    = 'مستخدم #' . ($item['cashier_id'] ?? '');
+                }
+                if (!empty($item['closed_by']) && empty($item['closed_by_name'])) {
+                    $item['closed_by_name'] = 'مستخدم #' . $item['closed_by'];
+                }
                 $item['variance_amount'] = isset($item['variance_amount']) ? (float)$item['variance_amount'] : null;
                 $item['cash_in']         = (float)($item['cash_in']  ?? 0);
                 $item['cash_out']        = (float)($item['cash_out'] ?? 0);
@@ -373,8 +399,12 @@ class SessionsHandler extends BaseHandler
             $tenantId  = $request->getAttribute('tenant_id');
             $sessionId = $args['id'] ?? null;
 
-            if (!$tenantId) return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-            if (!$sessionId) return $this->errorResponse($response, 'مطلوب معرف الجلسة.', 400);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+            if (!$sessionId) {
+                return $this->errorResponse($response, 'مطلوب معرف الجلسة.', 400);
+            }
 
             $summary = $this->sessionService()->buildSessionSummary((int)$tenantId, (int)$sessionId);
 
@@ -469,21 +499,30 @@ class SessionsHandler extends BaseHandler
         array  &$countParams
     ): void {
         if (!empty($query['from_date'])) {
-            $clause = " AND cs.start_time >= ?"; $val = $query['from_date'] . ' 00:00:00';
-            $sql .= $clause; $params[] = $val;
-            $countSql .= $clause; $countParams[] = $val;
+            $clause = " AND cs.start_time >= ?";
+            $val = $query['from_date'] . ' 00:00:00';
+            $sql .= $clause;
+            $params[] = $val;
+            $countSql .= $clause;
+            $countParams[] = $val;
         }
         if (!empty($query['to_date'])) {
             $nd = date('Y-m-d', strtotime($query['to_date'] . ' +1 day'));
-            $clause = " AND cs.start_time < ?"; $val = $nd . ' 00:00:00';
-            $sql .= $clause; $params[] = $val;
-            $countSql .= $clause; $countParams[] = $val;
+            $clause = " AND cs.start_time < ?";
+            $val = $nd . ' 00:00:00';
+            $sql .= $clause;
+            $params[] = $val;
+            $countSql .= $clause;
+            $countParams[] = $val;
         }
         foreach (['branch_id' => 'cs.branch_id', 'cashier_id' => 'cs.cashier_id', 'terminal_id' => 'cs.terminal_id'] as $qKey => $col) {
             if (!empty($query[$qKey])) {
-                $clause = " AND $col = ?"; $val = $query[$qKey];
-                $sql .= $clause; $params[] = $val;
-                $countSql .= $clause; $countParams[] = $val;
+                $clause = " AND $col = ?";
+                $val = $query[$qKey];
+                $sql .= $clause;
+                $params[] = $val;
+                $countSql .= $clause;
+                $countParams[] = $val;
             }
         }
         if (isset($query['has_variance'])) {
@@ -502,7 +541,8 @@ class SessionsHandler extends BaseHandler
                 } else {
                     $clause = " AND (cs.closing_cash_amount IS NULL OR ABS($varianceInner) <= 0.01)";
                 }
-                $sql .= $clause; $countSql .= $clause;
+                $sql .= $clause;
+                $countSql .= $clause;
             }
         }
     }

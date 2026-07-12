@@ -108,7 +108,7 @@ class AdvancedReportsHandler extends BaseHandler
 
             $rawActivities = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
             $recentActivities = array_map(
-                static fn(array $activity): array => [
+                static fn (array $activity): array => [
                     'id' => $activity['type'] . '_' . $activity['id'],
                     'description' => $activity['description_prefix'] . $activity['id'],
                     'amount' => (float) $activity['amount'],
@@ -604,7 +604,7 @@ class AdvancedReportsHandler extends BaseHandler
             }
 
             $expenses = array_values($merged);
-            usort($expenses, static fn(array $a, array $b) => $b['total'] <=> $a['total']);
+            usort($expenses, static fn (array $a, array $b) => $b['total'] <=> $a['total']);
 
             $totalExpenses = array_sum(array_column($expenses, 'total'));
 

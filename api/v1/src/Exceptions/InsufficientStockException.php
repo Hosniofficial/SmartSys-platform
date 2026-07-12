@@ -4,7 +4,7 @@ namespace App\Exceptions;
 
 /**
  * استثناء يُرمى عند محاولة البيع بكمية تتجاوز المخزون المتوفر
- * 
+ *
  * يحتوي على بيانات إضافية تساعد الواجهة الأمامية على التعامل مع الخطأ بذكاء
  */
 class InsufficientStockException extends \Exception

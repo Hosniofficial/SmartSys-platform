@@ -53,7 +53,7 @@ class SecurityLogger
         try {
             $ipAddress = $request ? $this->getClientIp($request) : null;
             $userAgent = $request ? $request->getHeaderLine('User-Agent') : null;
-            
+
             // Determine severity if not provided
             if ($severity === null) {
                 $severity = $this->determineSeverity($action, $status);
@@ -94,7 +94,7 @@ class SecurityLogger
         $action = $success ? 'user.login' : 'login.failed';
         $status = $success ? 'success' : 'failed';
         $severity = $success ? 'info' : 'warning';
-        
+
         $details = [
             'username' => $username,
             'reason' => $reason,
@@ -114,7 +114,7 @@ class SecurityLogger
             'ip_address' => $request ? $this->getClientIp($request) : null,
             'user_agent' => $request ? $request->getHeaderLine('User-Agent') : null,
         ];
-        
+
         return $this->log('user.logout', 'success', $userId, $tenantId, $details, $request, 'info');
     }
 
@@ -136,12 +136,12 @@ class SecurityLogger
         );
 
         return $this->log(
-            'security.' . str_replace(' ', '_', strtolower($operation)), 
-            'success', 
-            $userId, 
-            $tenantId, 
-            $details, 
-            $request, 
+            'security.' . str_replace(' ', '_', strtolower($operation)),
+            'success',
+            $userId,
+            $tenantId,
+            $details,
+            $request,
             $severity
         );
     }
@@ -162,7 +162,7 @@ class SecurityLogger
         try {
             $ipAddress = $request ? $this->getClientIp($request) : null;
             $userAgent = $request ? $request->getHeaderLine('User-Agent') : null;
-            
+
             $mergedDetails = array_merge(
                 ['description' => $description],
                 $details,
@@ -174,7 +174,7 @@ class SecurityLogger
 
             // Map generic severity levels to enum values in database
             $enumLevel = $this->mapSeverityToEnum($level);
-            
+
             // Determine status from level
             $status = in_array($enumLevel, ['critical', 'error', 'high']) ? 'failed' : 'success';
 
@@ -229,11 +229,11 @@ class SecurityLogger
         );
     }
 
-private function getClientIp(ServerRequestInterface $request): ?string
+    private function getClientIp(ServerRequestInterface $request): ?string
     {
         return RequestHelper::getClientIp($request);
     }
-    
+
     /**
      * Log an error message if a logger is available
      */
@@ -243,7 +243,7 @@ private function getClientIp(ServerRequestInterface $request): ?string
             $this->logger->error($message, $context);
         }
     }
-    
+
     /**
      * Map generic severity levels to database enum values
      * Database only accepts: low, medium, high, critical
@@ -262,7 +262,7 @@ private function getClientIp(ServerRequestInterface $request): ?string
             'alert' => 'critical',
             'emergency' => 'critical',
         ];
-        
+
         return $mapping[strtolower($severity)] ?? 'low';
     }
 
@@ -273,7 +273,7 @@ private function getClientIp(ServerRequestInterface $request): ?string
     {
         return $this->eventRepository;
     }
-    
+
     /**
      * Determine the severity level based on event type and status
      */
@@ -281,31 +281,31 @@ private function getClientIp(ServerRequestInterface $request): ?string
     {
         // Default to info if we can't determine a better severity
         $severity = 'info';
-        
+
         // Check for failed authentication events
-        if (strpos($eventType, 'login.failed') === 0 || 
+        if (strpos($eventType, 'login.failed') === 0 ||
             strpos($eventType, 'auth.failed') === 0 ||
             strpos($eventType, 'auth.token_missing') === 0 ||
             strpos($eventType, 'auth.token_blacklisted') === 0) {
             $severity = 'warning';
         }
-        
+
         // Check for security-related events
         if (strpos($eventType, 'security.') === 0) {
             $severity = 'warning';
-            
+
             // Check for critical security events
             if (strpos($eventType, 'security.brute_force') !== false ||
                 strpos($eventType, 'security.unauthorized') !== false) {
                 $severity = 'critical';
             }
         }
-        
+
         // Check for sensitive operations
         if (strpos($eventType, 'sensitive.') === 0) {
             $severity = 'notice';
         }
-        
+
         // Adjust severity based on status
         if ($status === 'failed' || $status === 'error') {
             if ($severity === 'info') {
@@ -317,7 +317,7 @@ private function getClientIp(ServerRequestInterface $request): ?string
             // For successful operations that were previously marked as warnings
             $severity = 'notice';
         }
-        
+
         return $severity;
     }
 }

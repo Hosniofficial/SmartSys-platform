@@ -42,7 +42,10 @@ class SalePaymentService
     {
         $sql    = "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND branch_id = ? AND status = 'open'";
         $params = [$tenantId, $branchId];
-        if ($cashierId) { $sql .= ' AND cashier_id = ?'; $params[] = $cashierId; }
+        if ($cashierId) {
+            $sql .= ' AND cashier_id = ?';
+            $params[] = $cashierId;
+        }
         $sql .= ' ORDER BY id DESC LIMIT 1';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -53,7 +56,10 @@ class SalePaymentService
     {
         $sql    = "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND branch_id IS NULL AND status = 'open'";
         $params = [$tenantId];
-        if ($cashierId) { $sql .= ' AND cashier_id = ?'; $params[] = $cashierId; }
+        if ($cashierId) {
+            $sql .= ' AND cashier_id = ?';
+            $params[] = $cashierId;
+        }
         $sql .= ' ORDER BY id DESC LIMIT 1';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -70,9 +76,13 @@ class SalePaymentService
 
     private function isRoleEnforced(int $tenantId, ?int $roleId): bool
     {
-        if (!$roleId) return false;
+        if (!$roleId) {
+            return false;
+        }
         $raw = (string) $this->settingsRepo->get($tenantId, 'pos.sessions.enforce_for_roles', '');
-        if ($raw === '') return false;
+        if ($raw === '') {
+            return false;
+        }
         $trim    = trim($raw);
         $enforce = strpos($trim, '[') === 0
             ? (array) json_decode($trim, true)
@@ -89,7 +99,12 @@ class SalePaymentService
     {
         try {
             (new \App\Handlers\AuditHandler($this->pdo))->logAction(
-                $action, $entity, $entityId, $details, $tenantId, $this->userId
+                $action,
+                $entity,
+                $entityId,
+                $details,
+                $tenantId,
+                $this->userId
             );
         } catch (\Throwable $e) {
         }
@@ -120,7 +135,9 @@ class SalePaymentService
             );
             $stmt->execute([$saleId, $tenantId]);
             $sale = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$sale) { throw new Exception('Sale not found'); }
+            if (!$sale) {
+                throw new Exception('Sale not found');
+            }
 
             $branchId   = $branchId   ?? ($sale['branch_id']   ?? null);
             $customerId = $customerId ?? ($sale['customer_id'] ?? null);
@@ -129,7 +146,9 @@ class SalePaymentService
             $sessionId = null;
             $isCash    = $this->accounting->isCashMethod($paymentMethodId, $tenantId);
             if ($isCash) {
-                if (!$branchId) { throw new Exception('branch_id مطلوب لإتمام دفعة نقدية.'); }
+                if (!$branchId) {
+                    throw new Exception('branch_id مطلوب لإتمام دفعة نقدية.');
+                }
                 $sessionId = $this->findOpenCashierSession($tenantId, (int) $branchId, (int) $this->userId);
                 if (!$sessionId) {
                     $roleId   = $this->getCurrentUserRoleId();
@@ -138,7 +157,9 @@ class SalePaymentService
                         $sessionId = $this->findOpenGlobalCashierSession($tenantId, (int) $this->userId);
                     }
                 }
-                if (!$sessionId) { throw new Exception('لا توجد جلسة كاشير مفتوحة.'); }
+                if (!$sessionId) {
+                    throw new Exception('لا توجد جلسة كاشير مفتوحة.');
+                }
             }
 
             if ($costCenterId === null && $branchId) {

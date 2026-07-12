@@ -9,51 +9,51 @@ use RuntimeException;
 
 /**
  * TwoFactorEncryptionService
- * 
+ *
  * Provides encryption/decryption for 2FA secrets at rest using Sodium (libsodium).
- * 
+ *
  * **BACKWARD COMPATIBILITY MODE:**
  * If TWO_FA_ENCRYPTION_KEY is not set, the service operates in "plaintext mode":
  * - encrypt() returns plaintext with a warning log
  * - decrypt() assumes plaintext and returns as-is
  * - This allows gradual migration without breaking existing deployments
- * 
+ *
  * **Security Rationale:**
  * Storing 2FA TOTP secrets in plaintext means a single database breach exposes
  * all user MFA seeds, eliminating the second factor entirely across all accounts.
  * Encrypting at-rest adds defense-in-depth: the attacker must compromise BOTH
  * the database AND the encryption key (stored separately in environment).
- * 
+ *
  * **Key Management:**
  * - Encryption key MUST be 32 bytes (SODIUM_CRYPTO_SECRETBOX_KEYBYTES)
  * - Stored in TWO_FA_ENCRYPTION_KEY environment variable
  * - Key should be base64-encoded 32-byte random value (generated via sodium_crypto_secretbox_keygen())
  * - NEVER commit the real key to version control
  * - In production: use secrets manager (AWS Secrets Manager / Vault / etc.)
- * 
+ *
  * **Algorithm:**
  * - Uses `sodium_crypto_secretbox` (XSalsa20-Poly1305 authenticated encryption)
  * - Nonce is randomly generated per encryption and prepended to ciphertext
  * - Format: base64(nonce || ciphertext)
- * 
+ *
  * **Usage:**
  * ```php
  * $service = new TwoFactorEncryptionService();
- * 
+ *
  * // Check if encryption is enabled
  * if ($service->isEncryptionEnabled()) {
  *     // Encryption active
  * }
- * 
+ *
  * $encrypted = $service->encrypt($plainSecret);  // Store this in DB
  * $decrypted = $service->decrypt($encrypted);     // Use for TOTP validation
  * ```
- * 
+ *
  * **Key Generation (one-time setup):**
  * ```bash
  * php scripts/generate_2fa_key.php
  * ```
- * 
+ *
  * **Migration:**
  * ```bash
  * # Encrypt existing plaintext secrets
@@ -69,14 +69,14 @@ class TwoFactorEncryptionService
 
     /**
      * Constructor - initializes encryption if key is available
-     * 
+     *
      * @param bool $requireKey If true, throws exception when key is missing (default: false for backward compatibility)
      * @throws RuntimeException if $requireKey is true and encryption key is missing or invalid
      */
     public function __construct(bool $requireKey = false)
     {
         $this->logger = MonologHandler::getInstance('2fa_encryption');
-        
+
         $keyBase64 = $_ENV['TWO_FA_ENCRYPTION_KEY'] ?? null;
 
         if (!$keyBase64) {
@@ -111,7 +111,7 @@ class TwoFactorEncryptionService
 
     /**
      * Check if encryption is enabled
-     * 
+     *
      * @return bool True if encryption key is valid and encryption is active
      */
     public function isEncryptionEnabled(): bool
@@ -121,9 +121,9 @@ class TwoFactorEncryptionService
 
     /**
      * Encrypt a 2FA secret for storage
-     * 
+     *
      * If encryption is disabled (no key configured), returns plaintext with a warning log.
-     * 
+     *
      * @param string $plainSecret The plaintext TOTP secret (e.g., from Google Authenticator)
      * @return string Base64-encoded (nonce || ciphertext) if encrypted, or plaintext if encryption disabled
      * @throws Exception if encryption fails
@@ -159,10 +159,10 @@ class TwoFactorEncryptionService
 
     /**
      * Decrypt a 2FA secret from storage
-     * 
+     *
      * Automatically detects if value is encrypted or plaintext.
      * If encryption is disabled, assumes plaintext and returns as-is.
-     * 
+     *
      * @param string $encryptedSecret Base64-encoded (nonce || ciphertext) or plaintext
      * @return string The plaintext TOTP secret
      * @throws Exception if decryption fails (tampered data, wrong key, or invalid format)
@@ -221,11 +221,11 @@ class TwoFactorEncryptionService
 
     /**
      * Check if a value is already encrypted (heuristic check)
-     * 
+     *
      * This is a best-effort detection to help with migration:
      * - Encrypted values are base64 and longer than typical plaintext secrets
      * - Plaintext TOTP secrets are typically uppercase alphanumeric (Base32)
-     * 
+     *
      * @param string $value Value to check
      * @return bool True if likely encrypted, false if likely plaintext
      */

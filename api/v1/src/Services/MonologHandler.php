@@ -11,13 +11,13 @@ use Monolog\Formatter\LineFormatter;
  * Monolog Handler - Professional Logging System
  * Environment-aware logging with Monolog library
  */
-class MonologHandler 
+class MonologHandler
 {
     private static $instances = [];
     private $logger;
     private $env;
     private $logLevel;
-    
+
     // Monolog level mapping
     private static $levelMap = [
         'debug' => Logger::DEBUG,
@@ -29,11 +29,11 @@ class MonologHandler
         'emergency' => Logger::EMERGENCY,
     ];
 
-    public function __construct($channel = 'erp') 
+    public function __construct($channel = 'erp')
     {
         $this->env = getenv('APP_ENV') ?: 'production';
         $this->logLevel = getenv('LOG_LEVEL') ?: ($this->env === 'production' ? 'error' : 'debug');
-        
+
         $this->logger = new Logger($channel);
         $this->setupHandlers();
     }
@@ -41,7 +41,7 @@ class MonologHandler
     /**
      * Get singleton instance for channel
      */
-    public static function getInstance($channel = 'erp'): self 
+    public static function getInstance($channel = 'erp'): self
     {
         if (!isset(self::$instances[$channel])) {
             self::$instances[$channel] = new self($channel);
@@ -52,7 +52,7 @@ class MonologHandler
     /**
      * Setup Monolog handlers based on environment
      */
-    private function setupHandlers(): void 
+    private function setupHandlers(): void
     {
         // Custom formatter with structured data
         $formatter = new LineFormatter(
@@ -102,18 +102,19 @@ class MonologHandler
     /**
      * Check if logging should be enabled for the given level
      */
-    private function shouldLog($level) {
+    private function shouldLog($level)
+    {
         if (!isset(self::$levelMap[$level]) || !isset(self::$levelMap[$this->logLevel])) {
             return false;
         }
-        
+
         return self::$levelMap[$level] >= self::$levelMap[$this->logLevel];
     }
 
     /**
      * Log a message with structured context
      */
-    public function log(string $level, string $message, array $context = []): void 
+    public function log(string $level, string $message, array $context = []): void
     {
         if (!$this->shouldLog($level)) {
             return;
@@ -129,27 +130,27 @@ class MonologHandler
     /**
      * Convenience methods for different log levels
      */
-    public function debug(string $message, array $context = []): void 
+    public function debug(string $message, array $context = []): void
     {
         $this->log('debug', $message, $context);
     }
 
-    public function info(string $message, array $context = []): void 
+    public function info(string $message, array $context = []): void
     {
         $this->log('info', $message, $context);
     }
 
-    public function warning(string $message, array $context = []): void 
+    public function warning(string $message, array $context = []): void
     {
         $this->log('warning', $message, $context);
     }
 
-    public function error(string $message, array $context = []): void 
+    public function error(string $message, array $context = []): void
     {
         $this->log('error', $message, $context);
     }
 
-    public function critical(string $message, array $context = []): void 
+    public function critical(string $message, array $context = []): void
     {
         $this->log('critical', $message, $context);
     }
@@ -157,7 +158,7 @@ class MonologHandler
     /**
      * Log authentication events
      */
-    public function auth(string $action, ?int $userId = null, ?int $tenantId = null, array $context = []): void 
+    public function auth(string $action, ?int $userId = null, ?int $tenantId = null, array $context = []): void
     {
         $this->info("Auth: {$action}", array_merge([
             'action' => $action,
@@ -169,7 +170,7 @@ class MonologHandler
     /**
      * Log API requests
      */
-    public function api(string $method, string $endpoint, ?int $userId = null, array $context = []): void 
+    public function api(string $method, string $endpoint, ?int $userId = null, array $context = []): void
     {
         $this->info("API: {$method} {$endpoint}", array_merge([
             'method' => $method,
@@ -181,7 +182,7 @@ class MonologHandler
     /**
      * Log database operations
      */
-    public function db(string $operation, string $table, array $context = []): void 
+    public function db(string $operation, string $table, array $context = []): void
     {
         $this->debug("DB: {$operation} on {$table}", array_merge([
             'operation' => $operation,
@@ -192,7 +193,7 @@ class MonologHandler
     /**
      * Log business events
      */
-    public function business(string $event, array $context = []): void 
+    public function business(string $event, array $context = []): void
     {
         $this->info("Business: {$event}", $context);
     }
@@ -200,7 +201,7 @@ class MonologHandler
     /**
      * Log performance metrics
      */
-    public function performance(string $operation, float $duration, array $context = []): void 
+    public function performance(string $operation, float $duration, array $context = []): void
     {
         if ($this->env !== 'production') {
             $this->debug("Performance: {$operation}", array_merge([
@@ -215,7 +216,7 @@ class MonologHandler
     /**
      * Log security events (always logged)
      */
-    public function security(string $event, array $context = []): void 
+    public function security(string $event, array $context = []): void
     {
         $this->warning("Security: {$event}", array_merge([
             'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
@@ -228,7 +229,7 @@ class MonologHandler
     /**
      * Get the underlying Monolog logger instance
      */
-    public function getLogger(): Logger 
+    public function getLogger(): Logger
     {
         return $this->logger;
     }
@@ -236,7 +237,7 @@ class MonologHandler
     /**
      * Create logs directory if it doesn't exist
      */
-    public static function ensureLogsDirectory(): void 
+    public static function ensureLogsDirectory(): void
     {
         $logsDir = __DIR__ . '/../../logs';
         if (!is_dir($logsDir)) {

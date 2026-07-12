@@ -439,7 +439,9 @@ class AccountingReportsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $params   = $request->getQueryParams();
             $asOf     = isset($params['as_of']) && $params['as_of'] !== ''
@@ -450,7 +452,7 @@ class AccountingReportsHandler extends BaseHandler
                 'current'    => ['label' => 'جارٍ (0-30 يوم)',        'min' => 0,   'max' => 30,  'rate' => 0.01],
                 'days_31_60' => ['label' => 'متأخر 31-60 يوم',        'min' => 31,  'max' => 60,  'rate' => 0.05],
                 'days_61_90' => ['label' => 'متأخر 61-90 يوم',        'min' => 61,  'max' => 90,  'rate' => 0.10],
-                'days_91_180'=> ['label' => 'متأخر 91-180 يوم',       'min' => 91,  'max' => 180, 'rate' => 0.25],
+                'days_91_180' => ['label' => 'متأخر 91-180 يوم',       'min' => 91,  'max' => 180, 'rate' => 0.25],
                 'over_180'   => ['label' => 'متأخر أكثر من 180 يوم',  'min' => 181, 'max' => 9999,'rate' => 0.50],
             ];
 
@@ -508,7 +510,7 @@ class AccountingReportsHandler extends BaseHandler
                     'invoice_number'  => $row['invoice_number'],
                     'customer_name'   => $row['customer_name'] ?? 'عميل نقدي',
                     'sale_date'       => $row['sale_date'] ? substr($row['sale_date'], 0, 10) : null,
-                    'days_outstanding'=> $days,
+                    'days_outstanding' => $days,
                     'net_total'       => round((float) $row['net_total_amount'], 2),
                     'paid'            => round((float) $row['paid_amount'], 2),
                     'outstanding'     => $out,
@@ -523,7 +525,7 @@ class AccountingReportsHandler extends BaseHandler
             $totalProvision   = 0.0;
             foreach ($buckets as &$b) {
                 $b['total_outstanding'] = round($b['total_outstanding'], 2);
-                $b['ecl_provision']     = round($b['ecl_provision'],     2);
+                $b['ecl_provision']     = round($b['ecl_provision'], 2);
                 $totalOutstanding      += $b['total_outstanding'];
                 $totalProvision        += $b['ecl_provision'];
             }
@@ -532,7 +534,7 @@ class AccountingReportsHandler extends BaseHandler
             return $this->successResponse($response, [
                 'buckets'           => $buckets,
                 'total_outstanding' => round($totalOutstanding, 2),
-                'total_provision'   => round($totalProvision,   2),
+                'total_provision'   => round($totalProvision, 2),
                 'as_of'             => $asOf,
                 'note'              => 'IFRS 9 Simplified Approach — Provisioning Matrix. معدلات ECL قابلة للتعديل حسب سياسة الشركة.',
             ]);
@@ -551,7 +553,9 @@ class AccountingReportsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $userId = $this->extractUserId($request);
             $body   = $request->getParsedBody() ?? [];
@@ -566,8 +570,11 @@ class AccountingReportsHandler extends BaseHandler
             $badDebtAllowanceId = $this->accounting->getAccountIdFallbackPublic((int) $tenantId, ['1202', '1200']);
 
             if (!$badDebtExpenseId || !$badDebtAllowanceId) {
-                return $this->errorResponse($response,
-                    'لم يُعثر على حسابات الديون المشكوك فيها (5301 / 1202). يرجى إنشاؤها أولاً.', 422);
+                return $this->errorResponse(
+                    $response,
+                    'لم يُعثر على حسابات الديون المشكوك فيها (5301 / 1202). يرجى إنشاؤها أولاً.',
+                    422
+                );
             }
 
             $idempotencyKey = "bad_debt_provision_{$tenantId}_{$asOf}";
@@ -615,7 +622,9 @@ class AccountingReportsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             [$startDateTime, $endExclusive] = $this->resolveDateRange($request);
 
@@ -693,14 +702,16 @@ class AccountingReportsHandler extends BaseHandler
                 $refType = $row['reference_type'];
                 $net     = round((float) $row['net_cash'], 2);
 
-                if (!isset($sections[$cat])) $cat = 'operating';
+                if (!isset($sections[$cat])) {
+                    $cat = 'operating';
+                }
 
                 $sections[$cat]['items'][] = [
                     'reference_type' => $refType,
                     'label'          => $labelMap[$refType] ?? $refType,
                     'account_code'   => $row['account_code'],
                     'account_name'   => $row['account_name'],
-                    'inflow'         => round((float) $row['total_debit'],  2),
+                    'inflow'         => round((float) $row['total_debit'], 2),
                     'outflow'        => round((float) $row['total_credit'], 2),
                     'net'            => $net,
                 ];
@@ -745,7 +756,9 @@ class AccountingReportsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $params   = $request->getQueryParams();
             $branchId = isset($params['branch_id']) && $params['branch_id'] !== ''
@@ -779,7 +792,10 @@ class AccountingReportsHandler extends BaseHandler
             ";
             $bind = [(int) $tenantId];
 
-            if ($branchId) { $sql .= " AND bp.branch_id = ?"; $bind[] = $branchId; }
+            if ($branchId) {
+                $sql .= " AND bp.branch_id = ?";
+                $bind[] = $branchId;
+            }
             $sql .= " ORDER BY impairment_amount ASC";
 
             $stmt = $this->db->prepare($sql);
@@ -808,7 +824,9 @@ class AccountingReportsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $userId   = $this->extractUserId($request);
             $params   = $request->getParsedBody() ?? [];

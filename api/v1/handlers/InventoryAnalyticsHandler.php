@@ -99,7 +99,7 @@ class InventoryAnalyticsHandler extends BaseHandler
 
     /**
      * Forecast inventory levels for the next N days (internal helper)
-     * 
+     *
      * @param int $productId Product ID
      * @param int $tenantId Tenant ID (required for multi-tenant isolation)
      * @param int $days Number of days to forecast (default: 30)
@@ -169,7 +169,7 @@ class InventoryAnalyticsHandler extends BaseHandler
         for ($i = 1; $i <= $days; $i++) {
             $expectedStock = $currentStock - ($avgConsumption * $i);
             $reorderPoint  = $minQuantity + $safetyStock;
-            
+
             $forecast[] = [
                 'day'                  => $i,
                 'date'                 => date('Y-m-d', strtotime("+{$i} days")),

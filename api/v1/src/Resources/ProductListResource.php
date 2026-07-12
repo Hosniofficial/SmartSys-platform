@@ -12,7 +12,7 @@ class ProductListResource
 {
     /**
      * Transform database product record to API list response
-     * 
+     *
      * @param array $product Database product record
      * @param array $branchProduct Branch-specific inventory data (quantity, min_qty)
      * @param array $units Product units data
@@ -30,14 +30,14 @@ class ProductListResource
         // Handle both branch_products.minimum_quantity and products.min_quantity
         // Default to 0 if not defined (consistent with ProductDetailResource)
         $minQty = (float) ($branchProduct['minimum_quantity'] ?? $product['min_quantity'] ?? 0);
-        
+
         // Determine GL status based on three-state logic:
         // 1. opening_balance_posted has highest priority → posted
         // 2. GL mapping with GL_POSTED/RECONCILED → posted
         // 3. GL mapping with ACTIVE_IN_BRANCH → active (intermediate state)
         // 4. Otherwise → draft
         $glStatus = 'draft';
-        
+
         if ((bool) ($product['opening_balance_posted'] ?? false)) {
             // Highest priority: opening balance was posted
             $glStatus = 'posted';
@@ -49,27 +49,27 @@ class ProductListResource
             // This is the intermediate state after user clicks "تفعيل"
             $glStatus = 'active';
         }
-        
+
         return [
             'id'                    => (int) $product['id'],
             'name'                  => $product['name'],
             'product_code'          => $product['product_code'],  // ← توحيد: sku → product_code
             'sku'                   => $product['product_code'],  // ← Alias for backward compatibility
             'barcode'               => $product['barcode'],
-            
+
             'category_id'           => $product['category_id'] ? (int) $product['category_id'] : null,
             'category_name'         => $product['category_name'] ?? null,
-            
+
             'current_quantity'      => $currentQty,
             'quantity'              => $currentQty,  // ← Alias for backward compatibility
             'unit_name'             => $mainUnit['name'] ?? 'قطعة',
             'unit_id'               => $mainUnit['id'] ?? null,
             'min_quantity'          => $minQty,
-            
+
             'purchase_price'        => (float) $product['purchase_price'],
             'sale_price'            => (float) $product['sale_price'],
             'min_sale_price'        => (float) ($product['min_sale_price'] ?? 0),
-            
+
             'profit_margin_percent' => self::calculateMargin(
                 (float) $product['sale_price'],
                 (float) $product['purchase_price']
@@ -78,15 +78,15 @@ class ProductListResource
                 (float) $product['sale_price'],
                 (float) $product['purchase_price']
             ),
-            
+
             'total_inventory_value' => $currentQty * (float) $product['purchase_price'],
-            
+
             'product_type'          => $product['product_type'] ?? 'stock',
             'active'                => (int) ($product['active'] ?? 0),
-            
+
             'inventory_status'      => self::calculateInventoryStatus($currentQty, $minQty, $product['product_type'] ?? 'stock'),
             'gl_status'             => $glStatus,  // ← Uses GL mapping status if available, falls back to opening_balance_posted
-            
+
             'last_updated'          => $product['updated_at'] ?? $product['created_at'] ?? null,
         ];
     }
@@ -97,7 +97,7 @@ class ProductListResource
     public static function transformMany(array $products, array $branchProducts = [], array $allUnits = [], array $glMappings = []): array
     {
         return array_map(
-            fn($product) => self::transform(
+            fn ($product) => self::transform(
                 $product,
                 $branchProducts[$product['id']] ?? [],
                 $allUnits[$product['id']] ?? [],
@@ -122,7 +122,7 @@ class ProductListResource
                 ];
             }
         }
-        
+
         // Fallback to first unit if no is_main_unit
         return isset($units[0]) ? [
             'id' => (int) ($units[0]['unit_id'] ?? 1),
@@ -140,7 +140,7 @@ class ProductListResource
         if ($salePrice <= 0) {
             return 0.0;
         }
-        
+
         return round((($salePrice - $costPrice) / $salePrice) * 100, 2);
     }
 
@@ -154,14 +154,14 @@ class ProductListResource
         if ($costPrice <= 0) {
             return 0.0;
         }
-        
+
         return round((($salePrice - $costPrice) / $costPrice) * 100, 2);
     }
 
     /**
      * Determine inventory status based on quantity and minimum threshold
      * Now handles numeric min_quantity (0 = threshold not defined, >0 = threshold defined)
-     * 
+     *
      * @param int $quantity Current quantity
      * @param float $minQuantity Minimum threshold (0 = threshold not defined, >0 = threshold defined)
      * @param string $productType 'stock' or 'service'
@@ -173,26 +173,26 @@ class ProductListResource
         if ($productType === 'service') {
             return 'N/A';
         }
-        
+
         // Ensure minQuantity is a float (never null)
         $minQty = (float) ($minQuantity ?? 0);
-        
+
         // If quantity is zero, always out of stock
         if ($quantity <= 0) {
             return 'out_of_stock';
         }
-        
+
         // If min_quantity is 0 or negative, threshold not defined: assume in stock
         if ($minQty <= 0) {
             // Quantity > 0, but threshold not defined: assume in stock
             return 'in_stock';
         }
-        
+
         // Min quantity is defined: evaluate against threshold
         if ($quantity <= $minQty) {
             return 'low_stock';
         }
-        
+
         return 'in_stock';
     }
 }

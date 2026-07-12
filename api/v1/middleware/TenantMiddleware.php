@@ -63,7 +63,7 @@ class TenantMiddleware implements MiddlewareInterface
             $db = $this->container->get('db');
             $stmt = $db->prepare("SELECT id FROM tenants WHERE id = ? AND status = 'active' LIMIT 1");
             $stmt->execute([$tenantId]);
-            
+
             if (!$stmt->fetch()) {
                 $response = new \Slim\Psr7\Response();
                 $response->getBody()->write(json_encode([

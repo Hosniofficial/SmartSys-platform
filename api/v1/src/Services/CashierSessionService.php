@@ -92,7 +92,9 @@ class CashierSessionService
 
             $allowOverride = (int) $this->settings->get($tenantId, 'pos.sessions.allow_manager_override', '0') === 1;
             $isAdmin       = in_array((int) $jwtRoleId, [1, 2], true);
-            if ($isAdmin) $allowOverride = true;
+            if ($isAdmin) {
+                $allowOverride = true;
+            }
 
             $cashierId = $data['cashier_id'] ?? $jwtUserId;
             if ($cashierId && $jwtUserId && $cashierId != $jwtUserId && !$allowOverride) {
@@ -106,7 +108,8 @@ class CashierSessionService
             if (!$cashierId) {
                 throw new SessionDeniedException(
                     'مطلوب معرف الكاشير (cashier_id).',
-                    400, 'pos_session_open_denied_missing_cashier',
+                    400,
+                    'pos_session_open_denied_missing_cashier',
                     ['user_id' => $jwtUserId, 'reason' => 'missing_cashier_id', 'branch_id' => $branchId, 'role_id' => $jwtRoleId]
                 );
             }
@@ -118,7 +121,9 @@ class CashierSessionService
                 $trim = trim($rawEnforce);
                 if (str_starts_with($trim, '[')) {
                     $decoded = json_decode($trim, true);
-                    if (is_array($decoded)) $enforceRoles = array_map('intval', $decoded);
+                    if (is_array($decoded)) {
+                        $enforceRoles = array_map('intval', $decoded);
+                    }
                 } else {
                     $enforceRoles = array_map('intval', array_filter(array_map('trim', explode(',', $trim))));
                 }
@@ -136,7 +141,8 @@ class CashierSessionService
             if (!$branchId && $isEnforced) {
                 throw new SessionDeniedException(
                     'مطلوب معرف المخزن (branch_id) لهذا الدور وفق الإعدادات.',
-                    400, 'pos_session_open_denied_missing_branch',
+                    400,
+                    'pos_session_open_denied_missing_branch',
                     ['user_id' => $jwtUserId, 'reason' => 'missing_branch_id',
                      'cashier_id' => $cashierId, 'role_id' => $jwtRoleId, 'enforced' => true]
                 );
@@ -145,7 +151,8 @@ class CashierSessionService
             if (!$terminalId) {
                 throw new SessionDeniedException(
                     'مطلوب اختيار جهاز نقطة البيع (terminal_id) لفتح الجلسة.',
-                    400, 'pos_session_open_denied_missing_terminal',
+                    400,
+                    'pos_session_open_denied_missing_terminal',
                     ['user_id' => $jwtUserId, 'cashier_id' => $cashierId]
                 );
             }
@@ -160,14 +167,16 @@ class CashierSessionService
             if (!$terminal) {
                 throw new SessionDeniedException(
                     'الترمينال المحدد غير موجود أو لا يتبع هذا المستأجر.',
-                    400, 'pos_session_open_denied_invalid_terminal',
+                    400,
+                    'pos_session_open_denied_invalid_terminal',
                     ['terminal_id' => $terminalId]
                 );
             }
             if (($terminal['status'] ?? 'inactive') !== 'active') {
                 throw new SessionDeniedException(
                     'لا يمكن فتح جلسة على جهاز نقطة بيع غير نشط.',
-                    400, 'pos_session_open_denied_inactive_terminal',
+                    400,
+                    'pos_session_open_denied_inactive_terminal',
                     ['terminal_id' => $terminalId, 'status' => $terminal['status'] ?? 'unknown']
                 );
             }
@@ -178,7 +187,8 @@ class CashierSessionService
             } elseif ($branchId !== null && $terminalBranchId !== null && (int) $branchId !== $terminalBranchId) {
                 throw new SessionDeniedException(
                     'المخزن المحدد لا يطابق المخزن المرتبط بجهاز نقطة البيع.',
-                    400, 'pos_session_open_denied_branch_mismatch',
+                    400,
+                    'pos_session_open_denied_branch_mismatch',
                     ['branch_id' => $branchId, 'terminal_branch_id' => $terminalBranchId]
                 );
             }
@@ -198,7 +208,8 @@ class CashierSessionService
             if (!$lockAcquired) {
                 throw new SessionDeniedException(
                     'النظام مشغول بمعالجة جلسة أخرى لنفس الكاشير/المخزن الآن. حاول مرة أخرى بعد لحظات.',
-                    403, 'pos_session_open_lock_busy',
+                    403,
+                    'pos_session_open_lock_busy',
                     ['reason' => 'lock_busy', 'lock' => $lockName, 'cashier_id' => $cashierId, 'branch_id' => $branchId]
                 );
             }
@@ -206,7 +217,8 @@ class CashierSessionService
             // Acquire terminal lock
             $terminalLockName = sprintf(
                 'tenant:%d:terminal:%d:date:%s',
-                $tenantId, (int)$terminalId,
+                $tenantId,
+                (int)$terminalId,
                 (new DateTimeImmutable('now'))->format('Y-m-d')
             );
             $termLockResult = $this->db->query("SELECT GET_LOCK(" . $this->db->quote($terminalLockName) . ", 5)");
@@ -214,7 +226,8 @@ class CashierSessionService
             if (!$terminalLockAcquired) {
                 throw new SessionDeniedException(
                     'لا يمكن فتح جلسة أخرى على نفس جهاز نقطة البيع في هذه اللحظة. حاول مرة أخرى بعد لحظات.',
-                    403, 'pos_session_open_terminal_lock_busy',
+                    403,
+                    'pos_session_open_terminal_lock_busy',
                     ['reason' => 'terminal_lock_busy', 'terminal_id' => $terminalId,
                      'lock' => $terminalLockName, 'cashier_id' => $cashierId, 'branch_id' => $branchId]
                 );
@@ -240,7 +253,8 @@ class CashierSessionService
                 if ($todayCount >= $dailyLimit && !$allowOverride) {
                     throw new SessionDeniedException(
                         'تم الوصول إلى الحد الأقصى لعدد جلسات الكاشير المسموح بها لهذا المخزن اليوم.',
-                        403, 'pos_session_open_denied_limit',
+                        403,
+                        'pos_session_open_denied_limit',
                         ['user_id' => $jwtUserId, 'reason' => 'daily_limit_reached',
                          'mode' => $mode, 'daily_limit' => $dailyLimit, 'today_count' => $todayCount,
                          'cashier_id' => $cashierId, 'branch_id' => $branchId, 'role_id' => $jwtRoleId]
@@ -262,11 +276,12 @@ class CashierSessionService
             }
             if ($chk->fetch()) {
                 throw new SessionDeniedException(
-                        'توجد جلسة مفتوحة مسبقًا لهذا الكاشير في هذا المخزن.',
-                        403, 'pos_session_open_denied_already_open',
-                        ['user_id' => $jwtUserId, 'reason' => 'already_open_session',
+                    'توجد جلسة مفتوحة مسبقًا لهذا الكاشير في هذا المخزن.',
+                    403,
+                    'pos_session_open_denied_already_open',
+                    ['user_id' => $jwtUserId, 'reason' => 'already_open_session',
                          'cashier_id' => $cashierId, 'branch_id' => $branchId, 'role_id' => $jwtRoleId]
-                    );
+                );
             }
 
             // Auto-create shift if needed
@@ -309,7 +324,8 @@ class CashierSessionService
                 if ($termChk->fetch()) {
                     throw new SessionDeniedException(
                         'يوجد بالفعل جلسة مفتوحة على جهاز نقطة البيع المحدد. يجب إغلاقها قبل فتح جلسة جديدة.',
-                        403, 'pos_session_open_denied_terminal_in_use',
+                        403,
+                        'pos_session_open_denied_terminal_in_use',
                         ['reason' => 'terminal_already_in_use', 'terminal_id' => $terminalId,
                          'cashier_id' => $cashierId, 'branch_id' => $branchId]
                     );
@@ -356,10 +372,16 @@ class CashierSessionService
             ];
         } finally {
             if ($lockAcquired && $lockName !== null) {
-                try { $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($lockName) . ")"); } catch (Throwable $e) {}
+                try {
+                    $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($lockName) . ")");
+                } catch (Throwable $e) {
+                }
             }
             if ($terminalLockAcquired && $terminalLockName !== null) {
-                try { $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($terminalLockName) . ")"); } catch (Throwable $e) {}
+                try {
+                    $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($terminalLockName) . ")");
+                } catch (Throwable $e) {
+                }
             }
         }
     }
@@ -384,7 +406,8 @@ class CashierSessionService
         if (!$stmt->fetch()) {
             throw new SessionDeniedException(
                 'لم يتم العثور على جلسة مفتوحة.',
-                403, 'pos_session_close_not_found',
+                403,
+                'pos_session_close_not_found',
                 ['session_id' => $sessionId]
             );
         }
@@ -567,7 +590,9 @@ class CashierSessionService
         $cutoff = (string) ($this->settings->get($tenantId, 'pos.sessions.period_cutoff', '15:00') ?? '15:00');
         $cutoff = preg_match('/^\d{2}:\d{2}$/', $cutoff) ? $cutoff : '15:00';
 
-        if ($mode === 'daily') return 'daily';
+        if ($mode === 'daily') {
+            return 'daily';
+        }
 
         if ($mode === 'morning' || $mode === 'evening') {
             $now             = new DateTimeImmutable('now');

@@ -4,20 +4,25 @@ namespace App\Services;
 
 use PDO;
 
-class CostingService {
+class CostingService
+{
     private PDO $pdo;
 
-    public function __construct(PDO $pdo) {
+    public function __construct(PDO $pdo)
+    {
         $this->pdo = $pdo;
     }
 
     // ─── getWeightedAverageCost ───────────────────────────────────────────────
     // WAC لمنتج واحد — يطرح مردودات الشراء من التكلفة الكلية
-    public function getWeightedAverageCost(int $tenantId, int $productId, ?string $upToDate = null): ?float {
+    public function getWeightedAverageCost(int $tenantId, int $productId, ?string $upToDate = null): ?float
+    {
         $wacMap = $this->computeBatchWAC($tenantId, [$productId], $upToDate);
         $wac    = $wacMap[$productId] ?? null;
 
-        if ($wac !== null) return $wac;
+        if ($wac !== null) {
+            return $wac;
+        }
 
         // Fallback إلى product.purchase_price
         $p = $this->pdo->prepare("SELECT COALESCE(purchase_price,0) FROM products WHERE id = ? AND tenant_id = ?");
@@ -30,8 +35,11 @@ class CostingService {
     // Compute WAC (Weighted Average Cost) for batch of products in two queries
     // Deducts purchase returns (return_type='purchase') from total inventory
     // Returns: [product_id => float|null]  — null = no purchases, needs fallback
-    public function computeBatchWAC(int $tenantId, array $productIds, ?string $upToDate = null): array {
-        if (empty($productIds)) return [];
+    public function computeBatchWAC(int $tenantId, array $productIds, ?string $upToDate = null): array
+    {
+        if (empty($productIds)) {
+            return [];
+        }
 
         $productIds   = array_values(array_unique(array_map('intval', $productIds)));
         $placeholders = implode(',', array_fill(0, count($productIds), '?'));
@@ -116,7 +124,8 @@ class CostingService {
 
     // ─── computeCOGSForSale ───────────────────────────────────────────────────
     // Compute COGS using batch WAC + batch fallback for constant query count regardless of product count
-    public function computeCOGSForSale(int $tenantId, int $saleId, ?string $saleDate = null): float {
+    public function computeCOGSForSale(int $tenantId, int $saleId, ?string $saleDate = null): float
+    {
         $stmt = $this->pdo->prepare("SELECT sale_date FROM sales WHERE id = ? AND tenant_id = ?");
         $stmt->execute([$saleId, $tenantId]);
         $date = $saleDate ?: $stmt->fetchColumn();
@@ -125,14 +134,16 @@ class CostingService {
         $itemsStmt->execute([$saleId, $tenantId]);
         $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        if (empty($items)) return 0.0;
+        if (empty($items)) {
+            return 0.0;
+        }
 
         // ✅ batch WAC — 2 queries لكل المنتجات معاً
-        $productIds = array_values(array_unique(array_map(fn($it) => (int)$it['product_id'], $items)));
+        $productIds = array_values(array_unique(array_map(fn ($it) => (int)$it['product_id'], $items)));
         $wacMap     = $this->computeBatchWAC($tenantId, $productIds, $date);
 
         // ✅ batch fallback لـ product.purchase_price دفعة واحدة
-        $nullPids = array_values(array_filter($productIds, fn($pid) => $wacMap[$pid] === null));
+        $nullPids = array_values(array_filter($productIds, fn ($pid) => $wacMap[$pid] === null));
         if (!empty($nullPids)) {
             $ph  = implode(',', array_fill(0, count($nullPids), '?'));
             $fbS = $this->pdo->prepare("SELECT id, COALESCE(purchase_price,0) FROM products WHERE id IN ($ph) AND tenant_id = ?");
@@ -148,9 +159,13 @@ class CostingService {
             $qty     = (float)$it['quantity'];
             $conv    = (float)($it['conversion_factor'] ?? 1.0);
             $baseQty = $qty * ($conv > 0 ? $conv : 1.0);
-            if ($baseQty <= 0) continue;
+            if ($baseQty <= 0) {
+                continue;
+            }
             $wac = $wacMap[$pid] ?? null;
-            if ($wac === null) continue;
+            if ($wac === null) {
+                continue;
+            }
             $total += $baseQty * $wac;
         }
         return $total;

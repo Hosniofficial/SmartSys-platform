@@ -51,8 +51,12 @@ class SalesService
         try {
             $audit = new \App\Handlers\AuditHandler($this->pdo);
             return $audit->logAction(
-                $action, $entity, $entity_id ?: null,
-                $details, $tenant_id ?: null, $userId ?: null
+                $action,
+                $entity,
+                $entity_id ?: null,
+                $details,
+                $tenant_id ?: null,
+                $userId ?: null
             );
         } catch (\Throwable $e) {
             return false;

@@ -22,7 +22,9 @@ class AccountingPeriodsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $params   = $request->getQueryParams();
             $status   = $params['status'] ?? null;
@@ -32,7 +34,10 @@ class AccountingPeriodsHandler extends BaseHandler
                      WHERE tenant_id = ? AND period_name IS NOT NULL AND period_name != ''";
             $bind = [(int) $tenantId];
 
-            if ($status) { $sql .= " AND status = ?"; $bind[] = $status; }
+            if ($status) {
+                $sql .= " AND status = ?";
+                $bind[] = $status;
+            }
             $sql .= " ORDER BY start_date DESC";
 
             $stmt = $this->db->prepare($sql);
@@ -49,7 +54,9 @@ class AccountingPeriodsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $data = $request->getParsedBody() ?? [];
             $name  = trim($data['period_name'] ?? '');
@@ -86,7 +93,9 @@ class AccountingPeriodsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $periodId = (int) ($args['id'] ?? 0);
             $userId   = $this->extractUserId($request);
@@ -114,7 +123,9 @@ class AccountingPeriodsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $periodId = (int) ($args['id'] ?? 0);
 
@@ -141,7 +152,9 @@ class AccountingPeriodsHandler extends BaseHandler
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            if (!$tenantId) return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'Tenant ID مطلوب', 403);
+            }
 
             $periodId = (int) ($args['id'] ?? 0);
 

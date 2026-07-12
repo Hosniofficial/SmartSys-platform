@@ -219,7 +219,7 @@ class JournalEntriesHandler extends BaseHandler
         try {
             // Use single source of truth: AccountingService::deleteJournalEntry()
             $success = $this->accounting->deleteJournalEntry((int) $tenantId, $id);
-            
+
             if (!$success) {
                 throw new \Exception('Failed to delete journal entry using AccountingService');
             }

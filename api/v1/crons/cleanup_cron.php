@@ -105,7 +105,7 @@ try {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 $duration = round((microtime(true) - $startTime) * 1000, 1);
-$hasErrors = array_filter($results, fn($r) => ($r['status'] ?? '') === 'error');
+$hasErrors = array_filter($results, fn ($r) => ($r['status'] ?? '') === 'error');
 
 $output = [
     'timestamp'  => date('c'),

@@ -55,7 +55,7 @@ class ProductsHandler extends BaseHandler
             $stmt = $this->db->prepare($productQuery);
             $stmt->execute(['%' . $query . '%', '%' . $query . '%', '%' . $query . '%', (int) $tenantId]);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             // Filter products with available quantity if branchId specified
             if (!empty($products) && $branchId) {
                 $productIds = array_column($products, 'id');
@@ -67,7 +67,7 @@ class ProductsHandler extends BaseHandler
                 $qtyStmt = $this->db->prepare($qtyQuery);
                 $qtyStmt->execute(array_merge($productIds, [(int) $branchId, (int) $tenantId]));
                 $availableIds = array_column($qtyStmt->fetchAll(PDO::FETCH_ASSOC), 'product_id');
-                $products = array_filter($products, fn($p) => in_array($p['id'], $availableIds));
+                $products = array_filter($products, fn ($p) => in_array($p['id'], $availableIds));
             }
 
             if (empty($products)) {
@@ -88,20 +88,20 @@ class ProductsHandler extends BaseHandler
                 WHERE product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
                   AND tenant_id = ?
             ";
-            
+
             if ($branchId) {
                 $branchQuery .= " AND branch_id = ?";
                 $branchParams = array_merge($productIds, [(int) $tenantId, (int) $branchId]);
             } else {
                 $branchParams = array_merge($productIds, [(int) $tenantId]);
             }
-            
+
             $branchQuery .= " GROUP BY product_id";
 
             $branchStmt = $this->db->prepare($branchQuery);
             $branchStmt->execute($branchParams);
             $branchData = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             foreach ($branchData as $bp) {
                 $pid = (int) $bp['product_id'];
                 $branchProducts[$pid] = $bp;
@@ -127,7 +127,7 @@ class ProductsHandler extends BaseHandler
             $unitsStmt = $this->db->prepare($unitsQuery);
             $unitsStmt->execute(array_merge($productIds, [(int) $tenantId]));
             $unitsData = $unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             foreach ($unitsData as $unit) {
                 $pid = (int) $unit['product_id'];
                 if (!isset($allUnits[$pid])) {
@@ -179,9 +179,9 @@ class ProductsHandler extends BaseHandler
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
             ";
-            
+
             $params = [];
-            
+
             if ($branchId) {
                 // INNER JOIN to get products assigned to this branch (including those with quantity = 0)
                 $productQuery .= "
@@ -199,9 +199,9 @@ class ProductsHandler extends BaseHandler
                 ";
                 $params = [(int) $tenantId];
             }
-            
+
             $productQuery .= " ORDER BY p.name";
-            
+
             $stmt = $this->db->prepare($productQuery);
             $stmt->execute($params);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -224,20 +224,20 @@ class ProductsHandler extends BaseHandler
                 WHERE product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
                   AND tenant_id = ?
             ";
-            
+
             if ($branchId) {
                 $branchQuery .= " AND branch_id = ?";
                 $branchParams = array_merge($productIds, [(int) $tenantId, (int) $branchId]);
             } else {
                 $branchParams = array_merge($productIds, [(int) $tenantId]);
             }
-            
+
             $branchQuery .= " GROUP BY product_id";
 
             $branchStmt = $this->db->prepare($branchQuery);
             $branchStmt->execute($branchParams);
             $branchData = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             foreach ($branchData as $bp) {
                 $pid = (int) $bp['product_id'];
                 $branchProducts[$pid] = $bp;
@@ -263,7 +263,7 @@ class ProductsHandler extends BaseHandler
             $unitsStmt = $this->db->prepare($unitsQuery);
             $unitsStmt->execute(array_merge($productIds, [(int) $tenantId]));
             $unitsData = $unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             foreach ($unitsData as $unit) {
                 $pid = (int) $unit['product_id'];
                 if (!isset($allUnits[$pid])) {
@@ -286,7 +286,7 @@ class ProductsHandler extends BaseHandler
                 $glStmt = $this->db->prepare($glQuery);
                 $glStmt->execute($glParams);
                 $glData = $glStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-                
+
                 foreach ($glData as $gl) {
                     $pid = (int) $gl['product_id'];
                     $glMappings[$pid] = $gl['activation_status'];
@@ -378,7 +378,7 @@ class ProductsHandler extends BaseHandler
             $branchId = isset($queryParams['branch_id']) && $queryParams['branch_id'] !== ''
                 ? (int) $queryParams['branch_id']
                 : null;
-            
+
             if ($branchId) {
                 $glStmt = $this->db->prepare("
                     SELECT activation_status
@@ -448,9 +448,9 @@ class ProductsHandler extends BaseHandler
                 $data['category_id']     ?? null,
                 $data['barcode']         ?? null,
                 $data['unit_id']         ?? null,
-                isset($data['has_expiry_date'])   ? ($data['has_expiry_date']   ? 1 : 0) : 0,
+                isset($data['has_expiry_date']) ? ($data['has_expiry_date'] ? 1 : 0) : 0,
                 isset($data['has_serial_number']) ? ($data['has_serial_number'] ? 1 : 0) : 0,
-                isset($data['has_batch_number'])  ? ($data['has_batch_number']  ? 1 : 0) : 0,
+                isset($data['has_batch_number']) ? ($data['has_batch_number'] ? 1 : 0) : 0,
                 $tenantId,
                 $data['product_type'] ?? 'stock',
                 $data['default_expiry_date']  ?? null,
@@ -519,7 +519,9 @@ class ProductsHandler extends BaseHandler
                         $branchStmt->execute([$branchId, $tenantId]);
                         $branch = $branchStmt->fetch(PDO::FETCH_ASSOC);
 
-                        if (!$branch) continue;
+                        if (!$branch) {
+                            continue;
+                        }
 
                         $inventoryGLId = !empty($branch['account_id'])
                             ? (int) $branch['account_id']
@@ -527,7 +529,9 @@ class ProductsHandler extends BaseHandler
                         $purchaseGLId  = $this->getGLAccountByCode((int) $tenantId, '5001');
                         $cogsGLId      = $this->getGLAccountByCode((int) $tenantId, '5103');
 
-                        if (!$inventoryGLId || !$purchaseGLId || !$cogsGLId) continue;
+                        if (!$inventoryGLId || !$purchaseGLId || !$cogsGLId) {
+                            continue;
+                        }
 
                         // Stock products: post opening balance (service handles inv_tx, branch_products, GL, snapshot)
                         if (!$isServiceProduct) {

@@ -16,7 +16,7 @@ use App\Utils\RequestHelper;
 
 /**
  * Strict Subscription Security Middleware
- * 
+ *
  * Provides comprehensive security for subscription-related endpoints:
  * - IP blocking and rate limiting
  * - Device fingerprinting
@@ -208,7 +208,7 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
 
         foreach ($identifiers as $identifier) {
             $windowStart = date('Y-m-d H:i:s', time() - ($rule['window_minutes'] * 60));
-            
+
             // Check existing tracking record
             $stmt = $this->db->prepare("
                 SELECT * FROM rate_limiting_tracking 
@@ -260,7 +260,7 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
     {
         $penaltyMinutes = $rule['penalty_minutes'];
         $multiplier = $rule['penalty_multiplier'];
-        
+
         // Increase penalty for repeated violations
         if ($tracking['total_violations'] > 0) {
             $penaltyMinutes = (int)($penaltyMinutes * $multiplier * $tracking['total_violations']);
@@ -537,7 +537,7 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
     private function shouldBlockIp(Exception $e): bool
     {
         $message = strtolower($e->getMessage());
-        
+
         // Block for security-related exceptions
         $blockReasons = [
             'rate limit',
@@ -614,7 +614,7 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
         $userAgent = $request->getHeaderLine('User-Agent');
         $acceptLanguage = $request->getHeaderLine('Accept-Language');
         $acceptEncoding = $request->getHeaderLine('Accept-Encoding');
-        
+
         // Get client hints if available
         $clientHints = [];
         if ($request->hasHeader('Sec-CH-UA')) {

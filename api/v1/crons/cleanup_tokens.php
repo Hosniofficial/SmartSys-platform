@@ -1,4 +1,5 @@
 <?php
+
 /**
  * cleanup_tokens.php — Nightly cleanup cron job.
  *
@@ -21,7 +22,8 @@ ini_set('display_errors', '0');
 
 $logFile = __DIR__ . '/../logs/cleanup_' . date('Y-m-d') . '.log';
 
-function clog(string $msg): void {
+function clog(string $msg): void
+{
     global $logFile;
     $line = '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL;
     file_put_contents($logFile, $line, FILE_APPEND);

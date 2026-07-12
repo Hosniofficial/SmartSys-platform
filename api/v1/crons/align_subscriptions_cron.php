@@ -1,13 +1,14 @@
 <?php
+
 /**
  * External Cron Job: Align Subscriptions with Assigned Plans
  * Run this script periodically (e.g., every 5 minutes) via system cron
- * 
+ *
  * Usage: php align_subscriptions_cron.php
- * OR: php align_subscriptions_cron.php --http (HTTP call) * 
+ * OR: php align_subscriptions_cron.php --http (HTTP call) *
  * Add to crontab (local execution):
  * 5 * * * * /usr/bin/php /path/to/smartsys/api/v1/crons/align_subscriptions_cron.php
- * 
+ *
  * Add to crontab (HTTP execution - uses ADMIN_API_URL from .env):
  * 5 * * * * curl -X POST "$(grep ADMIN_API_URL /path/to/.env | cut -d= -f2)" -H "X-Cron-Token: YOUR_CRON_SECRET"
  */
@@ -21,13 +22,13 @@ use PDO;
 class AlignSubscriptionsCron
 {
     private PDO $db;
-    
+
     public function __construct()
     {
         $database = new Database();
         $this->db = $database->pdo;
     }
-    
+
     public function run(): void
     {
         echo "[" . date('Y-m-d H:i:s') . "] Starting subscription alignment cron...\n";
@@ -39,17 +40,17 @@ class AlignSubscriptionsCron
         $tenants = $this->getAllTenants();
         $processed = 0;
         $updated = 0;
-        
+
         foreach ($tenants as $tenant) {
             $processed++;
             if ($this->alignTenantSubscription((int)$tenant['id'])) {
                 $updated++;
             }
         }
-        
+
         echo "[" . date('Y-m-d H:i:s') . "] Completed. Processed: {$processed}, Updated: {$updated}\n";
     }
-    
+
     private function getAllTenants(): array
     {
         $stmt = $this->db->query("SELECT id FROM tenants ORDER BY id");
@@ -77,13 +78,13 @@ class AlignSubscriptionsCron
             echo "[" . date('Y-m-d H:i:s') . "] Warning: seedPlans failed: " . $e->getMessage() . "\n";
         }
     }
-    
+
     private function alignTenantSubscription(int $tenantId): bool
     {
         try {
             // Get assigned plan from companies or tenants table
             $assigned = null;
-            
+
             // Try companies table first
             try {
                 $st = $this->db->prepare("SELECT plan_id, status FROM companies WHERE id = ? LIMIT 1");
@@ -93,8 +94,9 @@ class AlignSubscriptionsCron
                         $assigned = ['plan_id' => (int)$row['plan_id'], 'status' => strtolower((string)$row['status'])];
                     }
                 }
-            } catch (Throwable $e) { /* table may not exist */ }
-            
+            } catch (Throwable $e) { /* table may not exist */
+            }
+
             // Try tenants table
             if (!$assigned) {
                 try {
@@ -105,13 +107,14 @@ class AlignSubscriptionsCron
                             $assigned = ['plan_id' => (int)$row['plan_id'], 'status' => strtolower((string)$row['status'])];
                         }
                     }
-                } catch (Throwable $e) { /* ignore */ }
+                } catch (Throwable $e) { /* ignore */
+                }
             }
-            
+
             if (!$assigned || !in_array($assigned['status'] ?? 'active', ['active', 'trial'], true)) {
                 return false; // nothing to align
             }
-            
+
             // Get current subscription
             $currentSub = null;
             try {
@@ -121,12 +124,12 @@ class AlignSubscriptionsCron
             } catch (Throwable $e) {
                 return false;
             }
-            
+
             // Check if alignment is needed
             if ($currentSub && (int)$currentSub['plan_id'] === $assigned['plan_id']) {
                 return false; // already aligned
             }
-            
+
             // Create/update subscription
             if ($currentSub) {
                 // Update existing subscription
@@ -144,10 +147,10 @@ class AlignSubscriptionsCron
                 ");
                 $st->execute([$tenantId, $assigned['plan_id'], $assigned['status']]);
             }
-            
+
             echo "[" . date('Y-m-d H:i:s') . "] Aligned tenant {$tenantId} to plan {$assigned['plan_id']}\n";
             return true;
-            
+
         } catch (Throwable $e) {
             echo "[" . date('Y-m-d H:i:s') . "] Error aligning tenant {$tenantId}: " . $e->getMessage() . "\n";
             return false;
@@ -163,7 +166,7 @@ if ($useRemote) {
     // Call via HTTP with X-Cron-Token header
     $apiUrl = getenv('ADMIN_API_URL') ?: (getenv('API_BASE_URL') . '/admin/subscriptions/cron');
     $cronSecret = getenv('CRON_SECRET') ?: 'missing_cron_secret';
-    
+
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $apiUrl,
@@ -175,11 +178,11 @@ if ($useRemote) {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 30,
     ]);
-    
+
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
+
     echo "[" . date('Y-m-d H:i:s') . "] HTTP Cron Call\n";
     echo "[" . date('Y-m-d H:i:s') . "] URL: {$apiUrl}\n";
     echo "[" . date('Y-m-d H:i:s') . "] HTTP Status: {$httpCode}\n";

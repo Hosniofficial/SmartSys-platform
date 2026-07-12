@@ -30,8 +30,9 @@ class SubscriptionMiddleware implements MiddlewareInterface
             if (SuperAdminHelper::is(is_array($user) ? $user : null)) {
                 return $handler->handle($request);
             }
-        } catch (\Throwable $e) { /* ignore user extraction errors */ }
-        
+        } catch (\Throwable $e) { /* ignore user extraction errors */
+        }
+
         if (!$tenantId) {
             $user = $request->getAttribute('user');
             if ($user && isset($user['tenant_id'])) {
@@ -46,7 +47,7 @@ class SubscriptionMiddleware implements MiddlewareInterface
             $stmt = $this->db->prepare("SELECT id, status, end_date FROM subscriptions WHERE tenant_id = ? AND status = 'expired' LIMIT 1");
             $stmt->execute([$tenantId]);
             $expired = $stmt->fetch(\PDO::FETCH_ASSOC);
-            
+
             if ($expired) {
                 return $this->upgradeResponse('Subscription expired');
             }
@@ -164,7 +165,8 @@ class SubscriptionMiddleware implements MiddlewareInterface
         try {
             $stmt = $this->db->prepare("INSERT INTO subscription_events (subscription_id, event_type, event_date, meta_json) VALUES (?, ?, NOW(), ?)");
             $stmt->execute([$subscriptionId, $type, json_encode($meta, JSON_UNESCAPED_UNICODE)]);
-        } catch (\Throwable $e) { /* ignore */ }
+        } catch (\Throwable $e) { /* ignore */
+        }
     }
 
     private function seedPlans(): void
@@ -191,18 +193,24 @@ class SubscriptionMiddleware implements MiddlewareInterface
                 $st = $this->db->prepare("SELECT plan_id, status FROM companies WHERE id = ? LIMIT 1");
                 if ($st->execute([$tenantId])) {
                     $row = $st->fetch(\PDO::FETCH_ASSOC);
-                    if ($row && !empty($row['plan_id'])) { $assigned = ['plan_id' => (int)$row['plan_id'], 'status' => strtolower((string)$row['status'])]; }
+                    if ($row && !empty($row['plan_id'])) {
+                        $assigned = ['plan_id' => (int)$row['plan_id'], 'status' => strtolower((string)$row['status'])];
+                    }
                 }
-            } catch (\Throwable $e) { /* table may not exist */ }
+            } catch (\Throwable $e) { /* table may not exist */
+            }
             // tenants
             if (!$assigned) {
                 try {
                     $st = $this->db->prepare("SELECT plan_id, status FROM tenants WHERE id = ? LIMIT 1");
                     if ($st->execute([$tenantId])) {
                         $row = $st->fetch(\PDO::FETCH_ASSOC);
-                        if ($row && !empty($row['plan_id'])) { $assigned = ['plan_id' => (int)$row['plan_id'], 'status' => strtolower((string)$row['status'])]; }
+                        if ($row && !empty($row['plan_id'])) {
+                            $assigned = ['plan_id' => (int)$row['plan_id'], 'status' => strtolower((string)$row['status'])];
+                        }
                     }
-                } catch (\Throwable $e) { /* ignore */ }
+                } catch (\Throwable $e) { /* ignore */
+                }
             }
 
             if (!$assigned || !in_array($assigned['status'] ?? 'active', ['active','trial'], true)) {
@@ -223,7 +231,9 @@ class SubscriptionMiddleware implements MiddlewareInterface
             $plSt = $this->db->prepare("SELECT id, billing_cycle_days FROM plans WHERE id = ? LIMIT 1");
             $plSt->execute([$assigned['plan_id']]);
             $pl = $plSt->fetch(\PDO::FETCH_ASSOC);
-            if (!$pl) { return; }
+            if (!$pl) {
+                return;
+            }
             $cycle = max(1, (int)$pl['billing_cycle_days']);
 
             $now = new \DateTimeImmutable('now');
@@ -251,7 +261,8 @@ class SubscriptionMiddleware implements MiddlewareInterface
             $stmt = $this->db->prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ? AND status <> 'expired'");
             $stmt->execute([$subscriptionId]);
             $this->insertEvent($subscriptionId, 'expired');
-        } catch (\Throwable $e) { /* ignore */ }
+        } catch (\Throwable $e) { /* ignore */
+        }
     }
 
     private function maybeSendReminder(int $subscriptionId): void
@@ -265,6 +276,7 @@ class SubscriptionMiddleware implements MiddlewareInterface
                 $this->insertEvent($subscriptionId, 'reminder_sent');
                 // TODO: send email via SMTP (scaffold)
             }
-        } catch (\Throwable $e) { /* ignore */ }
+        } catch (\Throwable $e) { /* ignore */
+        }
     }
 }

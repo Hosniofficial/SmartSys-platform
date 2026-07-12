@@ -232,7 +232,7 @@ class AuthHandler extends BaseHandler
                 ], 200),
                 $refreshToken
             );
-            } catch (Exception $e) {
+        } catch (Exception $e) {
             $this->logger->error('Login error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -371,9 +371,12 @@ class AuthHandler extends BaseHandler
             }
 
             $this->securityLogger?->logSecurityEvent(
-                'user.logout', 'info', 'User logged out',
+                'user.logout',
+                'info',
+                'User logged out',
                 ['username' => $username, 'ip' => $clientIp],
-                $userId, $tenantId
+                $userId,
+                $tenantId
             );
 
             $this->logger->info('Logout successful', [
@@ -430,9 +433,12 @@ class AuthHandler extends BaseHandler
             }
 
             $this->securityLogger?->logSecurityEvent(
-                'user.logout', 'notice', 'User logged out from all devices',
+                'user.logout',
+                'notice',
+                'User logged out from all devices',
                 ['username' => $username, 'ip' => $clientIp, 'tokens_revoked' => $revokedCount],
-                $userId, $tenantId
+                $userId,
+                $tenantId
             );
 
             $this->logger->info('Logout all devices', [
@@ -680,7 +686,7 @@ class AuthHandler extends BaseHandler
             }
 
             $requestUserId = (int) $data['user_id'];
-            
+
             if ($requestUserId !== $jwtUserId) {
                 return $this->errorResponse($response, 'أنت غير مصرح بإعداد 2FA لمستخدم آخر', 403);
             }

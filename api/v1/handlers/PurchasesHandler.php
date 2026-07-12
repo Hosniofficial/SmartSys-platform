@@ -88,14 +88,20 @@ class PurchasesHandler extends BaseHandler
 
     private function determinePurchaseStatus(float $netTotal, float $paidAmount, float $returnAmount = 0.0, ?string $createdAt = null, ?string $firstPaymentDate = null): string
     {
-        if ($netTotal <= 0)              return 'paid';
-        if ($returnAmount >= $netTotal)  return 'returned';
-        if ($paidAmount <= 0)            return 'due';
-        
+        if ($netTotal <= 0) {
+            return 'paid';
+        }
+        if ($returnAmount >= $netTotal) {
+            return 'returned';
+        }
+        if ($paidAmount <= 0) {
+            return 'due';
+        }
+
         // Calculate total settlement: cash payments + returns applied to balance
         $totalSettled = round($paidAmount + $returnAmount, 2);
         $isFullySettled = $totalSettled >= $netTotal - 0.01;
-        
+
         // Full settlement via cash payment (possibly combined with return)
         if ($isFullySettled) {
             // Use first payment date to distinguish between same-day payment (paid) vs later settlement (settled)
@@ -110,7 +116,7 @@ class PurchasesHandler extends BaseHandler
             }
             return 'paid';
         }
-        
+
         return 'partial';
     }
 
@@ -221,7 +227,13 @@ class PurchasesHandler extends BaseHandler
         bool $includeTracking = true
     ): void {
         $this->services->purchase((int) $this->tenantId, $userId)->insertPurchaseItems(
-            $purchaseId, $items, $grossTotal, $discountAmount, $branchId, $notes, $includeTracking
+            $purchaseId,
+            $items,
+            $grossTotal,
+            $discountAmount,
+            $branchId,
+            $notes,
+            $includeTracking
         );
     }
 
@@ -265,9 +277,17 @@ class PurchasesHandler extends BaseHandler
         }
 
         return $this->services->purchase((int) $this->tenantId, $userId)->recordPayment(
-            $purchaseId, $supplierId, $amount, $paymentDate, $paymentMethodId,
-            $referenceNumber, $branchId, $costCenterId, $supplierAccountId,
-            $sessionId, $purchaseJeAlreadyCreated
+            $purchaseId,
+            $supplierId,
+            $amount,
+            $paymentDate,
+            $paymentMethodId,
+            $referenceNumber,
+            $branchId,
+            $costCenterId,
+            $supplierAccountId,
+            $sessionId,
+            $purchaseJeAlreadyCreated
         );
     }
 
@@ -279,7 +299,10 @@ class PurchasesHandler extends BaseHandler
         ?int $userId = null
     ): void {
         $this->services->purchase((int) $this->tenantId, $userId)->auditSafe(
-            $action, $entityType, $entityId, $payload
+            $action,
+            $entityType,
+            $entityId,
+            $payload
         );
     }
 
@@ -885,7 +908,7 @@ class PurchasesHandler extends BaseHandler
                 'total_amount'     => (float) $totals['net_total'],
                 'paid_amount'      => (float) $totals['paid_amount'],
                 'tax_amount'       => (float) $totals['tax_amount'],
-                'payment_method_id'=> (int) $data['payment_method_id'],
+                'payment_method_id' => (int) $data['payment_method_id'],
                 'status'           => $totals['status'],
             ], $userId);
 
@@ -895,7 +918,9 @@ class PurchasesHandler extends BaseHandler
                 'data'    => $result,
             ], 200);
         } catch (Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return $this->errorResponse($response, 'فشل تحديث فاتورة الشراء', 400);
         }
     }
@@ -958,10 +983,14 @@ class PurchasesHandler extends BaseHandler
                 'message' => 'تم حذف فاتورة الشراء بنجاح',
             ], 200);
         } catch (\App\Exceptions\NotFoundException $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return $this->errorResponse($response, $e->getMessage(), 404);
         } catch (Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return $this->errorResponse($response, $e->getMessage() ?: 'فشل حذف فاتورة الشراء', 400);
         }
     }
@@ -1054,8 +1083,15 @@ class PurchasesHandler extends BaseHandler
 
             $svc    = $this->services->purchase((int) $this->tenantId, $userId);
             $result = $svc->addPaymentToInvoice(
-                $purchaseId, $purchase, $amount, $paymentDate,
-                $paymentMethodId, $referenceNumber, $branchId, $costCenterId, $sessionId
+                $purchaseId,
+                $purchase,
+                $amount,
+                $paymentDate,
+                $paymentMethodId,
+                $referenceNumber,
+                $branchId,
+                $costCenterId,
+                $sessionId
             );
 
             $this->db->commit();
@@ -1086,7 +1122,9 @@ class PurchasesHandler extends BaseHandler
                 ],
             ], 201);
         } catch (Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return $this->errorResponse($response, $e->getMessage() ?: 'فشل تسجيل الدفعة', 400);
         }
     }
@@ -1172,7 +1210,9 @@ class PurchasesHandler extends BaseHandler
                 ],
             ], 201);
         } catch (Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('Failed to record supplier payment', [
                 'error'     => $e->getMessage(),
                 'tenant_id' => $tenantId ?? 'unknown',

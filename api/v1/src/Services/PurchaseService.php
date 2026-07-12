@@ -56,9 +56,15 @@ class PurchaseService
 
     public function determinePurchaseStatus(float $netTotal, float $paidAmount, float $returnAmount = 0.0): string
     {
-        if ($netTotal <= 0)             return 'paid';
-        if ($returnAmount >= $netTotal) return 'returned';
-        if ($paidAmount <= 0)           return 'due';
+        if ($netTotal <= 0) {
+            return 'paid';
+        }
+        if ($returnAmount >= $netTotal) {
+            return 'returned';
+        }
+        if ($paidAmount <= 0) {
+            return 'due';
+        }
         return $paidAmount >= $netTotal ? 'paid' : 'partial';
     }
 
@@ -104,14 +110,20 @@ class PurchaseService
             );
             $stmt->execute([$branchId, $this->tenantId]);
             $id = (int) $stmt->fetchColumn();
-            if ($id > 0) return $id;
+            if ($id > 0) {
+                return $id;
+            }
         }
 
         $id = $this->settingsRepo->getInt($this->tenantId, 'inventory_account_id', 0);
-        if ($id > 0) return $id;
+        if ($id > 0) {
+            return $id;
+        }
 
         $id = $this->accounting->getAccountByCode($this->tenantId, '1301') ?? 0;
-        if ($id > 0) return $id;
+        if ($id > 0) {
+            return $id;
+        }
 
         throw new Exception('لم يتم تحديد حساب المخزون المناسب.');
     }
@@ -119,10 +131,14 @@ class PurchaseService
     public function getVatInputAccountId(): int
     {
         $id = $this->settingsRepo->getInt($this->tenantId, 'vat.input_account_id', 0);
-        if ($id > 0) return $id;
+        if ($id > 0) {
+            return $id;
+        }
 
         $id = $this->accounting->getAccountByCode($this->tenantId, '2201') ?? 0;
-        if ($id > 0) return $id;
+        if ($id > 0) {
+            return $id;
+        }
 
         throw new Exception('حساب ضريبة المدخلات غير معرف (vat.input_account_id أو الحساب 2201).');
     }
@@ -151,11 +167,11 @@ class PurchaseService
         // Retry logic for handling duplicate entry errors
         $maxAttempts = 3;
         $attempt = 0;
-        
+
         while ($attempt < $maxAttempts) {
             try {
                 $attempt++;
-                
+
                 // Get sequential count for today with table lock to prevent duplicates
                 $stmt = $this->db->prepare(
                     "SELECT COUNT(*) FROM purchases
@@ -169,10 +185,10 @@ class PurchaseService
 
                 $count = (int) $stmt->fetchColumn() + 1;
                 $invoiceNumber = sprintf('PUR-%s-%03d', $dayShort, $count);
-                
+
                 // If we got here without exception, return the number
                 return $invoiceNumber;
-                
+
             } catch (PDOException $e) {
                 $msg = $e->getMessage();
                 // If it's a duplicate entry error and we haven't exceeded max attempts, retry
@@ -185,7 +201,7 @@ class PurchaseService
                 throw $e;
             }
         }
-        
+
         // Should not reach here, but if it does, throw an exception
         throw new PDOException('Failed to generate unique invoice number after ' . $maxAttempts . ' attempts');
     }
@@ -339,7 +355,7 @@ class PurchaseService
 
         $totalCost  = round($quantity * $unitCost, 2);
         $branchFrom = $type === 'out' ? $branchId : null;
-        $branchTo   = $type === 'in'  ? $branchId : null;
+        $branchTo   = $type === 'in' ? $branchId : null;
 
         $this->db->prepare(
             "INSERT INTO inventory_transactions (
@@ -431,7 +447,12 @@ class PurchaseService
         $paymentId = (int) $this->db->lastInsertId();
 
         $this->paymentRepo->insertApplication(
-            $this->tenantId, $paymentId, 'purchase', $purchaseId, $amount, $this->userId
+            $this->tenantId,
+            $paymentId,
+            'purchase',
+            $purchaseId,
+            $amount,
+            $this->userId
         );
 
         $journalEntryId = null;
@@ -452,9 +473,18 @@ class PurchaseService
                 $desc               = 'دفعة مورد لفاتورة شراء #' . $purchaseId;
 
                 $journalEntryId = $this->accounting->postPayment(
-                    $this->tenantId, $paymentId, $amount, 'purchase',
-                    null, $purchaseId, null, $this->userId,
-                    $costCenterId, $supplierAccountId, $liquidityAccountId, $desc
+                    $this->tenantId,
+                    $paymentId,
+                    $amount,
+                    'purchase',
+                    null,
+                    $purchaseId,
+                    null,
+                    $this->userId,
+                    $costCenterId,
+                    $supplierAccountId,
+                    $liquidityAccountId,
+                    $desc
                 );
 
                 if ($journalEntryId) {
@@ -481,7 +511,12 @@ class PurchaseService
     {
         try {
             (new \App\Handlers\AuditHandler($this->db))->logAction(
-                $action, $entityType, $entityId, $payload, $this->tenantId, $this->userId
+                $action,
+                $entityType,
+                $entityId,
+                $payload,
+                $this->tenantId,
+                $this->userId
             );
         } catch (Throwable $e) {
         }
@@ -816,7 +851,9 @@ class PurchaseService
                 $paymentId,
                 $amount,
                 'supplier_payment',
-                null, null, null,
+                null,
+                null,
+                null,
                 $this->userId,
                 null,
                 $supplierAccountId,

@@ -24,7 +24,7 @@ class BootstrapHandler extends BaseHandler
         $stmt->execute(['tenant_id' => $tenantId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Helper: Get active payment methods
      */
@@ -35,7 +35,7 @@ class BootstrapHandler extends BaseHandler
         $stmt->execute(['tenant_id' => $tenantId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Helper: Get active users
      */
@@ -47,11 +47,11 @@ class BootstrapHandler extends BaseHandler
         $stmt->execute(['tenant_id' => $tenantId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
+
     /**
      * Get POS (Point of Sale) page data
      * Aggregates all data needed for SalesPoint.vue in a single request
-     * 
+     *
      * @return array
      */
     public function getPosData($request, $response)
@@ -62,23 +62,23 @@ class BootstrapHandler extends BaseHandler
             $userId = is_array($user) && isset($user['id']) ? (int) $user['id'] : null;
             $userBranchId = is_array($user) && isset($user['branch_id']) ? (int) $user['branch_id'] : null;
             $tenantId = $this->extractTenantId($request);
-            
+
             if (!$tenantId) {
                 return $this->errorResponse($response, 'معرف المستأجر مطلوب', 400);
             }
-            
+
             // Get branches using helper
             $branches = $this->getActiveBranches($tenantId);
-            
+
             // Get active categories
             $categoriesQuery = "SELECT id, name FROM categories WHERE tenant_id = :tenant_id AND active = 1 ORDER BY name";
             $categoriesStmt = $this->db->prepare($categoriesQuery);
             $categoriesStmt->execute(['tenant_id' => $tenantId]);
             $categories = $categoriesStmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // Get active payment methods using helper
             $paymentMethods = $this->getActivePaymentMethods($tenantId);
-            
+
             // Get current session for this device/branch
             $currentSession = null;
             if ($userBranchId) {
@@ -95,7 +95,7 @@ class BootstrapHandler extends BaseHandler
                 ]);
                 $currentSession = $sessionStmt->fetch(PDO::FETCH_ASSOC) ?: null;
             }
-            
+
             // Get POS settings
             $settingsQuery = "SELECT key_name, value FROM settings 
                              WHERE tenant_id = :tenant_id 
@@ -103,12 +103,12 @@ class BootstrapHandler extends BaseHandler
             $settingsStmt = $this->db->prepare($settingsQuery);
             $settingsStmt->execute(['tenant_id' => $tenantId]);
             $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             $settings = [];
             foreach ($settingsRows as $row) {
                 $settings[$row['key_name']] = $row['value'];
             }
-            
+
             return $this->jsonResponse($response, [
                 'status' => 'success',
                 'data' => [
@@ -124,7 +124,7 @@ class BootstrapHandler extends BaseHandler
                     'ttl' => 300 // 5 minutes
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             // Log the actual error for debugging
             $this->logger->error('Bootstrap POS Data Error', [
@@ -132,7 +132,7 @@ class BootstrapHandler extends BaseHandler
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            
+
             // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
@@ -140,25 +140,25 @@ class BootstrapHandler extends BaseHandler
             ], 500);
         }
     }
-    
+
     /**
      * Get Payments page data
      * Aggregates all data needed for PaymentsList.vue in a single request
-     * 
+     *
      * @return array
      */
     public function getPaymentsPageData($request, $response)
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            
+
             if (!$tenantId) {
                 return $this->errorResponse($response, 'معرف المستأجر مطلوب', 400);
             }
-            
+
             // Get payment methods using helper
             $paymentMethods = $this->getActivePaymentMethods($tenantId);
-            
+
             // Get customers (limit to active or recent)
             $customersQuery = "SELECT id, name, phone, email FROM customers 
                               WHERE tenant_id = :tenant_id 
@@ -168,7 +168,7 @@ class BootstrapHandler extends BaseHandler
             $customersStmt = $this->db->prepare($customersQuery);
             $customersStmt->execute(['tenant_id' => $tenantId]);
             $customers = $customersStmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // Get suppliers (limit to active or recent)
             $suppliersQuery = "SELECT id, name, phone, email FROM suppliers 
                               WHERE tenant_id = :tenant_id 
@@ -178,10 +178,10 @@ class BootstrapHandler extends BaseHandler
             $suppliersStmt = $this->db->prepare($suppliersQuery);
             $suppliersStmt->execute(['tenant_id' => $tenantId]);
             $suppliers = $suppliersStmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // Get users using helper
             $users = $this->getActiveUsers($tenantId, ['id', 'name', 'email', 'role_id']);
-            
+
             // Get relevant settings
             $settingsQuery = "SELECT key_name, value FROM settings 
                              WHERE tenant_id = :tenant_id 
@@ -189,12 +189,12 @@ class BootstrapHandler extends BaseHandler
             $settingsStmt = $this->db->prepare($settingsQuery);
             $settingsStmt->execute(['tenant_id' => $tenantId]);
             $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             $settings = [];
             foreach ($settingsRows as $row) {
                 $settings[$row['key_name']] = $row['value'];
             }
-            
+
             return $this->jsonResponse($response, [
                 'status' => 'success',
                 'data' => [
@@ -209,7 +209,7 @@ class BootstrapHandler extends BaseHandler
                     'ttl' => 300
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             // Log the actual error for debugging
             $this->logger->error('Bootstrap Payments Data Error', [
@@ -217,7 +217,7 @@ class BootstrapHandler extends BaseHandler
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            
+
             // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
@@ -225,28 +225,28 @@ class BootstrapHandler extends BaseHandler
             ], 500);
         }
     }
-    
+
     /**
      * Get Sessions page data
      * Aggregates all data needed for SessionsList.vue in a single request
-     * 
+     *
      * @return array
      */
     public function getSessionsPageData($request, $response)
     {
         try {
             $tenantId = $this->extractTenantId($request);
-            
+
             if (!$tenantId) {
                 return $this->errorResponse($response, 'معرف المستأجر مطلوب', 400);
             }
-            
+
             // Get branches using helper
             $branches = $this->getActiveBranches($tenantId);
-            
+
             // Get users using helper
             $users = $this->getActiveUsers($tenantId);
-            
+
             return $this->jsonResponse($response, [
                 'status' => 'success',
                 'data' => [
@@ -258,7 +258,7 @@ class BootstrapHandler extends BaseHandler
                     'ttl' => 300
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             // Log the actual error for debugging
             $this->logger->error('Bootstrap Sessions Data Error', [
@@ -266,7 +266,7 @@ class BootstrapHandler extends BaseHandler
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            
+
             // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',
@@ -274,11 +274,11 @@ class BootstrapHandler extends BaseHandler
             ], 500);
         }
     }
-    
+
     /**
      * Get Management pages data (Purchase/Sale)
      * Aggregates common data needed for management pages
-     * 
+     *
      * @param string $type 'purchase' or 'sale'
      * @return array
      */
@@ -287,20 +287,20 @@ class BootstrapHandler extends BaseHandler
         try {
             $type = $args['type'] ?? 'purchase';
             $tenantId = $this->extractTenantId($request);
-            
+
             if (!$tenantId) {
                 return $this->errorResponse($response, 'معرف المستأجر مطلوب', 400);
             }
-            
+
             // Get branches and payment methods using helpers
             $branches = $this->getActiveBranches($tenantId);
             $paymentMethods = $this->getActivePaymentMethods($tenantId);
-            
+
             $data = [
                 'branches' => $branches,
                 'paymentMethods' => $paymentMethods
             ];
-            
+
             // Type-specific data
             if ($type === 'purchase') {
                 $suppliersQuery = "SELECT id, name, phone, email FROM suppliers WHERE tenant_id = :tenant_id AND active = 1 ORDER BY name LIMIT 500";
@@ -313,7 +313,7 @@ class BootstrapHandler extends BaseHandler
                 $customersStmt->execute(['tenant_id' => $tenantId]);
                 $data['customers'] = $customersStmt->fetchAll(PDO::FETCH_ASSOC);
             }
-            
+
             return $this->jsonResponse($response, [
                 'status' => 'success',
                 'data' => $data,
@@ -323,7 +323,7 @@ class BootstrapHandler extends BaseHandler
                     'ttl' => 300
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             // Log the actual error for debugging
             $this->logger->error('Bootstrap Management Data Error', [
@@ -331,7 +331,7 @@ class BootstrapHandler extends BaseHandler
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            
+
             // Return generic error to client (don't expose internal details)
             return $this->jsonResponse($response, [
                 'status' => 'error',

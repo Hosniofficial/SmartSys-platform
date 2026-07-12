@@ -182,7 +182,9 @@ class BranchHandler extends BaseHandler
                 'data'    => ['id' => $newBranchId, 'account_id' => $newAccountId, 'account_code' => $newCode],
             ], 201);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('خطأ في إنشاء الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في إنشاء الفرع. يرجى المحاولة مرة أخرى.', 400);
         }
@@ -212,13 +214,34 @@ class BranchHandler extends BaseHandler
             $updates = [];
             $params  = [];
 
-            if (isset($data['name']) && trim($data['name']) !== '')  { $updates[] = 'name = ?';        $params[] = trim($data['name']); }
-            if (isset($data['location']))                             { $updates[] = 'location = ?';    $params[] = trim($data['location']); }
-            if (array_key_exists('phone', $data))                    { $updates[] = 'phone = ?';       $params[] = trim($data['phone']) ?: null; }
-            if (array_key_exists('email', $data))                    { $updates[] = 'email = ?';       $params[] = trim($data['email']) ?: null; }
-            if (isset($data['description']))                         { $updates[] = 'description = ?'; $params[] = trim($data['description']); }
-            if (isset($data['account_id']))                          { $updates[] = 'account_id = ?';  $params[] = ($data['account_id'] !== '' && $data['account_id'] !== null) ? (int) $data['account_id'] : null; }
-            if (isset($data['active']))                              { $updates[] = 'active = ?';      $params[] = (int) $data['active']; }
+            if (isset($data['name']) && trim($data['name']) !== '') {
+                $updates[] = 'name = ?';
+                $params[] = trim($data['name']);
+            }
+            if (isset($data['location'])) {
+                $updates[] = 'location = ?';
+                $params[] = trim($data['location']);
+            }
+            if (array_key_exists('phone', $data)) {
+                $updates[] = 'phone = ?';
+                $params[] = trim($data['phone']) ?: null;
+            }
+            if (array_key_exists('email', $data)) {
+                $updates[] = 'email = ?';
+                $params[] = trim($data['email']) ?: null;
+            }
+            if (isset($data['description'])) {
+                $updates[] = 'description = ?';
+                $params[] = trim($data['description']);
+            }
+            if (isset($data['account_id'])) {
+                $updates[] = 'account_id = ?';
+                $params[] = ($data['account_id'] !== '' && $data['account_id'] !== null) ? (int) $data['account_id'] : null;
+            }
+            if (isset($data['active'])) {
+                $updates[] = 'active = ?';
+                $params[] = (int) $data['active'];
+            }
 
             if (empty($updates)) {
                 return $this->errorResponse($response, 'No valid fields to update', 400);
@@ -242,7 +265,9 @@ class BranchHandler extends BaseHandler
             $this->db->commit();
             return $this->jsonResponse($response, ['status' => 'success', 'message' => 'Branch updated successfully']);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('خطأ في تحديث الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في تحديث بيانات الفرع', 400);
         }

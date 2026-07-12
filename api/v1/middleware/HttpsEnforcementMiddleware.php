@@ -12,7 +12,7 @@ use Slim\Psr7\Response as SlimResponse;
 
 /**
  * HTTPS Enforcement Middleware
- * 
+ *
  * Redirects all HTTP requests to HTTPS in production
  * Adds HSTS headers for secure connections
  */
@@ -21,7 +21,7 @@ class HttpsEnforcementMiddleware implements MiddlewareInterface
     private bool $enabled;
     private bool $redirectToHttps;
     private array $excludePaths = [];
-    
+
     public function __construct(
         bool $enabled = true,
         bool $redirectToHttps = true,
@@ -35,23 +35,23 @@ class HttpsEnforcementMiddleware implements MiddlewareInterface
             '/metrics',
         ];
     }
-    
+
     public function process(Request $request, RequestHandler $handler): Response
     {
         $scheme = $request->getUri()->getScheme();
         $path = $request->getUri()->getPath();
         $host = $request->getUri()->getHost();
-        
+
         // Skip HTTPS enforcement for excluded paths
         if ($this->isPathExcluded($path)) {
             return $handler->handle($request);
         }
-        
+
         // Skip HTTPS enforcement for localhost (development)
         if (in_array($host, ['localhost', '127.0.0.1', '0.0.0.0'])) {
             return $handler->handle($request);
         }
-        
+
         // Redirect HTTP → HTTPS without executing the handler first
         if ($this->enabled && $this->redirectToHttps && $scheme === 'http') {
             $httpsUri = $request->getUri()->withScheme('https')->withPort(null);
@@ -62,7 +62,7 @@ class HttpsEnforcementMiddleware implements MiddlewareInterface
 
         // Process request
         $response = $handler->handle($request);
-        
+
         // Add HSTS header for HTTPS connections only
         if ($scheme === 'https') {
             // Strict-Transport-Security header
@@ -74,10 +74,10 @@ class HttpsEnforcementMiddleware implements MiddlewareInterface
                 'max-age=31536000; includeSubDomains; preload'
             );
         }
-        
+
         return $response;
     }
-    
+
     /**
      * Check if path should be excluded from HTTPS enforcement
      */

@@ -68,7 +68,8 @@ class SaleCreationService
                     if (is_array($branchMap) && array_key_exists((string)$branchId, $branchMap)) {
                         return (bool)$branchMap[(string)$branchId];
                     }
-                } catch (\Throwable $e) {}
+                } catch (\Throwable $e) {
+                }
             }
         }
         $raw = $this->getSettingValue($tenantId, 'pos.require_approval', '0');
@@ -85,16 +86,20 @@ class SaleCreationService
 
     private function isRoleEnforced(int $tenantId, ?int $roleId): bool
     {
-        if (!$roleId) return false;
+        if (!$roleId) {
+            return false;
+        }
         $raw = (string)$this->getSettingValue($tenantId, 'pos.sessions.enforce_for_roles', '');
         $enforce = [];
         if ($raw !== '') {
             $trim = trim($raw);
             if (strpos($trim, '[') === 0) {
                 $decoded = json_decode($trim, true);
-                if (is_array($decoded)) { $enforce = array_map('intval', $decoded); }
+                if (is_array($decoded)) {
+                    $enforce = array_map('intval', $decoded);
+                }
             } else {
-                $parts = array_filter(array_map('trim', explode(',', $trim)), fn($v) => $v !== '');
+                $parts = array_filter(array_map('trim', explode(',', $trim)), fn ($v) => $v !== '');
                 $enforce = array_map('intval', $parts);
             }
         }
@@ -105,8 +110,14 @@ class SaleCreationService
     {
         $sql = "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND branch_id = ? AND status = 'open'";
         $params = [$tenantId, $branchId];
-        if ($cashierId) { $sql .= " AND cashier_id = ?"; $params[] = $cashierId; }
-        if ($deviceId !== null && $deviceId !== '') { $sql .= " AND device_id = ?"; $params[] = $deviceId; }
+        if ($cashierId) {
+            $sql .= " AND cashier_id = ?";
+            $params[] = $cashierId;
+        }
+        if ($deviceId !== null && $deviceId !== '') {
+            $sql .= " AND device_id = ?";
+            $params[] = $deviceId;
+        }
         $sql .= " ORDER BY id DESC LIMIT 1";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -117,7 +128,10 @@ class SaleCreationService
     {
         $sql = "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND branch_id IS NULL AND status = 'open'";
         $params = [$tenantId];
-        if ($cashierId) { $sql .= " AND cashier_id = ?"; $params[] = $cashierId; }
+        if ($cashierId) {
+            $sql .= " AND cashier_id = ?";
+            $params[] = $cashierId;
+        }
         $sql .= " ORDER BY id DESC LIMIT 1";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
@@ -160,11 +174,15 @@ class SaleCreationService
         $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE kind = ? AND tenant_id = ? ORDER BY is_default DESC, id ASC LIMIT 1");
         $stmt->execute([$kind, $tenantId]);
         $id = $stmt->fetchColumn();
-        if ($id) return (int)$id;
+        if ($id) {
+            return (int)$id;
+        }
         $stmt = $this->pdo->prepare("SELECT id FROM payment_methods WHERE tenant_id = ? ORDER BY id ASC LIMIT 1");
         $stmt->execute([$tenantId]);
         $id = $stmt->fetchColumn();
-        if ($id) return (int)$id;
+        if ($id) {
+            return (int)$id;
+        }
         throw new \Exception("لم يتم العثور على أي طريقة دفع للمستأجر {$tenantId}.");
     }
 
@@ -172,9 +190,15 @@ class SaleCreationService
     {
         try {
             (new \App\Handlers\AuditHandler($this->pdo))->logAction(
-                $action, $entity, $entityId, $details, $tenantId, $this->userId
+                $action,
+                $entity,
+                $entityId,
+                $details,
+                $tenantId,
+                $this->userId
             );
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
     }
 
     // =========================================================================
@@ -191,7 +215,7 @@ class SaleCreationService
         // ✅ ترتيب ثابت حسب product_id لمنع deadlock عند فواتير متزامنة
         // تحتوي نفس المنتجات بترتيب مختلف
         if ($applyStock) {
-            usort($preparedItems, fn($a, $b) => (int)$a['product_id'] <=> (int)$b['product_id']);
+            usort($preparedItems, fn ($a, $b) => (int)$a['product_id'] <=> (int)$b['product_id']);
         }
 
         foreach ($preparedItems as $item) {
@@ -336,7 +360,9 @@ class SaleCreationService
                 $stmt = $this->pdo->prepare("SELECT account_id FROM customers WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$customerId, $tenantId]);
                 $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($result) $customerAccountId = $result['account_id'];
+                if ($result) {
+                    $customerAccountId = $result['account_id'];
+                }
             }
 
             // ── حساب الإجماليات ──────────────────────────────────────────────
@@ -351,7 +377,9 @@ class SaleCreationService
                 $stmt = $this->pdo->prepare("SELECT purchase_price FROM products WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$item['product_id'], $tenantId]);
                 $product = $stmt->fetch(PDO::FETCH_ASSOC);
-                if (!$product) throw new Exception("المنتج برقم {$item['product_id']} غير موجود.");
+                if (!$product) {
+                    throw new Exception("المنتج برقم {$item['product_id']} غير موجود.");
+                }
                 $item['purchase_price'] = (float)$product['purchase_price'];
                 $totalAmount += (float)$item['quantity'] * (float)$item['sale_price'];
             }
@@ -377,8 +405,8 @@ class SaleCreationService
                     'unit_id'       => $item['unit_id'] ?? null,
                     'quantity'      => $quantity,
                     'sale_price'    => $salePrice,
-                    'purchase_price'=> $purchasePrice,
-                    'discount_value'=> $itemDiscount,
+                    'purchase_price' => $purchasePrice,
+                    'discount_value' => $itemDiscount,
                     'net_price'     => $itemNetPrice,
                     'total'         => $itemTotal,
                     'net_total'     => $itemNetTotal,
@@ -419,7 +447,9 @@ class SaleCreationService
             if ($paidAmount > 0) {
                 try {
                     $liq = $this->accounting->resolveLiquidityAccount((int)$paymentMethodId, $tenantId);
-                    if ($liq === null) throw new Exception('طريقة الدفع آجلة (credit) — لا يمكن تسجيل مبلغ مدفوع مع فاتورة آجلة، جعل المدفوع = 0.');
+                    if ($liq === null) {
+                        throw new Exception('طريقة الدفع آجلة (credit) — لا يمكن تسجيل مبلغ مدفوع مع فاتورة آجلة، جعل المدفوع = 0.');
+                    }
                 } catch (\Exception $e) {
                     throw new Exception('لا يمكن تسجيل الدفعة: ' . $e->getMessage());
                 }
@@ -446,8 +476,11 @@ class SaleCreationService
                     $st = $this->pdo->prepare("SELECT cost_center_id FROM branches WHERE id = ? AND (tenant_id = ? OR tenant_id IS NULL) LIMIT 1");
                     $st->execute([$branchId, $tenantId]);
                     $wc = $st->fetchColumn();
-                    if ($wc) $resolvedCostCenter = (int)$wc;
-                } catch (\Throwable $e) {}
+                    if ($wc) {
+                        $resolvedCostCenter = (int)$wc;
+                    }
+                } catch (\Throwable $e) {
+                }
             }
             if (empty($resolvedCostCenter)) {
                 throw new Exception('فشل إنشاء الفاتورة: يجب أن يكون cost_center_id معرفًا في الفرع أو إعداد accounting.default_cost_center_id.');
@@ -515,16 +548,23 @@ class SaleCreationService
             $journalEntryId = null;
             if (!$approvalRequired) {
                 $salesAccountId = $this->resolveAccountId($tenantId, 'sales_account', '4001');
-                if (!$salesAccountId) throw new Exception('حساب المبيعات غير معرّف لهذا التاجر');
+                if (!$salesAccountId) {
+                    throw new Exception('حساب المبيعات غير معرّف لهذا التاجر');
+                }
 
                 $journalEntryId = $this->accounting->postSaleJournalEntry(
-                    $saleId, $tenantId, $this->userId,
+                    $saleId,
+                    $tenantId,
+                    $this->userId,
                     $data['sale_date'] ?? date('Y-m-d H:i:s'),
-                    $netTotalAmount, $taxAmount, $paidAmount,
+                    $netTotalAmount,
+                    $taxAmount,
+                    $paidAmount,
                     $customerId ? (int)$customerId : null,
                     $paymentMethodId ? (int)$paymentMethodId : null,
                     $customerAccountId ? (int)$customerAccountId : null,
-                    $salesAccountId, $resolvedCostCenter
+                    $salesAccountId,
+                    $resolvedCostCenter
                 );
 
                 if ($journalEntryId) {
@@ -612,7 +652,7 @@ class SaleCreationService
                 'tax_amount'       => (float)$taxAmount,
                 'paid_amount'      => (float)$paidAmount,
                 'status'           => $status,
-                'payment_method_id'=> $paymentMethodId,
+                'payment_method_id' => $paymentMethodId,
             ], $tenantId);
 
             return ['sale_id' => $saleId, 'invoice_number' => $invoiceNumber];

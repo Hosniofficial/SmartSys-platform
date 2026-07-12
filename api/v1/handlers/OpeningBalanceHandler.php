@@ -680,7 +680,7 @@ class OpeningBalanceHandler extends BaseHandler
             // ── Mark all posted products with opening_balance_posted = 1 ────────────
             // This ensures ProductListResource correctly calculates gl_status = 'posted'
             // (see ProductListResource::transform line 43-44)
-            $productIds = array_unique(array_map(fn($row) => (int)$row['product_id'], $items));
+            $productIds = array_unique(array_map(fn ($row) => (int)$row['product_id'], $items));
             if (!empty($productIds)) {
                 $placeholders = implode(',', array_fill(0, count($productIds), '?'));
                 $this->db->prepare("

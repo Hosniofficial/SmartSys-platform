@@ -83,14 +83,14 @@ class CorsMiddleware implements MiddlewareInterface
     private function handlePreflight(Request $request, string $origin): Response
     {
         $response = new SlimResponse();
-        
+
         if ($this->isOriginAllowed($origin)) {
             $requestedMethod = $request->getHeaderLine('Access-Control-Request-Method');
             $requestedHeaders = $request->getHeaderLine('Access-Control-Request-Headers');
-            
+
             // If specific method is requested, use it, otherwise use all allowed methods
             $allowedMethods = $requestedMethod ? [$requestedMethod] : $this->allowedMethods;
-            
+
             // Use specific origin instead of wildcard when credentials are enabled
             if ($this->allowCredentials && !in_array('*', $this->allowedOrigins, true)) {
                 $response = $response->withHeader('Access-Control-Allow-Origin', $origin);
@@ -98,28 +98,28 @@ class CorsMiddleware implements MiddlewareInterface
                 $allowedOrigin = in_array('*', $this->allowedOrigins, true) ? '*' : $origin;
                 $response = $response->withHeader('Access-Control-Allow-Origin', $allowedOrigin);
             }
-            
+
             $response = $response->withHeader('Access-Control-Allow-Methods', implode(', ', $allowedMethods));
-            
+
             // Add allowed headers if requested
             if ($requestedHeaders) {
                 $response = $response->withHeader('Access-Control-Allow-Headers', $requestedHeaders);
             } elseif (!empty($this->allowedHeaders)) {
                 $response = $response->withHeader('Access-Control-Allow-Headers', implode(', ', $this->allowedHeaders));
             }
-            
+
             $response = $response->withHeader('Access-Control-Max-Age', (string)$this->maxAge);
-            
+
             if ($this->allowCredentials) {
                 $response = $response->withHeader('Access-Control-Allow-Credentials', 'true');
             }
-            
+
             // Expose headers if needed
             if (!empty($this->allowedHeaders)) {
                 $response = $response->withHeader('Access-Control-Expose-Headers', implode(', ', $this->allowedHeaders));
             }
         }
-        
+
         return $response->withStatus(204); // No Content
     }
 
@@ -133,12 +133,12 @@ class CorsMiddleware implements MiddlewareInterface
         if (in_array('*', $this->allowedOrigins, true)) {
             return true;
         }
-        
+
         // Check for exact match
         if (in_array($origin, $this->allowedOrigins, true)) {
             return true;
         }
-        
+
         // Check for wildcard subdomains (e.g., *.example.com)
         foreach ($this->allowedOrigins as $allowedOrigin) {
             if (strpos($allowedOrigin, '*') !== false) {
@@ -148,7 +148,7 @@ class CorsMiddleware implements MiddlewareInterface
                 }
             }
         }
-        
+
         return false;
     }
 
@@ -162,15 +162,15 @@ class CorsMiddleware implements MiddlewareInterface
             $allowedOrigin = in_array('*', $this->allowedOrigins, true) ? '*' : $origin;
             $response = $response->withHeader('Access-Control-Allow-Origin', $allowedOrigin);
         }
-        
+
         if ($this->allowCredentials) {
             $response = $response->withHeader('Access-Control-Allow-Credentials', 'true');
         }
-        
+
         if (!empty($this->allowedHeaders)) {
             $response = $response->withHeader('Access-Control-Expose-Headers', implode(', ', $this->allowedHeaders));
         }
-        
+
         // Add Vary header to prevent caching of CORS responses
         if ($response->hasHeader('Vary')) {
             $vary = $response->getHeaderLine('Vary');
@@ -181,7 +181,7 @@ class CorsMiddleware implements MiddlewareInterface
         } else {
             $response = $response->withHeader('Vary', 'Origin');
         }
-        
+
         return $response;
     }
 

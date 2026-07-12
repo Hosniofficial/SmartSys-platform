@@ -1,0 +1,190 @@
+﻿php : PHP Warning:  PHP Startup: Unable to load 
+dynamic library 'pdo_firebird' (tried: 
+ext\pdo_firebird (The specified module could not 
+be found), ext\php_pdo_firebird.dll (The 
+specified module could not be found)) in Unknown 
+on line 0
+At line:1 char:31
++ ... \smartsys ; php php-cs-fixer.phar fix 
+api/v1 --rules=@PSR12 --dry-run ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PHP 
+    Warning:  P...known on line 0:String) [], R  
+  emoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+You are running PHP CS Fixer on PHP 8.4.7, but 
+the minimum PHP version supported by your 
+project in composer.json is PHP 8.0. Executing 
+PHP CS Fixer on newer PHP versions may introduce 
+syntax or features not yet available in PHP 8.0, 
+which could cause issues under that version. It 
+is recommended to run PHP CS Fixer on PHP 8.0, 
+to fit your project specifics.
+If you need help while solving warnings, ask at h
+ttps://github.com/PHP-CS-Fixer/PHP-CS-Fixer/discu
+ssions/, we will help you!
+
+PHP CS Fixer 3.95.13 (21c4a4c) Adalbertus by 
+Fabien Potencier, Dariusz Ruminski and 
+contributors.
+PHP runtime: 8.4.7
+Loaded config default.
+Running analysis on 3 cores with 10 files per 
+process.
+Using cache file ".php-cs-fixer.cache".
+Rules from configuration have been overridden by 
+rules provided as command argument.
+   0/112 [ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]   
+0%
+   1/112 [ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]   
+0%
+  11/112 [ΓûôΓûôΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]   
+9%
+  22/112 [ΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+19%
+  32/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæΓûæΓûæ
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+28%
+  43/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæ
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+38%
+  53/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+47%
+  68/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûôΓûôΓûôΓûôΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+60%
+  73/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+65%
+  83/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ]  
+74%
+  93/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæΓûæΓûæ]  
+83%
+ 103/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûæΓûæΓûæ]  
+91%
+ 112/112 [ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô
+ΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûôΓûô] 
+100%
+
+   1) api\v1\crons\align_subscriptions_cron.php
+   2) api\v1\crons\cleanup_cron.php
+   3) api\v1\crons\cleanup_tokens.php
+   4) api\v1\crons\daily_expiry_alerts.php
+   5) api\v1\handlers\AccountingPeriodsHandler.php
+   6) api\v1\handlers\AccountingReportsHandler.php
+   7) api\v1\handlers\AccountStatementHandler.php
+   8) api\v1\handlers\AdminSettingsHandler.php
+   9) api\v1\handlers\AdminSubscriptionHandler.php
+  10) api\v1\handlers\AdvancedReportsHandler.php
+  11) api\v1\handlers\AnalyticsHandler.php
+  12) api\v1\handlers\AuditHandler.php
+  13) api\v1\handlers\AuditTrailHandler.php
+  14) api\v1\handlers\AuthHandler.php
+  15) api\v1\handlers\BaseContactHandler.php
+  16) api\v1\handlers\BaseHandler.php
+  17) api\v1\handlers\BootstrapHandler.php
+  18) api\v1\handlers\BranchHandler.php
+  19) api\v1\handlers\BranchInventoryReportHandler.php
+  20) api\v1\handlers\CashVouchersHandler.php
+  21) api\v1\handlers\CategoriesHandler.php
+  22) api\v1\handlers\CustomersHandler.php
+  23) api\v1\handlers\DocumentManagementHandler.php
+  24) api\v1\handlers\EmailVerificationHandler.php
+  25) api\v1\handlers\InventoryAnalyticsHandler.php
+  26) api\v1\handlers\InventoryHandler.php
+  27) api\v1\handlers\JournalEntriesHandler.php
+  28) api\v1\handlers\MaintenanceHandler.php
+  29) api\v1\handlers\NotificationHandler.php
+  30) api\v1\handlers\OpeningBalanceHandler.php
+  31) api\v1\handlers\TerminalsHandler.php
+  32) api\v1\handlers\UsersHandler.php
+  33) api\v1\handlers\ValidationHandler.php
+  34) api\v1\handlers\WarrantyHandler.php
+  35) api\v1\index.php
+  36) api\v1\middleware\CorsMiddleware.php
+  37) api\v1\middleware\HttpsEnforcementMiddleware.php
+  38) api\v1\middleware\JwtAuthMiddleware.php
+  39) api\v1\middleware\PermissionMiddleware.php
+  40) api\v1\middleware\RequestLoggingMiddleware.php
+  41) api\v1\middleware\RequestRateLimiter.php
+  42) api\v1\middleware\SecurityHeadersMiddleware.php
+  43) api\v1\middleware\StrictSubscriptionMiddleware.php
+  44) api\v1\middleware\SubscriptionMiddleware.php
+  45) api\v1\middleware\TenantMiddleware.php
+  46) api\v1\src\Exceptions\ForbiddenException.php
+  47) api\v1\src\Exceptions\InsufficientStockException.php
+  48) api\v1\src\Exceptions\NotFoundException.php
+  49) api\v1\src\Listeners\SecurityEventListener.php
+  50) api\v1\src\Repositories\PaymentRepository.php
+  51) api\v1\handlers\PaymentIntegrationHandler.php
+  52) api\v1\handlers\PaymentMethodsHandler.php
+  53) api\v1\handlers\PaymentsHandler.php
+  54) api\v1\handlers\PosAnalyticsHandler.php
+  55) api\v1\handlers\ProductBranchHandler.php
+  56) api\v1\handlers\ProductsHandler.php
+  57) api\v1\handlers\PurchasesHandler.php
+  58) api\v1\handlers\RBACHandler.php
+  59) api\v1\handlers\ReturnsHandler.php
+  60) api\v1\handlers\SalesAnalyticsHandler.php
+  61) api\v1\handlers\SalesHandler.php
+  62) api\v1\handlers\SessionsHandler.php
+  63) api\v1\handlers\SetupHandler.php
+  64) api\v1\handlers\ShiftsHandler.php
+  65) api\v1\handlers\StockAdjustmentHandler.php
+  66) api\v1\handlers\StockTransferHandler.php
+  67) api\v1\handlers\StrictSubscriptionHandler.php
+  68) api\v1\handlers\SubscriptionCronHandler.php
+  69) api\v1\handlers\SubscriptionHandler.php
+  70) api\v1\handlers\SuppliersHandler.php
+  71) api\v1\src\Services\CashierSessionService.php
+  72) api\v1\src\Services\CashVoucherService.php
+  73) api\v1\src\Services\CostCenter\CostCenterService.php
+  74) api\v1\src\Services\CostingService.php
+  75) api\v1\src\Services\CurrencyService.php
+  76) api\v1\src\Services\EmailVerificationService.php
+  77) api\v1\src\Services\FinancialCalculationService.php
+  78) api\v1\src\Services\IdempotencyService.php
+  79) api\v1\src\Services\InventoryOpeningBalanceService.php
+  80) api\v1\src\Services\JwtBlacklistService.php
+  81) api\v1\src\Repositories\PurchaseRepository.php
+  82) api\v1\src\Repositories\SaleRepository.php
+  83) api\v1\src\Repositories\SecurityEventRepository.php
+  84) api\v1\src\Repositories\SettingsRepository.php
+  85) api\v1\src\Resources\ProductDetailResource.php
+  86) api\v1\src\Resources\ProductListResource.php
+  87) api\v1\src\Security\Permissions.php
+  88) api\v1\src\Services\AccountingService.php
+  89) api\v1\src\Services\AccountManagementService.php
+  90) api\v1\src\Services\BalanceCalculationService.php
+  91) api\v1\src\Services\SecurityEventDispatcher.php
+  92) api\v1\src\Services\SecurityLogger.php
+  93) api\v1\src\Services\ServiceFactory.php
+  94) api\v1\src\Services\Transaction\TransactionManager.php
+  95) api\v1\src\Services\TwoFactorEncryptionService.php
+  96) api\v1\src\Traits\AuthorizesRequests.php
+  97) api\v1\src\Utils\DateHelper.php
+  98) api\v1\src\Utils\PaginationHelper.php
+  99) api\v1\src\Utils\RequestHelper.php
+ 100) api\v1\src\Utils\SuperAdminHelper.php
+ 101) api\v1\src\Services\LabelService.php
+ 102) api\v1\src\Services\LocaleService.php
+ 103) api\v1\src\Services\Mailer.php
+ 104) api\v1\src\Services\MonologHandler.php
+ 105) api\v1\src\Services\PurchaseService.php
+ 106) api\v1\src\Services\ReturnService.php
+ 107) api\v1\src\Services\SaleApprovalService.php
+ 108) api\v1\src\Services\SaleCreationService.php
+ 109) api\v1\src\Services\SalePaymentService.php
+ 110) api\v1\src\Services\SalesService.php
+
+Found 110 of 112 files that can be fixed in 56.863 seconds, 96.00 MB memory used

@@ -127,7 +127,7 @@ class BaseHandler
     /**
      * Simple tenant ID extraction and validation
      * Returns tenant ID or throws exception
-     * 
+     *
      * @return int Validated tenant ID
      * @throws \Exception If tenant ID is missing
      */
@@ -143,7 +143,7 @@ class BaseHandler
     /**
      * Build filtered SQL WHERE clause and bindings
      * Automatically adds tenant_id filter
-     * 
+     *
      * Usage:
      * $filters = $this->buildFilteredQuery($tenantId, [
      *     'event_type' => 'event_type',      // filter_key => db_column
@@ -151,10 +151,10 @@ class BaseHandler
      *     'date_from' => ['timestamp', '>='],  // with operator
      *     'date_to' => ['timestamp', '<=']
      * ], $params);
-     * 
+     *
      * $sql = "SELECT * FROM audit_log WHERE {$filters['where']}";
      * $stmt->execute($filters['bindings']);
-     * 
+     *
      * @param int $tenantId Tenant ID for isolation
      * @param array $allowedFilters Map of filter_key => column_name or [column, operator]
      * @param array $params Query parameters from request
@@ -511,7 +511,7 @@ class BaseHandler
 
             if (!empty($rolesCsvValue) && !empty($roles)) {
                 $allowed = array_map(
-                    fn($x) => strtolower(trim((string) $x)),
+                    fn ($x) => strtolower(trim((string) $x)),
                     explode(',', (string) $rolesCsvValue)
                 );
 
@@ -615,10 +615,10 @@ class BaseHandler
                             $this->throwUnauthorizedBranch();
                         }
                     } catch (\PDOException $e) {
-                // Only PDOException from missing table is expected; ignore
-            $this->logger->debug('ACL table may not exist yet', [
-                'error' => $e->getMessage()
-            ]);
+                        // Only PDOException from missing table is expected; ignore
+                        $this->logger->debug('ACL table may not exist yet', [
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
 

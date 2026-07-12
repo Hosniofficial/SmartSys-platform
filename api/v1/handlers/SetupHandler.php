@@ -106,7 +106,7 @@ class SetupHandler extends BaseHandler
         } catch (Exception $e) {
             $code = (int) $e->getCode();
             $status = $code >= 400 && $code < 600 ? $code : 500;
-            
+
             $this->logger->error('Setup status error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -268,7 +268,7 @@ class SetupHandler extends BaseHandler
 
             $code = (int) $e->getCode();
             $status = $code >= 400 && $code < 600 ? $code : 500;
-            
+
             $this->logger->error('Setup save error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -652,12 +652,12 @@ class SetupHandler extends BaseHandler
                 try {
                     $this->db->prepare("DELETE FROM accounts WHERE id = ? AND tenant_id = ?")
                         ->execute([$newAccountId, $tenantId]);
-                    
+
                     if ($newCostCenterId) {
                         $this->db->prepare("DELETE FROM cost_centers WHERE id = ? AND tenant_id = ?")
                             ->execute([$newCostCenterId, $tenantId]);
                     }
-                    
+
                     $this->logger->info('Cleaned up orphaned account and cost center due to branch creation failure', [
                         'tenant_id' => $tenantId,
                         'account_id' => $newAccountId,
@@ -670,7 +670,7 @@ class SetupHandler extends BaseHandler
                         'message' => $cleanupErr->getMessage()
                     ]);
                 }
-                
+
                 throw $branchErr;
             }
         } catch (Exception $e) {
@@ -733,7 +733,7 @@ class SetupHandler extends BaseHandler
         } catch (Exception $e) {
             $code = (int) $e->getCode();
             $status = $code >= 400 && $code < 600 ? $code : 500;
-            
+
             $this->logger->error('Setup skip error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

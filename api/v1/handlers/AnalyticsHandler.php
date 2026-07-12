@@ -12,38 +12,41 @@ use Psr\Http\Message\ResponseInterface as Response;
 use App\Services\CostingService;
 use App\Services\MonologHandler;
 
-class AnalyticsHandler extends BaseHandler {
-    public function __construct(PDO $db) {
+class AnalyticsHandler extends BaseHandler
+{
+    public function __construct(PDO $db)
+    {
         parent::__construct($db);
         $this->logger = MonologHandler::getInstance('analytics');
     }
-    
+
     /**
      * Get daily cash drawer summary for when session mode is disabled
      */
-public function analyzeSuppliers(Request $request, Response $response) {
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 400);
-    }
+    public function analyzeSuppliers(Request $request, Response $response)
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 400);
+        }
 
-    $queryParams = $request->getQueryParams();
-    $where = ["po.tenant_id = ?"];
-    $params = [$tenantId];
+        $queryParams = $request->getQueryParams();
+        $where = ["po.tenant_id = ?"];
+        $params = [$tenantId];
 
-    if (!empty($queryParams['start_date'])) {
-        $where[] = "po.order_date >= ?";
-        $params[] = $queryParams['start_date'];
-    }
+        if (!empty($queryParams['start_date'])) {
+            $where[] = "po.order_date >= ?";
+            $params[] = $queryParams['start_date'];
+        }
 
-    if (!empty($queryParams['end_date'])) {
-        $where[] = "po.order_date <= ?";
-        $params[] = $queryParams['end_date'];
-    }
+        if (!empty($queryParams['end_date'])) {
+            $where[] = "po.order_date <= ?";
+            $params[] = $queryParams['end_date'];
+        }
 
-    $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
 
-    $stmt = $this->db->prepare("
+        $stmt = $this->db->prepare("
         SELECT 
             s.id,
             s.name,
@@ -57,42 +60,42 @@ public function analyzeSuppliers(Request $request, Response $response) {
         ORDER BY total_spent DESC
     ");
 
-    $stmt->execute($params);
-    $suppliers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute($params);
+        $suppliers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    return $this->successResponse($response, $suppliers
-    , 200);
-}
+        return $this->successResponse($response, $suppliers, 200);
+    }
 
 
     /**
      * تحليل العملاء
      */
-public function analyzeCustomers(Request $request, Response $response) {
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 400);
-    }
+    public function analyzeCustomers(Request $request, Response $response)
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 400);
+        }
 
-    // جلب فلاتر البحث من الطلب
-    $filters = $request->getQueryParams();
+        // جلب فلاتر البحث من الطلب
+        $filters = $request->getQueryParams();
 
-    $where = ["c.tenant_id = ?"];
-    $params = [$tenantId];
+        $where = ["c.tenant_id = ?"];
+        $params = [$tenantId];
 
-    if (!empty($filters['start_date'])) {
-        $where[] = "o.date >= ?";
-        $params[] = $filters['start_date'];
-    }
+        if (!empty($filters['start_date'])) {
+            $where[] = "o.date >= ?";
+            $params[] = $filters['start_date'];
+        }
 
-    if (!empty($filters['end_date'])) {
-        $where[] = "o.date <= ?";
-        $params[] = $filters['end_date'];
-    }
+        if (!empty($filters['end_date'])) {
+            $where[] = "o.date <= ?";
+            $params[] = $filters['end_date'];
+        }
 
-    $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
 
-    $stmt = $this->db->prepare("
+        $stmt = $this->db->prepare("
         SELECT 
             c.id,
             c.name,
@@ -115,15 +118,14 @@ public function analyzeCustomers(Request $request, Response $response) {
         ORDER BY total_spent DESC
     ");
 
-    // نضيف tenantId مرتين: مرة في params العادي، ومرة لداخل السوب كويري
-    $params[] = $tenantId;
+        // نضيف tenantId مرتين: مرة في params العادي، ومرة لداخل السوب كويري
+        $params[] = $tenantId;
 
-    $stmt->execute($params);
-    $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute($params);
+        $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    return $this->successResponse($response, $customers
-    , 200);
-}
+        return $this->successResponse($response, $customers, 200);
+    }
 
     /**
      * تحليل الأداء المالي
@@ -131,31 +133,32 @@ public function analyzeCustomers(Request $request, Response $response) {
      * ملاحظة: تعتمد مؤشرات الأداء المالية على جداول المبيعات والمدفوعات والمعاملات الخارجية (payment_transactions).
      * يجب التأكد من أن أي دفعة خارجية ناجحة يتم ربطها بالحركات النقدية الداخلية ليظهر أثرها في التحليل المالي.
      */
-public function analyzeFinancials(Request $request, Response $response) {
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 400);
-    }
+    public function analyzeFinancials(Request $request, Response $response)
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 400);
+        }
 
-    $filters = $request->getQueryParams();
+        $filters = $request->getQueryParams();
 
-    $where = ["s.tenant_id = ?"];
-    $params = [$tenantId];
+        $where = ["s.tenant_id = ?"];
+        $params = [$tenantId];
 
-    if (!empty($filters['start_date'])) {
-        $where[] = "s.date >= ?";
-        $params[] = $filters['start_date'];
-    }
+        if (!empty($filters['start_date'])) {
+            $where[] = "s.date >= ?";
+            $params[] = $filters['start_date'];
+        }
 
-    if (!empty($filters['end_date'])) {
-        $where[] = "s.date <= ?";
-        $params[] = $filters['end_date'];
-    }
+        if (!empty($filters['end_date'])) {
+            $where[] = "s.date <= ?";
+            $params[] = $filters['end_date'];
+        }
 
-    $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
 
-    // تحليل المبيعات والتكاليف والأرباح الشهرية
-    $stmt = $this->db->prepare("
+        // تحليل المبيعات والتكاليف والأرباح الشهرية
+        $stmt = $this->db->prepare("
         SELECT 
             DATE_FORMAT(s.date, '%Y-%m') as month,
             SUM(si.quantity * si.sale_price) as total_sales,
@@ -172,11 +175,11 @@ public function analyzeFinancials(Request $request, Response $response) {
         ORDER BY month DESC
     ");
 
-    $stmt->execute($params);
-    $financials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute($params);
+        $financials = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // مؤشرات الأداء الرئيسية (KPIs)
-    $stmt = $this->db->prepare("
+        // مؤشرات الأداء الرئيسية (KPIs)
+        $stmt = $this->db->prepare("
         SELECT 
             SUM(si.quantity * si.sale_price) as total_revenue,
             SUM(si.quantity * p.cost_price) as total_costs,
@@ -198,15 +201,15 @@ public function analyzeFinancials(Request $request, Response $response) {
         WHERE date >= COALESCE(?, date) AND date <= COALESCE(?, date)
     ");
 
-    $stmt->execute(array_merge([$tenantId], [$filters['start_date'] ?? null, $filters['end_date'] ?? null]));
-    $kpis = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->execute(array_merge([$tenantId], [$filters['start_date'] ?? null, $filters['end_date'] ?? null]));
+        $kpis = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    return $this->successResponse($response, [
-        'status' => 'success',
-        'monthly_financials' => $financials,
-        'kpis' => $kpis
-    ]);
-}
+        return $this->successResponse($response, [
+            'status' => 'success',
+            'monthly_financials' => $financials,
+            'kpis' => $kpis
+        ]);
+    }
 
     /**
      * تحليل الاتجاهات

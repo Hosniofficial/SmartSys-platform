@@ -10,12 +10,12 @@ use Throwable;
 
 /**
  * ✅ Single Source of Truth for Account Management
- * 
+ *
  * Unified account creation, deletion, and management for:
  * - Party accounts (customers, suppliers, employees)
  * - Branch accounts (inventory per branch)
  * - Contact accounts (generic ledger accounts)
- * 
+ *
  * Features:
  * - Centralized account code generation
  * - Automatic parent account resolution
@@ -36,13 +36,13 @@ class AccountManagementService
 
     /**
      * Create a unified party account (customer, supplier, employee, etc.)
-     * 
+     *
      * @param string $partyType Must be one of: 'customer', 'supplier', 'employee'
      * @param string $partyName Display name for the party
      * @param int $tenantId
      * @param ?string $customCode Optional custom account code (if null, auto-generated)
      * @param ?int $parentAccountId Optional parent account ID (if null, resolved from type)
-     * 
+     *
      * @return ?int Created account ID, or null on failure
      */
     public function createPartyAccount(
@@ -81,7 +81,9 @@ class AccountManagementService
                         'parent_code' => $mapping['code'],
                         'tenant_id' => $tenantId
                     ]);
-                    if (!$inTransaction) $this->db->rollBack();
+                    if (!$inTransaction) {
+                        $this->db->rollBack();
+                    }
                     return null;
                 }
             }
@@ -159,14 +161,14 @@ class AccountManagementService
 
     /**
      * Create a branch inventory account
-     * 
+     *
      * Creates hierarchical sub-account under account code 1301 (inventory)
      * Auto-generates code like 1301-01, 1301-02, etc.
-     * 
+     *
      * @param string $branchName
      * @param int $tenantId
      * @param ?string $location Optional branch location description
-     * 
+     *
      * @return ?int Created account ID, or null on failure
      */
     public function createBranchAccount(
@@ -188,7 +190,9 @@ class AccountManagementService
                     'tenant_id' => $tenantId,
                     'branch_name' => $branchName
                 ]);
-                if (!$inTransaction) $this->db->rollBack();
+                if (!$inTransaction) {
+                    $this->db->rollBack();
+                }
                 return null;
             }
 
@@ -256,16 +260,16 @@ class AccountManagementService
 
     /**
      * Create a generic contact ledger account
-     * 
+     *
      * Used for creating accounts for any contact type dynamically
      * without predefined account hierarchy
-     * 
+     *
      * @param int $contactId
      * @param string $contactName
      * @param int $parentAccountId Parent account under which to create
      * @param int $tenantId
      * @param ?string $accountType Optional account type (asset/liability/equity/etc)
-     * 
+     *
      * @return ?int Created account ID, or null on failure
      */
     public function createContactAccount(
@@ -422,7 +426,10 @@ class AccountManagementService
             return $accountId;
 
         } catch (\Throwable $e) {
-            try { $this->db->rollBack(); } catch (\Throwable $re) {}
+            try {
+                $this->db->rollBack();
+            } catch (\Throwable $re) {
+            }
             $this->logger->error('provisionLiquidityAccount: failed', [
                 'code'  => $code,
                 'error' => $e->getMessage(),
@@ -433,16 +440,16 @@ class AccountManagementService
 
     /**
      * Safe account deletion with validation
-     * 
+     *
      * Checks for:
      * - Connected journal entries
      * - Non-zero balances
      * - Child accounts
-     * 
+     *
      * @param int $accountId
      * @param int $tenantId
      * @param bool $forceDelete If true, deletes even with balance/entries (dangerous)
-     * 
+     *
      * @return bool true if successful, false otherwise
      */
     public function deleteAccount(int $accountId, int $tenantId, bool $forceDelete = false): bool
@@ -520,10 +527,10 @@ class AccountManagementService
 
     /**
      * Helper: Get account ID by code for a tenant
-     * 
+     *
      * @param string $code Account code (e.g., '1101', '2101', '1301')
      * @param int $tenantId
-     * 
+     *
      * @return ?int Account ID or null if not found
      */
     public function getAccountIdByCode(string $code, int $tenantId): ?int
@@ -541,13 +548,13 @@ class AccountManagementService
 
     /**
      * Helper: Generate next account code under a parent
-     * 
+     *
      * Handles both simple (1101-0001) and compound (1301-01) numbering
-     * 
+     *
      * @param int $tenantId
      * @param int $parentAccountId
      * @param ?string $prefixHint Optional prefix override (e.g., '1301-' or null for auto)
-     * 
+     *
      * @return string Generated account code
      */
     private function generateAccountCodeForParent(
@@ -611,10 +618,10 @@ class AccountManagementService
 
     /**
      * Helper: Check if account exists and is accessible by tenant
-     * 
+     *
      * @param int $accountId
      * @param int $tenantId
-     * 
+     *
      * @return bool true if exists and accessible
      */
     public function accountExists(int $accountId, int $tenantId): bool

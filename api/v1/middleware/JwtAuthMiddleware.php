@@ -93,7 +93,7 @@ class JwtAuthMiddleware implements MiddlewareInterface
             try {
                 $decoded = JWT::decode($token, new Key($secret, 'HS256'));
                 $decodedArray = (array)$decoded;
-                
+
                 // Additional token expiration check
                 if (isset($decodedArray['exp']) && $decodedArray['exp'] < time()) {
                     throw new ExpiredException('Token has expired');
@@ -114,54 +114,54 @@ class JwtAuthMiddleware implements MiddlewareInterface
                 throw new \Exception('Tenant ID missing in token');
             }
 
-        // Ensure we have all required user data with consistent format
-        $userData = [
-            'id'         => $decodedArray['user_id'] ?? $decodedArray['id'] ?? null,
-            'username'   => $decodedArray['username']  ?? null,
-            'email'      => $decodedArray['email']     ?? null,
-            'role'       => $decodedArray['role']      ?? null,
-            'role_id'    => $decodedArray['role_id']   ?? null,
-            'tenant_id'  => $decodedArray['tenant_id'] ?? null,
-            'full_name'  => $decodedArray['full_name'] ?? $decodedArray['name'] ?? null,
-            'is_owner'   => (int) ($decodedArray['is_owner'] ?? 0),
-        ];
+            // Ensure we have all required user data with consistent format
+            $userData = [
+                'id'         => $decodedArray['user_id'] ?? $decodedArray['id'] ?? null,
+                'username'   => $decodedArray['username']  ?? null,
+                'email'      => $decodedArray['email']     ?? null,
+                'role'       => $decodedArray['role']      ?? null,
+                'role_id'    => $decodedArray['role_id']   ?? null,
+                'tenant_id'  => $decodedArray['tenant_id'] ?? null,
+                'full_name'  => $decodedArray['full_name'] ?? $decodedArray['name'] ?? null,
+                'is_owner'   => (int) ($decodedArray['is_owner'] ?? 0),
+            ];
 
-        // Attach user data and tenant_id to the request
-        // Also attach user_id for backward compatibility with existing handlers
-        $request = $request
-            ->withAttribute('user', $userData)
-            ->withAttribute('tenant_id', $userData['tenant_id'])
-            ->withAttribute('user_id', $userData['id']);
+            // Attach user data and tenant_id to the request
+            // Also attach user_id for backward compatibility with existing handlers
+            $request = $request
+                ->withAttribute('user', $userData)
+                ->withAttribute('tenant_id', $userData['tenant_id'])
+                ->withAttribute('user_id', $userData['id']);
 
-        return $handler->handle($request);
-    } catch (\Exception $e) {
-        $statusCode = 401;
-        $errorMessage = 'Unauthorized';
-        
-        // More specific error messages for different exception types
-        if ($e instanceof ExpiredException) {
-            $errorMessage = 'Session expired. Please log in again.';
-        } elseif ($e instanceof SignatureInvalidException) {
-            $errorMessage = 'Invalid token signature';
-        } elseif ($e->getMessage() === 'Token has been blacklisted') {
-            $errorMessage = 'Session has been terminated. Please log in again.';
-            $statusCode = 403; // Forbidden
+            return $handler->handle($request);
+        } catch (\Exception $e) {
+            $statusCode = 401;
+            $errorMessage = 'Unauthorized';
+
+            // More specific error messages for different exception types
+            if ($e instanceof ExpiredException) {
+                $errorMessage = 'Session expired. Please log in again.';
+            } elseif ($e instanceof SignatureInvalidException) {
+                $errorMessage = 'Invalid token signature';
+            } elseif ($e->getMessage() === 'Token has been blacklisted') {
+                $errorMessage = 'Session has been terminated. Please log in again.';
+                $statusCode = 403; // Forbidden
+            }
+
+            $this->logger->warning('JWT Authentication Error', ['error' => $e->getMessage()]);
+
+            $response = $response->withStatus($statusCode);
+            $response->getBody()->write(json_encode([
+                'status' => 'error',
+                'message' => $errorMessage
+            ], JSON_UNESCAPED_UNICODE));
+
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withHeader('Cache-Control', 'no-store')
+                ->withHeader('Pragma', 'no-cache');
         }
-        
-        $this->logger->warning('JWT Authentication Error', ['error' => $e->getMessage()]);
-        
-        $response = $response->withStatus($statusCode);
-        $response->getBody()->write(json_encode([
-            'status' => 'error',
-            'message' => $errorMessage
-        ], JSON_UNESCAPED_UNICODE));
-        
-        return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withHeader('Cache-Control', 'no-store')
-            ->withHeader('Pragma', 'no-cache');
     }
-}
 
     /**
      * Get token from request header
@@ -171,7 +171,7 @@ class JwtAuthMiddleware implements MiddlewareInterface
     private function getTokenFromHeader(ServerRequestInterface $request): ?string
     {
         $header = $request->getHeaderLine('Authorization');
-        
+
         if (empty($header)) {
             return null;
         }
@@ -182,6 +182,6 @@ class JwtAuthMiddleware implements MiddlewareInterface
 
         return null;
     }
-    
+
 
 }

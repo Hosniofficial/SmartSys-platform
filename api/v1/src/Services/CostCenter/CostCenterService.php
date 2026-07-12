@@ -5,11 +5,13 @@ namespace App\Services\CostCenter;
 use PDO;
 use App\Services\MonologHandler;
 
-class CostCenterService {
+class CostCenterService
+{
     private PDO $pdo;
     private MonologHandler $logger;
 
-    public function __construct(PDO $pdo) {
+    public function __construct(PDO $pdo)
+    {
         $this->pdo = $pdo;
         $this->logger = MonologHandler::getInstance('cost-center');
     }
@@ -18,7 +20,8 @@ class CostCenterService {
      * 🎯 توحيد resolution logic هنا
      * @throws \Exception إذا فشل الحل
      */
-    public function resolve(int $tenantId, ?int $userId = null, ?int $provided = null): int {
+    public function resolve(int $tenantId, ?int $userId = null, ?int $provided = null): int
+    {
         // 1️⃣ الأولوية 1: القيمة المُعطاة مباشرة (إذا كانت صحيحة)
         if ($provided && $provided > 0) {
             if ($this->validateExists($tenantId, $provided)) {
@@ -69,14 +72,15 @@ class CostCenterService {
             'tenant_id' => $tenantId,
             'user_id' => $userId
         ]);
-        
+
         throw new \Exception(
             "لا توجد مراكز تكلفة للمستأجر {$tenantId}. " .
             "يرجى إنشاء على الأقل مركز تكلفة واحد قبل المتابعة."
         );
     }
 
-    private function validateExists(int $tenantId, int $ccId): bool {
+    private function validateExists(int $tenantId, int $ccId): bool
+    {
         $stmt = $this->pdo->prepare("
             SELECT id FROM cost_centers 
             WHERE id = ? AND tenant_id = ? LIMIT 1
@@ -85,7 +89,8 @@ class CostCenterService {
         return (bool)$stmt->fetchColumn();
     }
 
-    private function getFromUserBranch(int $tenantId, int $userId): ?int {
+    private function getFromUserBranch(int $tenantId, int $userId): ?int
+    {
         try {
             $stmt = $this->pdo->prepare("
                 SELECT b.cost_center_id FROM users u
@@ -103,7 +108,8 @@ class CostCenterService {
         }
     }
 
-    private function getFromSettings(int $tenantId): ?int {
+    private function getFromSettings(int $tenantId): ?int
+    {
         $stmt = $this->pdo->prepare("
             SELECT value FROM settings 
             WHERE tenant_id = ? AND key_name = 'accounting.default_cost_center_id'
@@ -114,7 +120,8 @@ class CostCenterService {
         return $val ? (int)$val : null;
     }
 
-    private function getFirstAvailable(int $tenantId): ?int {
+    private function getFirstAvailable(int $tenantId): ?int
+    {
         $stmt = $this->pdo->prepare("
             SELECT id FROM cost_centers 
             WHERE tenant_id = ? ORDER BY id ASC LIMIT 1
@@ -127,7 +134,8 @@ class CostCenterService {
     /**
      * الحصول على قائمة الحسابات المطلوبة للمستأجر
      */
-    public function validateRequiredAccounts(int $tenantId, array $requiredKeys): array {
+    public function validateRequiredAccounts(int $tenantId, array $requiredKeys): array
+    {
         $missing = [];
 
         foreach ($requiredKeys as $key => $fallbackCode) {

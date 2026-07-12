@@ -9,7 +9,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use PDO;
 use App\Services\MonologHandler;
 use App\Services\LabelService;
-class AccountStatementHandler extends BaseHandler {
+
+class AccountStatementHandler extends BaseHandler
+{
     // كاش لربط (tenant_id, code) -> account_id لتقليل الاستعلامات المتكررة
     private array $accountCache = [];
 
@@ -123,11 +125,11 @@ class AccountStatementHandler extends BaseHandler {
             // This ensures charts, analytics, and dashboards display uniformly (like SAP, Odoo, NetSuite)
             // All daily_balances arrays include every day in the date range, even with zero transactions
             $dailyBalances = $this->fillDailyGaps($transactionsData['daily_balances'], $startDate, $endDate);
-            
+
             // Optional: Filter to show only days with activity (for specialized reports)
             $onlyNonZero = isset($params['only_nonzero']) && (string)$params['only_nonzero'] === '1';
             if ($onlyNonZero && !empty($dailyBalances)) {
-                $dailyBalances = array_values(array_filter($dailyBalances, function($d) {
+                $dailyBalances = array_values(array_filter($dailyBalances, function ($d) {
                     return isset($d['transaction_count']) && (int)$d['transaction_count'] > 0;
                 }));
             }
@@ -208,7 +210,8 @@ class AccountStatementHandler extends BaseHandler {
     }
 
     // التحقق من صحة نطاق التاريخ (YYYY-MM-DD) وأن البداية لا تتجاوز النهاية
-    private function validateDateRange($startDate, $endDate): bool {
+    private function validateDateRange($startDate, $endDate): bool
+    {
         $start = \DateTime::createFromFormat('Y-m-d', $startDate);
         $end   = \DateTime::createFromFormat('Y-m-d', $endDate);
 
@@ -221,10 +224,10 @@ class AccountStatementHandler extends BaseHandler {
 
     /**
      * تطبيع حالة الفاتورة بناءً على البيانات المالية
-     * 
-     * يطبق منطق التطبيع الموحد على جميع الفواتير لضمان توحيد الـ status بين 
+     *
+     * يطبق منطق التطبيع الموحد على جميع الفواتير لضمان توحيد الـ status بين
      * sales_only و references sections
-     * 
+     *
      * @param string $status: الحالة الأصلية من قاعدة البيانات
      * @param float $paid: المبلغ المدفوع نقداً
      * @param float $returnCredits: مبلغ return credits المطبق
@@ -232,49 +235,50 @@ class AccountStatementHandler extends BaseHandler {
      * @param bool $hasReturns: هل الفاتورة لها مرتجعات
      * @return string: الحالة المطبعة (normalized status)
      */
-private function normalizeInvoiceStatus(
-    string $status,
-    float $paid,
-    float $returnCredits,
-    float $grandTotal,
-    bool $hasReturns
-): string {
+    private function normalizeInvoiceStatus(
+        string $status,
+        float $paid,
+        float $returnCredits,
+        float $grandTotal,
+        bool $hasReturns
+    ): string {
 
-    $outstanding = max(0.0, round($grandTotal - $paid - $returnCredits, 2));
+        $outstanding = max(0.0, round($grandTotal - $paid - $returnCredits, 2));
 
-    // 1. Fully settled by credit note only (no cash paid)
-    if ($returnCredits > 0.01 && $outstanding < 0.01 && !$hasReturns) {
-        return 'settled_by_credit';
-    }
-
-    // 2. Fully paid cash invoice, including invoices that later got returns
-    if ($outstanding < 0.01 && $paid >= $grandTotal - 0.01) {
-        return $hasReturns || $returnCredits > 0.01 ? 'returned' : 'paid';
-    }
-
-    // 3. Fully settled by mixed cash + return credits
-    if ($outstanding < 0.01 && $paid > 0.01 && $returnCredits > 0.01) {
-        return 'settled_mixed';
-    }
-
-    // 4. Fully settled by return credit allocation without any cash payment
-    if ($outstanding < 0.01 && $paid < 0.01) {
-        if ($returnCredits > 0.01 && !$hasReturns) {
+        // 1. Fully settled by credit note only (no cash paid)
+        if ($returnCredits > 0.01 && $outstanding < 0.01 && !$hasReturns) {
             return 'settled_by_credit';
         }
-        return 'closed_by_return';
-    }
 
-    // 5. Partial or unpaid invoice
-    if ($paid <= 0.01) {
+        // 2. Fully paid cash invoice, including invoices that later got returns
+        if ($outstanding < 0.01 && $paid >= $grandTotal - 0.01) {
+            return $hasReturns || $returnCredits > 0.01 ? 'returned' : 'paid';
+        }
+
+        // 3. Fully settled by mixed cash + return credits
+        if ($outstanding < 0.01 && $paid > 0.01 && $returnCredits > 0.01) {
+            return 'settled_mixed';
+        }
+
+        // 4. Fully settled by return credit allocation without any cash payment
+        if ($outstanding < 0.01 && $paid < 0.01) {
+            if ($returnCredits > 0.01 && !$hasReturns) {
+                return 'settled_by_credit';
+            }
+            return 'closed_by_return';
+        }
+
+        // 5. Partial or unpaid invoice
+        if ($paid <= 0.01) {
+            return $status;
+        }
+
         return $status;
     }
 
-    return $status;
-}
-
     // حساب الرصيد الافتتاحي
-    private function calculateOpeningBalance($accountId, $startDate, $tenantId, $statusAny = false, array $includeTypes = [], array $excludeTypes = [], $costCenterId = null) {
+    private function calculateOpeningBalance($accountId, $startDate, $tenantId, $statusAny = false, array $includeTypes = [], array $excludeTypes = [], $costCenterId = null)
+    {
         $sql = "
             SELECT 
                 COALESCE(SUM(jel.debit_amount), 0) - COALESCE(SUM(jel.credit_amount), 0) as balance
@@ -301,11 +305,17 @@ private function normalizeInvoiceStatus(
         // include/exclude reference_type
         if (!empty($includeTypes)) {
             $inPlaceholders = [];
-            foreach ($includeTypes as $i => $t) { $inPlaceholders[] = ":inc_$i"; $params[":inc_$i"] = $t; }
+            foreach ($includeTypes as $i => $t) {
+                $inPlaceholders[] = ":inc_$i";
+                $params[":inc_$i"] = $t;
+            }
             $sql .= " AND (je.reference_type IN (" . implode(',', $inPlaceholders) . "))";
         } elseif (!empty($excludeTypes)) {
             $exPlaceholders = [];
-            foreach ($excludeTypes as $i => $t) { $exPlaceholders[] = ":exc_$i"; $params[":exc_$i"] = $t; }
+            foreach ($excludeTypes as $i => $t) {
+                $exPlaceholders[] = ":exc_$i";
+                $params[":exc_$i"] = $t;
+            }
             $sql .= " AND (je.reference_type NOT IN (" . implode(',', $exPlaceholders) . "))";
         }
 
@@ -316,7 +326,8 @@ private function normalizeInvoiceStatus(
     }
 
     // جلب الحركات خلال الفترة مع حساب الأرصدة
-    private function getTransactions($accountId, $startDate, $endDate, $tenantId, $statusAny = false, array $includeTypes = [], array $excludeTypes = [], $limit = null, $offset = null, $costCenterId = null) {
+    private function getTransactions($accountId, $startDate, $endDate, $tenantId, $statusAny = false, array $includeTypes = [], array $excludeTypes = [], $limit = null, $offset = null, $costCenterId = null)
+    {
         $sql = "
             SELECT
                 je.entry_date as date,
@@ -370,11 +381,17 @@ private function normalizeInvoiceStatus(
         }
         if (!empty($includeTypes)) {
             $inPlaceholders = [];
-            foreach ($includeTypes as $i => $t) { $inPlaceholders[] = ":inc_$i"; $params[":inc_$i"] = $t; }
+            foreach ($includeTypes as $i => $t) {
+                $inPlaceholders[] = ":inc_$i";
+                $params[":inc_$i"] = $t;
+            }
             $sql .= " AND (je.reference_type IN (" . implode(',', $inPlaceholders) . "))";
         } elseif (!empty($excludeTypes)) {
             $exPlaceholders = [];
-            foreach ($excludeTypes as $i => $t) { $exPlaceholders[] = ":exc_$i"; $params[":exc_$i"] = $t; }
+            foreach ($excludeTypes as $i => $t) {
+                $exPlaceholders[] = ":exc_$i";
+                $params[":exc_$i"] = $t;
+            }
             $sql .= " AND (je.reference_type NOT IN (" . implode(',', $exPlaceholders) . "))";
         }
         $sql .= " ORDER BY je.entry_date ASC, jel.id ASC";
@@ -411,25 +428,25 @@ private function normalizeInvoiceStatus(
                 'transaction_count' => 0,
             ];
         }
-        
+
         // حساب الرصيد الجاري والملخص اليومي + اضافة transaction_type
         $runningBalance = $this->calculateOpeningBalance($accountId, $startDate, $tenantId, $statusAny, $includeTypes, $excludeTypes, $costCenterId);
         $dailyBalances = [];
         $currentDay = null;
         $dayTransactions = [];
         $dayStartBalance = $runningBalance;
-        
+
         foreach ($transactions as &$transaction) {
             // Determine transaction type: prefer actual_payment_type if available
             // This fixes the issue where receipts/refunds show as 'sale' type
             $actualPaymentType = $transaction['actual_payment_type'] ?? null;
-            
+
             // If SQL didn't return actual_payment_type, calculate it here
             if (!$actualPaymentType) {
                 $refType = strtolower((string)($transaction['reference_type'] ?? ''));
                 $credit = (float)($transaction['credit'] ?? 0);
                 $debit = (float)($transaction['debit'] ?? 0);
-                
+
                 // Apply the same logic as SQL CASE
                 if ($refType === 'sale' && $credit > 0) {
                     $actualPaymentType = 'receipt';
@@ -439,12 +456,12 @@ private function normalizeInvoiceStatus(
                     $actualPaymentType = $refType;
                 }
             }
-            
+
             $refType = $actualPaymentType ? strtolower((string)$actualPaymentType) : strtolower((string)($transaction['reference_type'] ?? ''));
             $transaction['transaction_type'] = $refType ?: 'unknown';
 
             $transactionDate = $transaction['date'];
-            
+
             // بداية يوم جديد
             if ($currentDay !== $transactionDate) {
                 if ($currentDay !== null) {
@@ -462,10 +479,10 @@ private function normalizeInvoiceStatus(
                 $dayStartBalance = $runningBalance;
                 $dayTransactions = [];
             }
-            
+
             // حساب الرصيد الجاري
             $transaction['balance'] = $runningBalance + $transaction['debit'] - $transaction['credit'];
-            
+
             // Determine balance nature (debit/credit)
             $balance = $transaction['balance'];
             if (abs($balance) < 0.01) {
@@ -475,11 +492,11 @@ private function normalizeInvoiceStatus(
             } else {
                 $transaction['balance_nature'] = 'credit';
             }
-            
+
             $runningBalance = $transaction['balance'];
             $dayTransactions[] = $transaction;
         }
-        
+
         // إضافة ملخص آخر يوم
         if ($currentDay !== null) {
             $dailyBalances[] = [
@@ -491,7 +508,7 @@ private function normalizeInvoiceStatus(
                 'day_credit' => array_sum(array_column($dayTransactions, 'credit'))
             ];
         }
-        
+
         return [
             'transactions' => $transactions,
             'daily_balances' => $dailyBalances,
@@ -499,10 +516,11 @@ private function normalizeInvoiceStatus(
             'total_credit' => (float)array_sum(array_column($transactions, 'credit')),
             'transaction_count' => count($transactions)
         ];
-}
+    }
 
     // قسم مرجعي: فواتير العميل خلال الفترة دون تأثير على الأرصدة
-    private function getCustomerSalesOnly($customerId, $startDate, $endDate, $tenantId) {
+    private function getCustomerSalesOnly($customerId, $startDate, $endDate, $tenantId)
+    {
         $sql = "
             SELECT 
                 s.id,
@@ -565,37 +583,37 @@ private function normalizeInvoiceStatus(
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         // طباعة مرجعية واضحة ولاحقة الربط مع القيود إن وجدت
-        $items = array_map(function($r) {
+        $items = array_map(function ($r) {
             $net = isset($r['net_total_amount']) ? (float)$r['net_total_amount'] : 0.0;
             // Use calculated_paid_amount from query (sum of payments)
             // instead of s.paid_amount which might not be updated
             $paid = isset($r['calculated_paid_amount']) ? (float)$r['calculated_paid_amount'] : (isset($r['paid_amount']) ? (float)$r['paid_amount'] : 0.0);
             $returnCredits = isset($r['return_credits_applied']) ? (float)$r['return_credits_applied'] : 0.0;
-            
+
             // الصيغة الصحيحة: outstanding = grand_total - paid_amount - return_credits_applied
             $grand_total = $net + ((float)($r['tax_amount'] ?? 0));
             $outstanding = max(0.0, $grand_total - $paid - $returnCredits);
-            
+
             /**
              * STATUS NORMALIZATION LOGIC:
-             * 
+             *
              * Case 1: Has returns + all credits applied + no actual payment
              *   → closed_by_return (settled by return credit allocations)
              *   → paid_amount stays 0 (no money exchanged)
              *   → outstanding = 0 (debt fully offset by returns)
-             * 
+             *
              * Case 2: Outstanding cleared + actual payment received
              *   → paid (customer paid money)
-             * 
+             *
              * Case 3: Outstanding exceeds 0 + some return credits
              *   → partial (partial settlement)
-             * 
+             *
              * Case 4: Normal state
              *   → Use database status as-is
              */
             $status = $r['status'];
             $hasReturns = !empty($r['return_ids']);
-            
+
             // Use the unified normalization function
             $status = $this->normalizeInvoiceStatus(
                 $status,
@@ -604,7 +622,7 @@ private function normalizeInvoiceStatus(
                 $grand_total,
                 $hasReturns
             );
-            
+
             // Parse return_ids for return_group_id (use first return if multiple)
             $returnGroupId = null;
             if ($hasReturns) {
@@ -613,7 +631,7 @@ private function normalizeInvoiceStatus(
                     $returnGroupId = (int)$returnIds[0];
                 }
             }
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -647,7 +665,8 @@ private function normalizeInvoiceStatus(
     }
 
     // مرجع موحد: فواتير مبيعات + مرتجعات مبيعات + إيصالات القبض للعميل خلال الفترة
-    private function getCustomerReferences($customerId, $startDate, $endDate, $tenantId, $costCenterId = null) {
+    private function getCustomerReferences($customerId, $startDate, $endDate, $tenantId, $costCenterId = null)
+    {
         // 1) فواتير المبيعات — مع جلب البيانات المطلوبة لتطبيع الـ status
         $sqlSales = "
             SELECT 
@@ -692,7 +711,7 @@ private function normalizeInvoiceStatus(
             $salesParams[':cost_center_id'] = $costCenterId;
         }
         $stmtSales->execute($salesParams);
-        $sales = array_map(function($r) {
+        $sales = array_map(function ($r) {
             // Normalize status using unified logic
             $net = isset($r['net_total_amount']) ? (float)$r['net_total_amount'] : 0.0;
             $paid = isset($r['paid_amount']) ? (float)$r['paid_amount'] : 0.0;
@@ -700,7 +719,7 @@ private function normalizeInvoiceStatus(
             $tax = isset($r['tax_amount']) ? (float)$r['tax_amount'] : 0.0;
             $grandTotal = $net + $tax;
             $hasReturns = (bool)$r['has_returns'];
-            
+
             $normalizedStatus = $this->normalizeInvoiceStatus(
                 $r['status'],
                 $paid,
@@ -708,7 +727,7 @@ private function normalizeInvoiceStatus(
                 $grandTotal,
                 $hasReturns
             );
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -755,27 +774,27 @@ private function normalizeInvoiceStatus(
             ':start_date' => $startDate,
             ':end_date_full' => $endDate . ' 23:59:59',
         ]);
-        $returns = array_map(function($r) {
+        $returns = array_map(function ($r) {
             /**
              * TRANSACTION SUBTYPE LOGIC (Dynamic v3 - Optimized)
-             * 
+             *
              * Check if there's an actual refund payment issued for this return:
              * - sales_return_only: Return issued, no refund payment yet (has_refund = 0)
              * - sales_return_refund: Return + refund payment issued (has_refund = 1)
              */
             $subtype = 'sales_return_only';
             $hasRefund = isset($r['has_refund']) ? (int)$r['has_refund'] : 0;
-            
+
             if ($hasRefund > 0) {
                 $subtype = 'sales_return_refund';
             }
-            
+
             // Map subtype to human-readable label
             $typeLabel = 'مرتجع بيع';
             if ($subtype === 'sales_return_refund') {
                 $typeLabel = 'استرداد مرتجع';
             }
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -828,19 +847,19 @@ private function normalizeInvoiceStatus(
             ':start_date' => $startDate,
             ':end_date_full' => $endDate . ' 23:59:59',
         ]);
-        $receipts = array_map(function($r) {
+        $receipts = array_map(function ($r) {
             $amount = isset($r['amount']) ? (float)$r['amount'] : 0.0;
             $paymentType = $r['payment_type'] ?? 'receipt';
             $referencePrefix = $paymentType === 'refund' ? 'refund' : 'receipt';
-            
+
             // Only create refund record if amount > 0
             if ($paymentType === 'refund' && $amount < 0.01) {
                 return null; // Skip empty refunds
             }
-            
+
             /**
              * CRITICAL FIX: Determine transaction_subtype based on return's refund_amount and refund_method
-             * 
+             *
              * NOT all refunds are sales_return_refund!
              * - If return.refund_amount < 0.01 → sales_return_only (no actual refund issued)
              * - If return.refund_amount >= 0.01 + refund_method = 'cash' → sales_return_refund
@@ -850,7 +869,7 @@ private function normalizeInvoiceStatus(
             if ($paymentType === 'refund') {
                 $refundAmount = isset($r['refund_amount']) ? (float)$r['refund_amount'] : 0;
                 $refundMethod = isset($r['refund_method']) ? $r['refund_method'] : null;
-                
+
                 if ($refundAmount >= 0.01) {
                     if ($refundMethod === 'cash') {
                         $transactionSubtype = 'sales_return_refund';
@@ -860,19 +879,19 @@ private function normalizeInvoiceStatus(
                 }
                 // If refundAmount < 0.01, $transactionSubtype stays null (sales_return_only)
             }
-            
+
             // Map payment type and subtype to human-readable labels
             $paymentTypeLabel = $paymentType === 'refund' ? 'سند صرف' : 'سند قبض';
             if ($paymentType === 'refund' && $transactionSubtype === 'sales_return_refund') {
                 $paymentTypeLabel = 'استرجاع نقدي للعميل';
             }
-            
+
             // Use related_sale_invoice_number if available (for receipts linked to sales)
             // Otherwise use reference_number (payment reference), or null if neither available
-            $invoiceNumber = !empty($r['related_sale_invoice_number']) 
-                ? $r['related_sale_invoice_number'] 
+            $invoiceNumber = !empty($r['related_sale_invoice_number'])
+                ? $r['related_sale_invoice_number']
                 : ($r['reference_number'] ?? null);
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -890,14 +909,16 @@ private function normalizeInvoiceStatus(
                 'return_group_id' => $paymentType === 'refund' && $r['return_id'] ? (int)$r['return_id'] : null,
             ];
         }, ($stmtReceipts->fetchAll(PDO::FETCH_ASSOC) ?: []));
-        
+
         // Filter out null entries (empty refunds)
-        $receipts = array_filter($receipts, fn($item) => $item !== null);
+        $receipts = array_filter($receipts, fn ($item) => $item !== null);
 
         // دمج وفرز حسب التاريخ
         $all = array_merge($sales, $returns, $receipts);
-        usort($all, function($a, $b) {
-            if ($a['date'] === $b['date']) { return 0; }
+        usort($all, function ($a, $b) {
+            if ($a['date'] === $b['date']) {
+                return 0;
+            }
             return ($a['date'] < $b['date']) ? -1 : 1;
         });
 
@@ -908,7 +929,8 @@ private function normalizeInvoiceStatus(
     }
 
     // مرجع موحد للمورد: فواتير مشتريات + مرتجعات مشتريات + مدفوعات المورد خلال الفترة
-    private function getSupplierReferences($supplierId, $startDate, $endDate, $tenantId) {
+    private function getSupplierReferences($supplierId, $startDate, $endDate, $tenantId)
+    {
         // 1) فواتير المشتريات — مع جلب البيانات المطلوبة لتطبيع الـ status
         $sqlPurchases = "
             SELECT 
@@ -945,7 +967,7 @@ private function normalizeInvoiceStatus(
             ':start_date' => $startDate,
             ':end_date_full' => $endDate . ' 23:59:59',
         ]);
-        $purchases = array_map(function($r) {
+        $purchases = array_map(function ($r) {
             // Normalize status using unified logic
             $net = isset($r['net_total_amount']) ? (float)$r['net_total_amount'] : 0.0;
             $paid = isset($r['paid_amount']) ? (float)$r['paid_amount'] : 0.0;
@@ -953,7 +975,7 @@ private function normalizeInvoiceStatus(
             $tax = isset($r['tax_amount']) ? (float)$r['tax_amount'] : 0.0;
             $grandTotal = $net + $tax;
             $hasReturns = (bool)$r['has_returns'];
-            
+
             $normalizedStatus = $this->normalizeInvoiceStatus(
                 $r['status'],
                 $paid,
@@ -961,7 +983,7 @@ private function normalizeInvoiceStatus(
                 $grandTotal,
                 $hasReturns
             );
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -1002,20 +1024,20 @@ private function normalizeInvoiceStatus(
             ':start_date' => $startDate,
             ':end_date_full' => $endDate . ' 23:59:59',
         ]);
-        $purchaseReturns = array_map(function($r) {
+        $purchaseReturns = array_map(function ($r) {
             /**
              * PURCHASE RETURN SUBTYPE LOGIC (Dynamic v2)
-             * 
+             *
              * Using refund_amount and refund_method columns to determine:
              * - purchase_return_only: Return issued, no payment yet
              * - purchase_return_refund: Return + cash payment (to supplier)
              * - purchase_return_bank_refund: Return + bank transfer payment
              */
             $subtype = 'purchase_return_only';
-            
+
             $refundAmount = isset($r['refund_amount']) ? (float)$r['refund_amount'] : 0;
             $refundMethod = isset($r['refund_method']) ? $r['refund_method'] : null;
-            
+
             if ($refundAmount >= 0.01) {
                 if ($refundMethod === 'cash') {
                     $subtype = 'purchase_return_refund';
@@ -1023,7 +1045,7 @@ private function normalizeInvoiceStatus(
                     $subtype = 'purchase_return_bank_refund';
                 }
             }
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -1070,16 +1092,16 @@ private function normalizeInvoiceStatus(
             ':start_date' => $startDate,
             ':end_date_full' => $endDate . ' 23:59:59',
         ]);
-        $supplierPayments = array_map(function($r) {
+        $supplierPayments = array_map(function ($r) {
             $amount = isset($r['amount']) ? (float)$r['amount'] : 0.0;
             $paymentType = $r['payment_type'] ?? 'payment';
             $referencePrefix = $paymentType === 'refund' ? 'refund' : 'payment';
-            
+
             // Only create refund record if amount > 0
             if ($paymentType === 'refund' && $amount < 0.01) {
                 return null; // Skip empty refunds
             }
-            
+
             return [
                 'id' => (int)$r['id'],
                 'date' => $r['date'],
@@ -1096,14 +1118,16 @@ private function normalizeInvoiceStatus(
                 'return_group_id' => $paymentType === 'refund' && $r['return_id'] ? (int)$r['return_id'] : null,
             ];
         }, ($stmtSPay->fetchAll(PDO::FETCH_ASSOC) ?: []));
-        
+
         // Filter out null entries (empty refunds)
-        $supplierPayments = array_filter($supplierPayments, fn($item) => $item !== null);
+        $supplierPayments = array_filter($supplierPayments, fn ($item) => $item !== null);
 
         // دمج وفرز
         $all = array_merge($purchases, $purchaseReturns, $supplierPayments);
-        usort($all, function($a, $b) {
-            if ($a['date'] === $b['date']) { return 0; }
+        usort($all, function ($a, $b) {
+            if ($a['date'] === $b['date']) {
+                return 0;
+            }
             return ($a['date'] < $b['date']) ? -1 : 1;
         });
 
@@ -1114,16 +1138,16 @@ private function normalizeInvoiceStatus(
     }
 
     // جلب جميع الحسابات النشطة للـ tenant الحالي
-        public function getAccounts(Request $request, Response $response, array $args = []): Response
-        {
-            try {
-                $tenantId = $this->extractTenantId($request);
-                if (!$tenantId) {
-                    return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-                }
+    public function getAccounts(Request $request, Response $response, array $args = []): Response
+    {
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
 
-                // التعديل هنا: استخدام دالة SUBSTRING لجلب أول رقمين من عمود 'code'
-                $stmt = $this->db->prepare("
+            // التعديل هنا: استخدام دالة SUBSTRING لجلب أول رقمين من عمود 'code'
+            $stmt = $this->db->prepare("
                     SELECT 
                         id, 
                         name, 
@@ -1137,25 +1161,27 @@ private function normalizeInvoiceStatus(
                         code ASC
                 ");
 
-                $stmt->execute(['tenant_id' => $tenantId]);
-                $accounts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $stmt->execute(['tenant_id' => $tenantId]);
+            $accounts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-                return $this->successResponse($response, $accounts);
-            } catch (\Throwable $e) {
-                $this->logger->error('Error fetching accounts', ['error' => $e->getMessage(), 'tenant_id' => $tenantId ?? null]);
-                return $this->errorResponse($response, 'فشل في جلب الحسابات', 500);
-            }
+            return $this->successResponse($response, $accounts);
+        } catch (\Throwable $e) {
+            $this->logger->error('Error fetching accounts', ['error' => $e->getMessage(), 'tenant_id' => $tenantId ?? null]);
+            return $this->errorResponse($response, 'فشل في جلب الحسابات', 500);
         }
+    }
 
     // Helpers for enterprise usage
-    private function parseTypes($csv) {
+    private function parseTypes($csv)
+    {
         if (is_array($csv)) {
             return array_values(array_filter(array_map('trim', $csv)));
         }
         return array_values(array_filter(array_map('trim', explode(',', (string)$csv))));
     }
 
-    private function resolveAccountIdByCode($code, $tenantId) {
+    private function resolveAccountIdByCode($code, $tenantId)
+    {
         $cacheKey = $tenantId . '_' . $code;
         if (isset($this->accountCache[$cacheKey])) {
             return $this->accountCache[$cacheKey];
@@ -1168,7 +1194,8 @@ private function normalizeInvoiceStatus(
         return $id;
     }
 
-    private function fillDailyGaps(array $dailyBalances, $startDate, $endDate) {
+    private function fillDailyGaps(array $dailyBalances, $startDate, $endDate)
+    {
         // Map existing by date for O(1) lookup
         $byDate = [];
         foreach ($dailyBalances as $row) {
@@ -1209,16 +1236,19 @@ private function normalizeInvoiceStatus(
     }
 
     // --- Localization helpers -------------------------------------------------
-    private function referenceLabel(?string $type, string $locale = 'ar'): string {
+    private function referenceLabel(?string $type, string $locale = 'ar'): string
+    {
         return LabelService::refLabel($type, $locale);
     }
 
-    private function statusLabel(?string $code, string $locale = 'ar'): string {
+    private function statusLabel(?string $code, string $locale = 'ar'): string
+    {
         return LabelService::statusLabel($code, $locale);
     }
 
     // GET: grouped accounts (tenant vs global)
-    public function getGroupedAccounts(Request $request, Response $response): Response {
+    public function getGroupedAccounts(Request $request, Response $response): Response
+    {
         try {
             $tenantId = $this->extractTenantId($request);
             if (!$tenantId) {

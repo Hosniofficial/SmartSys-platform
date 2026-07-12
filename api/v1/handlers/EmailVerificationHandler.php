@@ -87,7 +87,7 @@ class EmailVerificationHandler extends BaseHandler
             $refreshToken = null;
             $userData = null;
             $baseResponse = null;
-            
+
             if (
                 in_array($result['purpose'] ?? '', ['registration', 'email_change'], true)
                 && !empty($result['user'])
@@ -100,14 +100,14 @@ class EmailVerificationHandler extends BaseHandler
                     } else {
                         $authHandler = new \App\Handlers\AuthHandler($this->db);
                     }
-                    
+
                     $userId = (int) $result['user']['id'];
-                    
+
                     // Generate both access and refresh tokens
                     $accessToken = $authHandler->generateAccessTokenPublic($result['user']);
                     $refreshToken = $authHandler->generateRefreshTokenPublic($userId);
                     $authHandler->storeRefreshTokenPublic($userId, $refreshToken);
-                    
+
                     // Format user data for Frontend (only needed fields)
                     $userData = [
                         'id' => $userId,
@@ -122,7 +122,7 @@ class EmailVerificationHandler extends BaseHandler
                         'status' => $result['user']['status'] ?? 'active',
                         'is_setup_complete' => (int) ($result['is_setup_complete'] ?? 0),
                     ];
-                    
+
                     // Build response with both tokens
                     $baseResponse = $this->jsonResponse($response, [
                         'status'       => 'success',
@@ -133,16 +133,16 @@ class EmailVerificationHandler extends BaseHandler
                             'is_setup_complete' => (bool) ($result['is_setup_complete'] ?? false),
                         ],
                     ], 200, false);
-                    
+
                     // Set refresh token cookie in response
                     $baseResponse = $authHandler->setRefreshTokenCookiePublic($baseResponse, $refreshToken);
-                    
+
                     $this->logger->info('verifyEmail: auto-login tokens generated and stored successfully', [
                         'user_id' => $userId,
                         'access_token_length' => strlen($accessToken),
                         'refresh_token_stored' => true,
                     ]);
-                    
+
                     return $baseResponse;
                 } catch (\Throwable $e) {
                     $this->logger->warning('verifyEmail: failed to generate auto-login tokens', [
@@ -150,7 +150,7 @@ class EmailVerificationHandler extends BaseHandler
                         'error'   => $e->getMessage(),
                         'trace'   => $e->getTraceAsString(),
                     ]);
-                    
+
                     // Fallback: return without refresh token
                     return $this->jsonResponse($response, [
                         'status'       => 'success',

@@ -9,6 +9,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\MonologHandler;
 use App\Utils\SuperAdminHelper;
+
 class RBACHandler extends BaseHandler
 {
     public function __construct(PDO $db)
@@ -24,9 +25,11 @@ class RBACHandler extends BaseHandler
     private function requireAdminAccess(Request $request, Response $response): array
     {
         $userData = $request->getAttribute('user');
-        if (is_object($userData)) $userData = (array) $userData;
+        if (is_object($userData)) {
+            $userData = (array) $userData;
+        }
 
-        $callerId = isset($userData['id'])      ? (int) $userData['id']      : null;
+        $callerId = isset($userData['id']) ? (int) $userData['id'] : null;
         $roleId   = isset($userData['role_id']) ? (int) $userData['role_id'] : null;
 
         $isAdmin    = SuperAdminHelper::isAdminOrAbove($userData)
@@ -48,7 +51,9 @@ class RBACHandler extends BaseHandler
         }
 
         [, , $err] = $this->requireAdminAccess($request, $response);
-        if ($err) return $err;
+        if ($err) {
+            return $err;
+        }
 
         try {
             $stmt = $this->db->prepare("
@@ -95,7 +100,9 @@ class RBACHandler extends BaseHandler
         }
 
         [$callerId, $callerRoleId, $err] = $this->requireAdminAccess($request, $response);
-        if ($err) return $err;
+        if ($err) {
+            return $err;
+        }
 
         try {
             $data = $request->getParsedBody() ?? [];
@@ -206,7 +213,9 @@ class RBACHandler extends BaseHandler
         }
 
         [$callerId, $callerRoleId, $err] = $this->requireAdminAccess($request, $response);
-        if ($err) return $err;
+        if ($err) {
+            return $err;
+        }
 
         try {
             $userId = (int) ($args['id'] ?? 0);
@@ -323,7 +332,9 @@ class RBACHandler extends BaseHandler
         }
 
         [$callerId, , $err] = $this->requireAdminAccess($request, $response);
-        if ($err) return $err;
+        if ($err) {
+            return $err;
+        }
 
         try {
             $userId = (int) ($args['id'] ?? 0);
@@ -381,7 +392,9 @@ class RBACHandler extends BaseHandler
         }
 
         [, , $err] = $this->requireAdminAccess($request, $response);
-        if ($err) return $err;
+        if ($err) {
+            return $err;
+        }
 
         try {
             $stmt = $this->db->prepare("
@@ -415,7 +428,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -499,7 +512,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -605,7 +618,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -656,7 +669,9 @@ class RBACHandler extends BaseHandler
     public function getPermissions(Request $request, Response $response): Response
     {
         [, , $err] = $this->requireAdminAccess($request, $response);
-        if ($err) return $err;
+        if ($err) {
+            return $err;
+        }
 
         try {
             $stmt = $this->db->query("
@@ -691,7 +706,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -744,7 +759,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
@@ -752,7 +767,7 @@ class RBACHandler extends BaseHandler
 
         try {
             $roleId = (int) ($args['id'] ?? 0);
-            
+
             // Verify role belongs to tenant
             $stmt = $this->db->prepare("
                 SELECT id FROM roles
@@ -821,22 +836,22 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
         }
-        
+
         try {
             $userId = (int) ($args['id'] ?? 0);
-            
+
             // Verify the user belongs to the same tenant
             $userStmt = $this->db->prepare("
                 SELECT tenant_id FROM users WHERE id = ? LIMIT 1
             ");
             $userStmt->execute([$userId]);
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if (!$user || $user['tenant_id'] != $tenantId) {
                 return $this->errorResponse($response, 'المستخدم غير موجود أو لا ينتمي إلى المستأجر الحالي', 404);
             }
@@ -875,7 +890,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         try {
             $data = $request->getParsedBody() ?? [];
 
@@ -921,7 +936,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         try {
             $permissionId = (int) ($args['id'] ?? 0);
             $data = $request->getParsedBody() ?? [];
@@ -975,7 +990,7 @@ class RBACHandler extends BaseHandler
         if ($err) {
             return $err;
         }
-        
+
         try {
             $permissionId = (int) ($args['id'] ?? 0);
 

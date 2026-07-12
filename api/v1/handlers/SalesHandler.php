@@ -245,7 +245,7 @@ class SalesHandler extends BaseHandler
                 $returnCredits = round((float)($row['return_credits'] ?? 0), 2);
                 $isReturned    = $grandTotal > 0 && $returnAmount >= $grandTotal;
                 $hasDirectReturn = !empty($row['return_ids']);  // Determine if this invoice has direct returns
-                
+
                 $row['actual_paid_amount']  = $actualPaid;
                 $row['return_amount']       = $returnAmount;
                 $row['remaining_balance'] = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid - $returnCredits, 2));
@@ -362,14 +362,14 @@ class SalesHandler extends BaseHandler
             );
             $stmtReturn->execute([$id, $tenantId]);
             $returnAmount = round((float) $stmtReturn->fetchColumn(), 2);
-            
+
             $stmtReturnCredits = $this->db->prepare(
                 "SELECT COALESCE(SUM(allocated_amount), 0) FROM return_credit_allocations
                  WHERE sale_id = ? AND tenant_id = ?"
             );
             $stmtReturnCredits->execute([$id, $tenantId]);
             $returnCredits = round((float) $stmtReturnCredits->fetchColumn(), 2);
-            
+
             // Determine if this invoice has direct returns
             $stmtDirectReturns = $this->db->prepare(
                 "SELECT COUNT(*) FROM returns
@@ -377,7 +377,7 @@ class SalesHandler extends BaseHandler
             );
             $stmtDirectReturns->execute([$id, $tenantId]);
             $hasDirectReturn = (int)$stmtDirectReturns->fetchColumn() > 0;
-            
+
             // Get first payment date for accurate status determination
             $stmtFirstPayment = $this->db->prepare(
                 "SELECT MIN(payment_date) FROM payments
@@ -385,7 +385,7 @@ class SalesHandler extends BaseHandler
             );
             $stmtFirstPayment->execute([$id, $tenantId]);
             $firstPaymentDate = $stmtFirstPayment->fetchColumn();
-            
+
             $isReturned   = $grandTotal > 0 && $returnAmount >= $grandTotal;
 
             $sale['actual_paid_amount'] = $actualPaid;
@@ -419,26 +419,26 @@ class SalesHandler extends BaseHandler
      * @return Response
      */
     public function pendingApprovals(Request $request, Response $response): Response
-{
-    try {
-        $tenantId = $this->extractTenantId($request);
-        if (!$tenantId) {
-            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-        }
+    {
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
 
-        $qp = $request->getQueryParams();
-        [$page, $perPage, $offset] = PaginationHelper::fromRequest($request);
+            $qp = $request->getQueryParams();
+            [$page, $perPage, $offset] = PaginationHelper::fromRequest($request);
 
-        $stmt = $this->db->prepare("
+            $stmt = $this->db->prepare("
             SELECT COUNT(*)
             FROM sales
             WHERE tenant_id = ?
               AND status IN ('pending', 'awaiting_approval', 'pending_approval')
         ");
-        $stmt->execute([$tenantId]);
-        $total = (int) $stmt->fetchColumn();
+            $stmt->execute([$tenantId]);
+            $total = (int) $stmt->fetchColumn();
 
-        $stmt = $this->db->prepare("
+            $stmt = $this->db->prepare("
             SELECT
                 s.*,
                 c.name AS customer_name,
@@ -489,23 +489,23 @@ class SalesHandler extends BaseHandler
             ORDER BY s.created_at DESC
             LIMIT {$perPage} OFFSET {$offset}
         ");
-        $stmt->execute([$tenantId, $tenantId, $tenantId, $tenantId, $tenantId]);
-        $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $stmt->execute([$tenantId, $tenantId, $tenantId, $tenantId, $tenantId]);
+            $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        return $this->successResponse($response, [
-            'items'      => $items,
-            'total'      => $total,
-            'pagination' => PaginationHelper::buildMeta($total, $page, $perPage),
-        ], 200);
-    } catch (\Throwable $e) {
-        $this->logger->error('Pending approvals error', [
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
+            return $this->successResponse($response, [
+                'items'      => $items,
+                'total'      => $total,
+                'pagination' => PaginationHelper::buildMeta($total, $page, $perPage),
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('Pending approvals error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
 
-        return $this->errorResponse($response, 'Failed to retrieve pending approvals', 500);
+            return $this->errorResponse($response, 'Failed to retrieve pending approvals', 500);
+        }
     }
-}
 
     /**
      * Create a new sale (invoice).
@@ -931,63 +931,63 @@ class SalesHandler extends BaseHandler
      * @return Response
      */
     public function delete(Request $request, Response $response, array $args = []): Response
-{
-    $tenantId = null;
-    $saleId = null;
-    $userId = null;
-    
-    try {
-        $tenantId = $this->extractTenantId($request);
-        if (!$tenantId) {
-            $this->logger->warning('Sales delete - missing tenant ID');
-            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-        }
+    {
+        $tenantId = null;
+        $saleId = null;
+        $userId = null;
 
-        $saleId = (int) ($args['id'] ?? 0);
-        if ($saleId <= 0) {
-            $this->logger->warning('Sales delete - missing sale ID', [
-                'tenant_id' => $tenantId
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                $this->logger->warning('Sales delete - missing tenant ID');
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+
+            $saleId = (int) ($args['id'] ?? 0);
+            if ($saleId <= 0) {
+                $this->logger->warning('Sales delete - missing sale ID', [
+                    'tenant_id' => $tenantId
+                ]);
+
+                return $this->errorResponse($response, 'Sale ID is required', 400);
+            }
+
+            $userId = $this->extractUserId($request) ?? null;
+            $body = $request->getParsedBody() ?? [];
+            $note = $body['note'] ?? null;
+
+            $this->logger->info('Sales invoice deletion request', [
+                'tenant_id' => $tenantId,
+                'sale_id' => $saleId,
+                'user_id' => $userId,
+                'note' => $note
             ]);
 
-            return $this->errorResponse($response, 'Sale ID is required', 400);
+            $svc = $this->services->sales((int) $tenantId, $userId);
+            $res = $svc->deleteSale($tenantId, $saleId, $note);
+
+            $this->logger->info('Sales invoice deleted successfully', [
+                'tenant_id' => $tenantId,
+                'sale_id' => $saleId,
+                'user_id' => $userId
+            ]);
+
+            return $this->successResponse($response, [
+                'message' => 'تم إلغاء الفاتورة بنجاح',
+                'data' => $res
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('Sales invoice deletion failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'tenant_id' => $tenantId ?? 'unknown',
+                'sale_id' => $saleId ?? 'unknown',
+                'user_id' => $userId ?? 'unknown'
+            ]);
+
+            return $this->errorResponse($response, 'فشل في حذف الفاتورة', 400);
         }
-
-        $userId = $this->extractUserId($request) ?? null;
-        $body = $request->getParsedBody() ?? [];
-        $note = $body['note'] ?? null;
-
-        $this->logger->info('Sales invoice deletion request', [
-            'tenant_id' => $tenantId,
-            'sale_id' => $saleId,
-            'user_id' => $userId,
-            'note' => $note
-        ]);
-
-        $svc = $this->services->sales((int) $tenantId, $userId);
-        $res = $svc->deleteSale($tenantId, $saleId, $note);
-
-        $this->logger->info('Sales invoice deleted successfully', [
-            'tenant_id' => $tenantId,
-            'sale_id' => $saleId,
-            'user_id' => $userId
-        ]);
-
-        return $this->successResponse($response, [
-            'message' => 'تم إلغاء الفاتورة بنجاح',
-            'data' => $res
-        ], 200);
-    } catch (\Throwable $e) {
-        $this->logger->error('Sales invoice deletion failed', [
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-            'tenant_id' => $tenantId ?? 'unknown',
-            'sale_id' => $saleId ?? 'unknown',
-            'user_id' => $userId ?? 'unknown'
-        ]);
-
-        return $this->errorResponse($response, 'فشل في حذف الفاتورة', 400);
     }
-}
 
     /**
      * Pay outstanding customer debt across multiple invoices.
@@ -999,46 +999,46 @@ class SalesHandler extends BaseHandler
      * @return Response
      */
     public function payDebt(Request $request, Response $response): Response
-{
-    try {
-        $tenantId = $this->extractTenantId($request);
-        $userId   = $this->extractUserId($request);
-        $data     = $request->getParsedBody() ?? [];
-
-        if (!$tenantId) {
-            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-        }
-
-        $customerId      = isset($data['customer_id']) ? (int) $data['customer_id'] : null;
-        $amount          = (float) ($data['amount'] ?? 0);
-        $paymentMethodId = isset($data['payment_method_id']) ? (int) $data['payment_method_id'] : null;
-        $paymentDate     = $data['payment_date'] ?? null;
-        $branchId        = isset($data['branch_id']) ? (int) $data['branch_id'] : null;
-
-        if (!$customerId || $amount <= 0 || !$paymentMethodId) {
-            return $this->errorResponse($response, 'customer_id و amount و payment_method_id مطلوبة', 400);
-        }
-
-        // Support idempotency via header to prevent duplicate payments from retries
-        $idemKey = trim($request->getHeaderLine('Idempotency-Key'));
-        $idem = null;
-        if ($idemKey !== '') {
-            $idem   = new \App\Services\IdempotencyService($this->db);
-            $cached = $idem->check($tenantId, $idemKey);
-            if ($cached !== null) {
-                $this->logger->info('payDebt: returning cached idempotent response', [
-                    'tenant_id'       => $tenantId,
-                    'idempotency_key' => $idemKey,
-                ]);
-                return $this->jsonResponse($response, $cached, 200);
-            }
-        }
-
-        // Validate customer's outstanding balance with FOR UPDATE lock to prevent race conditions
-        // This ensures we cannot process a payment exceeding the customer's total debt
-        $this->db->beginTransaction();
+    {
         try {
-            $balStmt = $this->db->prepare("
+            $tenantId = $this->extractTenantId($request);
+            $userId   = $this->extractUserId($request);
+            $data     = $request->getParsedBody() ?? [];
+
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+
+            $customerId      = isset($data['customer_id']) ? (int) $data['customer_id'] : null;
+            $amount          = (float) ($data['amount'] ?? 0);
+            $paymentMethodId = isset($data['payment_method_id']) ? (int) $data['payment_method_id'] : null;
+            $paymentDate     = $data['payment_date'] ?? null;
+            $branchId        = isset($data['branch_id']) ? (int) $data['branch_id'] : null;
+
+            if (!$customerId || $amount <= 0 || !$paymentMethodId) {
+                return $this->errorResponse($response, 'customer_id و amount و payment_method_id مطلوبة', 400);
+            }
+
+            // Support idempotency via header to prevent duplicate payments from retries
+            $idemKey = trim($request->getHeaderLine('Idempotency-Key'));
+            $idem = null;
+            if ($idemKey !== '') {
+                $idem   = new \App\Services\IdempotencyService($this->db);
+                $cached = $idem->check($tenantId, $idemKey);
+                if ($cached !== null) {
+                    $this->logger->info('payDebt: returning cached idempotent response', [
+                        'tenant_id'       => $tenantId,
+                        'idempotency_key' => $idemKey,
+                    ]);
+                    return $this->jsonResponse($response, $cached, 200);
+                }
+            }
+
+            // Validate customer's outstanding balance with FOR UPDATE lock to prevent race conditions
+            // This ensures we cannot process a payment exceeding the customer's total debt
+            $this->db->beginTransaction();
+            try {
+                $balStmt = $this->db->prepare("
                 SELECT COALESCE(
                     SUM(
                         ROUND(net_total_amount + IFNULL(tax_amount, 0), 2)
@@ -1065,66 +1065,66 @@ class SalesHandler extends BaseHandler
                 ) AS filtered_sales
                 FOR UPDATE
             ");
-            $balStmt->execute([$tenantId, $customerId, $tenantId, $customerId]);
-            $outstanding = round((float) $balStmt->fetchColumn(), 2);
+                $balStmt->execute([$tenantId, $customerId, $tenantId, $customerId]);
+                $outstanding = round((float) $balStmt->fetchColumn(), 2);
 
-            if ($amount > $outstanding + 0.01) {
-                $this->db->rollBack();
-                return $this->errorResponse(
-                    $response,
-                    sprintf(
-                        'المبلغ المدخل (%.2f) يتجاوز الرصيد المستحق للعميل (%.2f). ' .
-                        'يُرجى إدخال مبلغ لا يتجاوز الرصيد المستحق.',
-                        $amount,
-                        $outstanding
-                    ),
-                    422
-                );
+                if ($amount > $outstanding + 0.01) {
+                    $this->db->rollBack();
+                    return $this->errorResponse(
+                        $response,
+                        sprintf(
+                            'المبلغ المدخل (%.2f) يتجاوز الرصيد المستحق للعميل (%.2f). ' .
+                            'يُرجى إدخال مبلغ لا يتجاوز الرصيد المستحق.',
+                            $amount,
+                            $outstanding
+                        ),
+                        422
+                    );
+                }
+
+                $this->db->rollBack(); // Release lock; service layer performs actual payment processing
+            } catch (\Throwable $e) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                throw $e;
             }
 
-            $this->db->rollBack(); // Release lock; service layer performs actual payment processing
+            // Delegate payment processing to service layer
+            $svc    = $this->services->salePayment($userId);
+            $result = $svc->payCustomerDebt(
+                $tenantId,
+                $customerId,
+                $amount,
+                $paymentMethodId,
+                $paymentDate,
+                $branchId
+            );
+
+            $responseData = [
+                'status'  => 'success',
+                'message' => 'تم تسجيل الدفعة بنجاح',
+                'data'    => $result,
+            ];
+
+            // Cache idempotent response for retry scenarios
+            if ($idemKey !== '') {
+                $paymentId = (int) ($result['payment_id'] ?? 0);
+                $idem->store($tenantId, $idemKey, $paymentId, $responseData);
+            }
+
+            return $this->jsonResponse($response, $responseData, 200);
+
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            throw $e;
+            $this->logger->error('Pay customer debt failed', [
+                'message'     => $e->getMessage(),
+                'tenant_id'   => $tenantId ?? 'unknown',
+                'user_id'     => $userId   ?? 'unknown',
+                'customer_id' => $customerId ?? 'unknown',
+            ]);
+            return $this->errorResponse($response, 'فشل في تسجيل الدفعة: ' . $e->getMessage(), 400);
         }
-
-        // Delegate payment processing to service layer
-        $svc    = $this->services->salePayment($userId);
-        $result = $svc->payCustomerDebt(
-            $tenantId,
-            $customerId,
-            $amount,
-            $paymentMethodId,
-            $paymentDate,
-            $branchId
-        );
-
-        $responseData = [
-            'status'  => 'success',
-            'message' => 'تم تسجيل الدفعة بنجاح',
-            'data'    => $result,
-        ];
-
-        // Cache idempotent response for retry scenarios
-        if ($idemKey !== '') {
-            $paymentId = (int) ($result['payment_id'] ?? 0);
-            $idem->store($tenantId, $idemKey, $paymentId, $responseData);
-        }
-
-        return $this->jsonResponse($response, $responseData, 200);
-
-    } catch (\Throwable $e) {
-        $this->logger->error('Pay customer debt failed', [
-            'message'     => $e->getMessage(),
-            'tenant_id'   => $tenantId ?? 'unknown',
-            'user_id'     => $userId   ?? 'unknown',
-            'customer_id' => $customerId ?? 'unknown',
-        ]);
-        return $this->errorResponse($response, 'فشل في تسجيل الدفعة: ' . $e->getMessage(), 400);
     }
-}
 
     /**
      * Add a payment to a specific sale (invoice).
@@ -1136,98 +1136,97 @@ class SalesHandler extends BaseHandler
      * @return Response
      */
     public function addSalesPayment(Request $request, Response $response): Response
-{
-    $tenantId = $this->extractTenantId($request);
-    if (!$tenantId) {
-        return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
-    }
+    {
+        $tenantId = $this->extractTenantId($request);
+        if (!$tenantId) {
+            return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+        }
 
-    $data = $this->extractAndValidateRequestData($request, [
-        'sale_id',
-        'amount',
-        'payment_date',
-        'payment_method_id',
-        'reference_number',
-        'notes',
-        'customer_id'
-    ]);
+        $data = $this->extractAndValidateRequestData($request, [
+            'sale_id',
+            'amount',
+            'payment_date',
+            'payment_method_id',
+            'reference_number',
+            'notes',
+            'customer_id'
+        ]);
 
-    try {
-        $userId = $this->extractUserId($request) ?? null;
+        try {
+            $userId = $this->extractUserId($request) ?? null;
 
-        // Verify sale exists and validate payment amount against remaining balance
-        $stmt = $this->db->prepare("
+            // Verify sale exists and validate payment amount against remaining balance
+            $stmt = $this->db->prepare("
             SELECT branch_id, status,
                    ROUND(net_total_amount + IFNULL(tax_amount, 0), 2) AS grand_total,
                    ROUND(IFNULL(paid_amount, 0), 2) AS paid_amount
             FROM sales
             WHERE id = ? AND tenant_id = ?
         ");
-        $stmt->execute([$data['sale_id'], $tenantId]);
-        $saleRow = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmt->execute([$data['sale_id'], $tenantId]);
+            $saleRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$saleRow) {
-            return $this->errorResponse($response, 'لم يتم العثور على الفاتورة', 400);
-        }
+            if (!$saleRow) {
+                return $this->errorResponse($response, 'لم يتم العثور على الفاتورة', 400);
+            }
 
-        if (($saleRow['status'] ?? '') === 'pending_approval') {
-            return $this->errorResponse($response, 'لا يمكن إضافة دفعات قبل اعتماد الفاتورة.', 400);
-        }
+            if (($saleRow['status'] ?? '') === 'pending_approval') {
+                return $this->errorResponse($response, 'لا يمكن إضافة دفعات قبل اعتماد الفاتورة.', 400);
+            }
 
-        $paymentAmt    = round((float) $data['amount'], 2);
-        
-        // Calculate return_credit_allocations to prevent double-paying settled invoices
-        // Example: Invoice=1000, paid_amount=0, return_credits=1000 → saleRemaining should be 0, not 1000
-        $stmtCredits = $this->db->prepare(
-            "SELECT COALESCE(SUM(allocated_amount), 0) AS return_credits
+            $paymentAmt    = round((float) $data['amount'], 2);
+
+            // Calculate return_credit_allocations to prevent double-paying settled invoices
+            // Example: Invoice=1000, paid_amount=0, return_credits=1000 → saleRemaining should be 0, not 1000
+            $stmtCredits = $this->db->prepare(
+                "SELECT COALESCE(SUM(allocated_amount), 0) AS return_credits
              FROM return_credit_allocations
              WHERE sale_id = ? AND tenant_id = ?"
-        );
-        $stmtCredits->execute([$data['sale_id'], $tenantId]);
-        $returnCredits = round((float) $stmtCredits->fetchColumn(), 2);
-        
-        $saleRemaining = max(0, round(
-            (float) $saleRow['grand_total'] - (float) $saleRow['paid_amount'] - $returnCredits,
-            2
-        ));
-        
-        if ($paymentAmt > $saleRemaining + 0.01) {
-            return $this->errorResponse($response, "الدفعة ({$paymentAmt}) تتجاوز المبلغ المتبقي ({$saleRemaining})", 400);
+            );
+            $stmtCredits->execute([$data['sale_id'], $tenantId]);
+            $returnCredits = round((float) $stmtCredits->fetchColumn(), 2);
+
+            $saleRemaining = max(0, round(
+                (float) $saleRow['grand_total'] - (float) $saleRow['paid_amount'] - $returnCredits,
+                2
+            ));
+
+            if ($paymentAmt > $saleRemaining + 0.01) {
+                return $this->errorResponse($response, "الدفعة ({$paymentAmt}) تتجاوز المبلغ المتبقي ({$saleRemaining})", 400);
+            }
+            $data['amount'] = min($paymentAmt, $saleRemaining);
+
+            $branchId = $saleRow['branch_id'] ?? null;
+
+            // Delegate to service layer for payment creation and accounting entries
+            $svc    = $this->services->salePayment($userId);
+            $result = $svc->addSalePayment(
+                (int) $tenantId,
+                (int) $data['sale_id'],
+                (float) $data['amount'],
+                (string) $data['payment_date'],
+                (int) $data['payment_method_id'],
+                isset($data['customer_id']) ? (int) $data['customer_id'] : null,
+                $branchId ? (int) $branchId : null,
+                isset($data['cost_center_id']) ? (int) $data['cost_center_id'] : null
+            );
+
+            return $this->successResponse($response, [
+                'message' => 'تم تسجيل الدفعة بنجاح',
+                'data'    => [
+                    'payment_id'       => $result['payment_id'],
+                    'journal_entry_id' => $result['journal_entry_id'] ?? null,
+                    'amount'           => $data['amount'],
+                    'payment_date'     => $data['payment_date'],
+                    'reference_number' => $data['reference_number'] ?? null,
+                ],
+            ], 201);
+        } catch (\Throwable $e) {
+            $this->logger->error('Add sales payment error', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+            return $this->errorResponse($response, 'فشل في إضافة الدفع', 400);
         }
-        $data['amount'] = min($paymentAmt, $saleRemaining);
-
-        $branchId = $saleRow['branch_id'] ?? null;
-
-        // Delegate to service layer for payment creation and accounting entries
-        $svc    = $this->services->salePayment($userId);
-        $result = $svc->addSalePayment(
-            (int) $tenantId,
-            (int) $data['sale_id'],
-            (float) $data['amount'],
-            (string) $data['payment_date'],
-            (int) $data['payment_method_id'],
-            isset($data['customer_id']) ? (int) $data['customer_id'] : null,
-            $branchId ? (int) $branchId : null,
-            isset($data['cost_center_id']) ? (int) $data['cost_center_id'] : null
-        );
-
-        return $this->successResponse($response, [
-            'message' => 'تم تسجيل الدفعة بنجاح',
-            'data'    => [
-                'payment_id'       => $result['payment_id'],
-                'journal_entry_id' => $result['journal_entry_id'] ?? null,
-                'amount'           => $data['amount'],
-                'payment_date'     => $data['payment_date'],
-                'reference_number' => $data['reference_number'] ?? null,
-            ],
-        ], 201);
-    } catch (\Throwable $e) {
-        $this->logger->error('Add sales payment error', [
-            'message' => $e->getMessage(),
-            'trace'   => $e->getTraceAsString(),
-        ]);
-        return $this->errorResponse($response, 'فشل في إضافة الدفع', 400);
     }
 }
-}
-

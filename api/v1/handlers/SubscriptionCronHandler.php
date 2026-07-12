@@ -27,7 +27,7 @@ class SubscriptionCronHandler extends BaseHandler
         try {
             $secret = $request->getHeaderLine('X-Cron-Token');
             $expectedSecret = $_ENV['CRON_SECRET'] ?? '';
-            
+
             if (empty($secret) || !hash_equals($secret, $expectedSecret)) {
                 return $this->errorResponse($response, 'Forbidden', 403);
             }

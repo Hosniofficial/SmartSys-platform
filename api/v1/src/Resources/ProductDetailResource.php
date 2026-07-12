@@ -12,7 +12,7 @@ class ProductDetailResource
 {
     /**
      * Transform database product record to detailed API response
-     * 
+     *
      * @param array $product Database product record
      * @param array $branchProduct Branch-specific inventory data
      * @param array $units Product units array from product_units table
@@ -31,17 +31,17 @@ class ProductDetailResource
         // branch_products override has priority
         $minQty = $branchProduct['minimum_quantity'] ?? $product['min_quantity'] ?? null;
         $minQty = $minQty !== null ? (float) $minQty : 0;  // ← قيمة محددة: null → 0
-        
+
         // Get category name - need to fetch it separately if not in product array
         $categoryName = $product['category_name'] ?? null;
-        
+
         // Determine GL status based on three-state logic:
         // 1. opening_balance_posted has highest priority → posted
         // 2. GL mapping with GL_POSTED/RECONCILED → posted
         // 3. GL mapping with ACTIVE_IN_BRANCH → active (intermediate state)
         // 4. Otherwise → draft
         $glStatus = 'draft';
-        
+
         if ((bool) ($product['opening_balance_posted'] ?? false)) {
             // Highest priority: opening balance was posted
             $glStatus = 'posted';
@@ -53,7 +53,7 @@ class ProductDetailResource
             // This is the intermediate state after user clicks "تفعيل"
             $glStatus = 'active';
         }
-        
+
         return [
             'id'                    => (int) $product['id'],
             'name'                  => $product['name'],
@@ -64,12 +64,12 @@ class ProductDetailResource
             'description'           => $product['description'],
             'category_id'           => $product['category_id'] ? (int) $product['category_id'] : null,
             'category_name'         => $categoryName,  // ← للوصول المباشر من frontend
-            
+
             'category'              => [
                 'id'   => $product['category_id'] ? (int) $product['category_id'] : null,
                 'name' => $categoryName,
             ],
-            
+
             'pricing'               => [
                 'purchase_price'        => (float) $product['purchase_price'],
                 'sale_price'            => (float) $product['sale_price'],
@@ -84,7 +84,7 @@ class ProductDetailResource
                     (float) $product['purchase_price']
                 ),
             ],
-            
+
             'inventory'             => [
                 'current_quantity'      => $currentQty,
                 'quantity'              => $currentQty,  // ← Alias for backward compatibility
@@ -95,7 +95,7 @@ class ProductDetailResource
                 'inventory_status'      => self::calculateInventoryStatus($currentQty, $minQty, $product['product_type'] ?? 'stock'),
                 'total_inventory_value' => $currentQty * (float) $product['purchase_price'],
             ],
-            
+
             'configuration'         => [
                 'product_type'         => $product['product_type'] ?? 'stock',
                 'active'               => (int) ($product['active'] ?? 0),
@@ -106,20 +106,20 @@ class ProductDetailResource
                 'batch_number'         => $product['default_batch_number'] ?? null,
                 'serial_number'        => $product['default_serial_number'] ?? null,
             ],
-            
+
             'accounting'            => [
                 'gl_status'                     => $glStatus,  // ← Uses GL mapping status if available, falls back to opening_balance_posted
                 'opening_balance_posted'        => (bool) ($product['opening_balance_posted'] ?? false),
                 'profit_calculation_type'       => $product['profit_calculation_type'] ?? 'margin',
                 'default_category_gl_account_id' => $product['default_category_gl_account_id'] ? (int) $product['default_category_gl_account_id'] : null,
             ],
-            
+
             'supplier'              => [
                 'id' => $product['supplier_id'] ? (int) $product['supplier_id'] : null,
             ],
-            
+
             'units'                 => self::transformUnits($units),
-            
+
             'timestamps'            => [
                 'created_at' => $product['created_at'] ?? null,
                 'updated_at' => $product['updated_at'] ?? null,
@@ -134,7 +134,7 @@ class ProductDetailResource
      */
     private static function transformUnits(array $units): array
     {
-        return array_map(fn($unit) => [
+        return array_map(fn ($unit) => [
             'id'                => (int) ($unit['unit_id'] ?? $unit['id'] ?? 0),
             'name'              => $unit['unit_name'] ?? $unit['name'] ?? 'قطعة',
             'code'              => $unit['unit_code'] ?? $unit['code'] ?? null,
@@ -156,7 +156,7 @@ class ProductDetailResource
                 ];
             }
         }
-        
+
         // Fallback to first unit
         return isset($units[0]) ? [
             'id'   => (int) ($units[0]['unit_id'] ?? 1),
@@ -172,7 +172,7 @@ class ProductDetailResource
         if ($salePrice <= 0) {
             return 0.0;
         }
-        
+
         return round((($salePrice - $costPrice) / $salePrice) * 100, 2);
     }
 
@@ -184,14 +184,14 @@ class ProductDetailResource
         if ($costPrice <= 0) {
             return 0.0;
         }
-        
+
         return round((($salePrice - $costPrice) / $costPrice) * 100, 2);
     }
 
     /**
      * Determine inventory status based on quantity and minimum threshold
      * Now handles numeric min_quantity (0 = threshold not defined, >0 = threshold defined)
-     * 
+     *
      * @param int $quantity Current quantity
      * @param float $minQuantity Minimum threshold (0 = threshold not defined, >0 = threshold defined)
      * @param string $productType 'stock' or 'service'
@@ -203,26 +203,26 @@ class ProductDetailResource
         if ($productType === 'service') {
             return 'N/A';
         }
-        
+
         // Ensure minQuantity is a float (never null)
         $minQty = (float) ($minQuantity ?? 0);
-        
+
         // If quantity is zero, always out of stock
         if ($quantity <= 0) {
             return 'out_of_stock';
         }
-        
+
         // If min_quantity is 0 or negative, threshold not defined: assume in stock
         if ($minQty <= 0) {
             // Quantity > 0, but threshold not defined: assume in stock
             return 'in_stock';
         }
-        
+
         // Min quantity is defined: evaluate against threshold
         if ($quantity <= $minQty) {
             return 'low_stock';
         }
-        
+
         return 'in_stock';
     }
 }

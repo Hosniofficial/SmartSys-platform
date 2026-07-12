@@ -12,30 +12,32 @@ use DateTime;
 
 /**
  * BalanceCalculationService
- * 
+ *
  * Unified service for all balance calculations across the system.
  * Consolidates 4 different balance calculation patterns into single source of truth.
- * 
+ *
  * Patterns unified:
  * 1. Journal Entry Balance (Debit - Credit) - for parties (customers, suppliers)
  * 2. Accounts Table Balance (debit_balance - credit_balance) - account master balance
  * 3. Transaction Running Balance - for transaction history
- * 4. Amount Due Balance (total - paid) - for documents  
+ * 4. Amount Due Balance (total - paid) - for documents
  */
-class BalanceCalculationService {
+class BalanceCalculationService
+{
     private $pdo;
     private $logger;
 
-    public function __construct(PDO $pdo) {
+    public function __construct(PDO $pdo)
+    {
         $this->pdo = $pdo;
         $this->logger = MonologHandler::getInstance('balance_calculation');
     }
 
     /**
      * Get account balance using journal entry lines for a specific account
-     * 
+     *
      * Used by: CustomersHandler::getCustomers(), SuppliersHandler::getSuppliers(), CashVouchersHandler
-     * 
+     *
      * @param int $accountId - Account ID
      * @param int $tenantId - Tenant ID
      * @param string $type - 'customer' (debit-credit) or 'supplier' (credit-debit)
@@ -98,9 +100,9 @@ class BalanceCalculationService {
 
     /**
      * Get account balance from accounts table (stored debit_balance and credit_balance fields)
-     * 
+     *
      * Used by: ReturnsHandler::create() - for faster lookup from normalized accounts table
-     * 
+     *
      * @param int $accountId - Account ID
      * @param int $tenantId - Tenant ID
      * @param string $type - 'customer' (debit-credit) or 'supplier' (credit-debit)
@@ -147,10 +149,10 @@ class BalanceCalculationService {
 
     /**
      * Get running balance for transaction history (iterative calculation)
-     * 
+     *
      * Used by: CustomersHandler::getTransactions(), SuppliersHandler::getTransactions()
      * Calculates cumulative balance for each transaction in chronological order
-     * 
+     *
      * @param int $accountId - Account ID
      * @param int $tenantId - Tenant ID
      * @param string $type - 'customer' (debit-credit) or 'supplier' (credit-debit)
@@ -207,10 +209,10 @@ class BalanceCalculationService {
 
     /**
      * Get amount due balance for documents (total amount - paid amount)
-     * 
+     *
      * Used by: PurchasesHandler for purchase balance calculations
      * Calculates outstanding/due balance for transaction documents
-     * 
+     *
      * @param string $documentType - 'purchase', 'sale', or other document type
      * @param int $documentId - Document ID (purchase_id, sale_id, etc.)
      * @param int $tenantId - Tenant ID
@@ -296,10 +298,10 @@ class BalanceCalculationService {
 
     /**
      * Get aggregated balance due for multiple documents
-     * 
+     *
      * Used by: SummaryHandler, ReportingHandler - for balance summaries
      * Sums up outstanding amounts across multiple documents with filtering
-     * 
+     *
      * @param string $documentType - 'purchase', 'sale', etc.
      * @param int $tenantId - Tenant ID
      * @param array $filters - Optional filters ['supplier_id'=>X, 'status'=>'unpaid', 'date_from'=>'2026-01-01']
@@ -386,11 +388,11 @@ class BalanceCalculationService {
 
     /**
      * Unified balance getter - auto-detects best method based on context
-     * 
+     *
      * Convenience method that intelligently selects the best calculation method
      * 1. For parties with account_id → uses journal entry method (most accurate)
      * 2. Falls back to accounts table if needed (when journal entries not available)
-     * 
+     *
      * @param int $accountId - Account ID
      * @param int $tenantId - Tenant ID
      * @param string $type - 'customer', 'supplier', or document type
@@ -425,10 +427,10 @@ class BalanceCalculationService {
 
     /**
      * Get amount due for batch of documents (optimized for list views)
-     * 
+     *
      * Used by: List views, Summary reports that need multiple document balances
      * Returns array of [document_id => amount_due]
-     * 
+     *
      * @param string $documentType - 'purchase', 'sale', 'sales_return', 'purchase_return'
      * @param int $tenantId - Tenant ID
      * @param array $documentIds - Array of document IDs to fetch amounts for
@@ -525,10 +527,10 @@ class BalanceCalculationService {
 
     /**
      * Get all amounts due by customer across all unpaid documents
-     * 
+     *
      * Aggregates outstanding amounts for all sales/returns
      * Used by: Customer balance summaries, Risk assessment
-     * 
+     *
      * @param int $customerId - Customer ID
      * @param int $tenantId - Tenant ID
      * @param bool $includeReturns - Include sales returns in calculation
@@ -579,10 +581,10 @@ class BalanceCalculationService {
 
     /**
      * Get all amounts due by supplier across all unpaid documents
-     * 
+     *
      * Aggregates outstanding payable amounts for all purchases/returns
      * Used by: Supplier balance summaries, Payable tracking
-     * 
+     *
      * @param int $supplierId - Supplier ID
      * @param int $tenantId - Tenant ID
      * @param bool $includeReturns - Include purchase returns in calculation

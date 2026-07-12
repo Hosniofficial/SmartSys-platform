@@ -11,9 +11,10 @@ use App\Services\MonologHandler;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 
-class MaintenanceHandler extends BaseHandler {
-
-    public function __construct(PDO $db) {
+class MaintenanceHandler extends BaseHandler
+{
+    public function __construct(PDO $db)
+    {
         parent::__construct($db);
         $this->logger = MonologHandler::getInstance('maintenance');
     }
@@ -21,7 +22,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جدولة صيانة جديدة
      */
-    public function scheduleMaintenance(Request $request, Response $response): Response {
+    public function scheduleMaintenance(Request $request, Response $response): Response
+    {
         try {
             $tenantId = $this->extractTenantId($request);
             if (!$tenantId) {
@@ -32,19 +34,18 @@ class MaintenanceHandler extends BaseHandler {
             if (!is_array($data)) {
                 return $this->errorResponse($response, 'Invalid request data', 400);
             }
-            
+
             // التحقق من البيانات المطلوبة
             $requiredFields = ['asset_id', 'type', 'frequency', 'next_date', 'description', 'assigned_to'];
             foreach ($requiredFields as $field) {
                 if (empty($data[$field])) {
-                    return $this->errorResponse($response, "الحقل '{$field}' مطلوب"
-                    , 400);
+                    return $this->errorResponse($response, "الحقل '{$field}' مطلوب", 400);
                 }
             }
-            
+
             // إنشاء جدول الصيانة
             $scheduleId = $this->createMaintenanceSchedule($data, $request);
-            
+
             // إعداد الاستجابة
             return $this->successResponse(
                 $response,
@@ -68,7 +69,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * إنشاء جدول صيانة
      */
-    private function createMaintenanceSchedule($data, Request $request) {
+    private function createMaintenanceSchedule($data, Request $request)
+    {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             throw new Exception('مطلوب معرف المستأجر (Tenant ID).');
@@ -90,7 +92,7 @@ class MaintenanceHandler extends BaseHandler {
 
         // Get user_id from JWT attribute (safe, verified by middleware)
         $userId = $request->getAttribute('user_id') ?? $data['created_by'] ?? null;
-        
+
         $stmt->execute([
             $tenantId,
             $data['asset_id'],
@@ -118,13 +120,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * تحديث جدول صيانة
      */
-    public function updateMaintenanceSchedule($scheduleId, $request) {
+    public function updateMaintenanceSchedule($scheduleId, $request)
+    {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             throw new Exception('مطلوب معرف المستأجر (Tenant ID).');
         }
         $data = $request->getParsedBody();
-        
+
         $stmt = $this->db->prepare("
             UPDATE maintenance_schedules
             SET 
@@ -151,13 +154,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * تسجيل عملية صيانة
      */
-    public function logMaintenance($request) {
+    public function logMaintenance($request)
+    {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             throw new Exception('مطلوب معرف المستأجر (Tenant ID).');
         }
         $data = $request->getParsedBody();
-        
+
         $this->db->beginTransaction();
 
         try {
@@ -218,13 +222,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * إنشاء مطالبة ضمان
      */
-    public function createWarrantyClaim($request) {
+    public function createWarrantyClaim($request)
+    {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             throw new Exception('مطلوب معرف المستأجر (Tenant ID).');
         }
         $data = $request->getParsedBody();
-        
+
         $stmt = $this->db->prepare("
             INSERT INTO warranty_claims (
                 tenant_id,
@@ -264,13 +269,14 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * تحديث حالة مطالبة الضمان
      */
-    public function updateWarrantyClaim($claimId, $request) {
+    public function updateWarrantyClaim($claimId, $request)
+    {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             throw new Exception('مطلوب معرف المستأجر (Tenant ID).');
         }
         $data = $request->getParsedBody();
-        
+
         $stmt = $this->db->prepare("
             UPDATE warranty_claims
             SET 
@@ -302,8 +308,9 @@ class MaintenanceHandler extends BaseHandler {
         return $success;
     }
 
-   
-    private function attachClaimDocument($claimId, $document) {
+
+    private function attachClaimDocument($claimId, $document)
+    {
         $stmt = $this->db->prepare("
             INSERT INTO warranty_claim_documents (
                 claim_id,
@@ -325,7 +332,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب جداول الصيانة
      */
-    public function getMaintenanceSchedules($filters = [], $page = 1, $perPage = 20, $tenantId = null) {
+    public function getMaintenanceSchedules($filters = [], $page = 1, $perPage = 20, $tenantId = null)
+    {
         if (!$tenantId) {
             return [];
         }
@@ -374,7 +382,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب سجلات الصيانة
      */
-    public function getMaintenanceLogs($filters = [], $page = 1, $perPage = 20, $tenantId = null) {
+    public function getMaintenanceLogs($filters = [], $page = 1, $perPage = 20, $tenantId = null)
+    {
         if (!$tenantId) {
             return [];
         }
@@ -433,7 +442,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب مطالبات الضمان
      */
-    public function getWarrantyClaims($filters = [], $page = 1, $perPage = 20, $tenantId = null) {
+    public function getWarrantyClaims($filters = [], $page = 1, $perPage = 20, $tenantId = null)
+    {
         if (!$tenantId) {
             return [];
         }
@@ -487,7 +497,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب تفاصيل جدول صيانة
      */
-    public function getMaintenanceSchedule($scheduleId, $tenantId = null) {
+    public function getMaintenanceSchedule($scheduleId, $tenantId = null)
+    {
         if (!$tenantId) {
             return null;
         }
@@ -510,7 +521,8 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * جلب تفاصيل مطالبة ضمان
      */
-    public function getWarrantyClaim($claimId, $tenantId = null) {
+    public function getWarrantyClaim($claimId, $tenantId = null)
+    {
         if (!$tenantId) {
             return null;
         }
@@ -533,9 +545,10 @@ class MaintenanceHandler extends BaseHandler {
     /**
      * حساب موعد الصيانة القادم
      */
-    private function calculateNextMaintenanceDate($currentDate, $frequency) {
+    private function calculateNextMaintenanceDate($currentDate, $frequency)
+    {
         $date = new DateTime($currentDate);
-        
+
         switch ($frequency) {
             case 'daily':
                 $date->modify('+1 day');
@@ -560,14 +573,16 @@ class MaintenanceHandler extends BaseHandler {
         return $date->format('Y-m-d');
     }
 
-    private function generateClaimNumber() {
+    private function generateClaimNumber()
+    {
         return 'WC-' . date('Y') . '-' . str_pad(mt_rand(1, 99999), 5, '0', STR_PAD_LEFT);
     }
 
     /**
      * الحصول على اسم الأصل
      */
-    private function getAssetName($assetId, $tenantId = null) {
+    private function getAssetName($assetId, $tenantId = null)
+    {
         if (!$tenantId) {
             return null;
         }
@@ -578,4 +593,4 @@ class MaintenanceHandler extends BaseHandler {
         $stmt->execute([$assetId, $tenantId]);
         return $stmt->fetchColumn();
     }
-} 
+}

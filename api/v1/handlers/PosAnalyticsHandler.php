@@ -250,8 +250,14 @@ class PosAnalyticsHandler extends BaseHandler
             $where  = ['s.tenant_id = ?'];
             $qp     = [$tenantId];
 
-            if (!empty($params['start_date'])) { $where[] = 's.created_at >= ?'; $qp[] = $params['start_date']; }
-            if (!empty($params['end_date']))   { $where[] = 's.created_at <= ?'; $qp[] = $params['end_date'] . ' 23:59:59'; }
+            if (!empty($params['start_date'])) {
+                $where[] = 's.created_at >= ?';
+                $qp[] = $params['start_date'];
+            }
+            if (!empty($params['end_date'])) {
+                $where[] = 's.created_at <= ?';
+                $qp[] = $params['end_date'] . ' 23:59:59';
+            }
 
             $sql = "SELECT s.branch_id AS pos_id, b.name AS pos_name,
                            COUNT(DISTINCT s.id) as orders,
@@ -308,7 +314,7 @@ class PosAnalyticsHandler extends BaseHandler
             $stmt->execute([$tenantId, $startDate, $endDate]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $posPerformance = array_map(fn($row) => [
+            $posPerformance = array_map(fn ($row) => [
                 'user_id'         => (int)   $row['user_id'],
                 'cashier_name'    => $row['cashier_name'] ?? 'غير معروف',
                 'user_name'       => $row['user_name']    ?? 'unknown',

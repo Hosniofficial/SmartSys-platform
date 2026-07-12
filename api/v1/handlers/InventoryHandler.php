@@ -89,7 +89,7 @@ class InventoryHandler extends BaseHandler
                     WHERE product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
                       AND tenant_id = ?
                 ";
-                
+
                 if ($branchId) {
                     $branchQuery .= " AND branch_id = ? GROUP BY product_id";
                     $branchParams = array_merge($productIds, [(int) $tenantId, (int) $branchId]);
@@ -101,7 +101,7 @@ class InventoryHandler extends BaseHandler
                 $branchStmt = $this->db->prepare($branchQuery);
                 $branchStmt->execute($branchParams);
                 $branchData = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-                
+
                 foreach ($branchData as $bp) {
                     $pid = (int) $bp['product_id'];
                     $branchProducts[$pid] = $bp;
@@ -130,7 +130,7 @@ class InventoryHandler extends BaseHandler
                 $unitsStmt = $this->db->prepare($unitsQuery);
                 $unitsStmt->execute(array_merge($productIds, [(int) $tenantId]));
                 $unitsData = $unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-                
+
                 foreach ($unitsData as $unit) {
                     $pid = (int) $unit['product_id'];
                     if (!isset($allUnits[$pid])) {
@@ -788,7 +788,7 @@ class InventoryHandler extends BaseHandler
 
             // Batch fetch branch products and units
             $productIds = array_column($products, 'id');
-            
+
             $branchQuery = "
                 SELECT 
                     product_id,
@@ -799,20 +799,20 @@ class InventoryHandler extends BaseHandler
                 WHERE product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
                   AND tenant_id = ?
             ";
-            
+
             if ($branchId) {
                 $branchQuery .= " AND branch_id = ?";
                 $branchParams = array_merge($productIds, [(int) $tenantId, (int) $branchId]);
             } else {
                 $branchParams = array_merge($productIds, [(int) $tenantId]);
             }
-            
+
             $branchQuery .= " GROUP BY product_id";
-            
+
             $branchStmt = $this->db->prepare($branchQuery);
             $branchStmt->execute($branchParams);
             $branchData = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             $branchProducts = [];
             foreach ($branchData as $bp) {
                 $pid = (int) $bp['product_id'];
@@ -838,7 +838,7 @@ class InventoryHandler extends BaseHandler
             $unitsStmt = $this->db->prepare($unitsQuery);
             $unitsStmt->execute(array_merge($productIds, [(int) $tenantId]));
             $unitsData = $unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            
+
             $allUnits = [];
             foreach ($unitsData as $unit) {
                 $pid = (int) $unit['product_id'];
@@ -1017,12 +1017,19 @@ class InventoryHandler extends BaseHandler
             $params    = [(int) $tenantId];
             $queryParams = $request->getQueryParams();
             $productId = isset($queryParams['product_id']) ? (int) $queryParams['product_id'] : null;
-            $branchId  = isset($queryParams['branch_id'])  ? (int) $queryParams['branch_id']  : null;
+            $branchId  = isset($queryParams['branch_id']) ? (int) $queryParams['branch_id'] : null;
             $limit     = max(1, min(500, (int) ($queryParams['limit'] ?? 100)));
 
             $where = 'WHERE t.tenant_id = ?';
-            if ($productId) { $where .= ' AND t.product_id = ?'; $params[] = $productId; }
-            if ($branchId)  { $where .= ' AND (t.branch_from = ? OR t.branch_to = ?)'; $params[] = $branchId; $params[] = $branchId; }
+            if ($productId) {
+                $where .= ' AND t.product_id = ?';
+                $params[] = $productId;
+            }
+            if ($branchId) {
+                $where .= ' AND (t.branch_from = ? OR t.branch_to = ?)';
+                $params[] = $branchId;
+                $params[] = $branchId;
+            }
 
             $query = "
                 SELECT
@@ -1098,7 +1105,9 @@ class InventoryHandler extends BaseHandler
             ";
 
             $countParams = [];
-            if ($branchId) $countParams[] = $branchId;
+            if ($branchId) {
+                $countParams[] = $branchId;
+            }
             $countParams[] = (int) $tenantId;
 
             $countStmt = $this->db->prepare($countSql);

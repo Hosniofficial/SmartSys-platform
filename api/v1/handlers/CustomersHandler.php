@@ -109,7 +109,7 @@ class CustomersHandler extends BaseContactHandler
     {
         try {
             $tenantId = isset($details['tenant_id']) ? (int) $details['tenant_id'] : null;
-            $userId   = isset($details['user_id'])   ? (int) $details['user_id']   : null;
+            $userId   = isset($details['user_id']) ? (int) $details['user_id'] : null;
             $entityId = isset($details['customer_id']) ? (int) $details['customer_id'] : null;
 
             $this->logger->info('Customer action logged', [
@@ -764,7 +764,7 @@ class CustomersHandler extends BaseContactHandler
                     'id'            => $row['id'],
                     'date'          => $row['created_at'],
                     'type'          => $type,
-                    'debit_amount'  => number_format($debit,  2, '.', ''),
+                    'debit_amount'  => number_format($debit, 2, '.', ''),
                     'credit_amount' => number_format($credit, 2, '.', ''),
                     'description'   => $description,
                     'reference'     => $refNumber ?: $refId,

@@ -148,8 +148,12 @@ class StockTransferHandler extends BaseHandler
             $fromAccountId = null;
             $toAccountId   = null;
             foreach ($accRows as $r) {
-                if ((int) $r['id'] === (int) $data['from_branch']) $fromAccountId = $r['account_id'] ? (int) $r['account_id'] : null;
-                if ((int) $r['id'] === (int) $data['to_branch'])   $toAccountId   = $r['account_id'] ? (int) $r['account_id'] : null;
+                if ((int) $r['id'] === (int) $data['from_branch']) {
+                    $fromAccountId = $r['account_id'] ? (int) $r['account_id'] : null;
+                }
+                if ((int) $r['id'] === (int) $data['to_branch']) {
+                    $toAccountId   = $r['account_id'] ? (int) $r['account_id'] : null;
+                }
             }
 
             if ($fromAccountId && $toAccountId) {
@@ -157,7 +161,9 @@ class StockTransferHandler extends BaseHandler
                 try {
                     $wacCost = (float) (new CostingService($this->db))
                         ->getWeightedAverageCost((int) $tenantId, (int) $data['product_id'], date('Y-m-d H:i:s'));
-                } catch (\Throwable $e) { $wacCost = 0.0; }
+                } catch (\Throwable $e) {
+                    $wacCost = 0.0;
+                }
 
                 if ($wacCost <= 0.0) {
                     $costStmt = $this->db->prepare(
@@ -220,7 +226,9 @@ class StockTransferHandler extends BaseHandler
                 ],
             ]);
         } catch (\Exception $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('فشل نقل المخزون: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل نقل المخزون', 400);
         }
@@ -238,7 +246,7 @@ class StockTransferHandler extends BaseHandler
             }
 
             $qp        = $request->getQueryParams();
-            $branchId  = isset($qp['branch_id'])  ? (int) $qp['branch_id']  : null;
+            $branchId  = isset($qp['branch_id']) ? (int) $qp['branch_id'] : null;
             $productId = isset($qp['product_id']) ? (int) $qp['product_id'] : null;
             $dateFrom  = $qp['date_from'] ?? null;
             $dateTo    = $qp['date_to']   ?? null;
@@ -251,8 +259,14 @@ class StockTransferHandler extends BaseHandler
                 $params[] = $branchId;
                 $params[] = $branchId;
             }
-            if ($productId) { $where[] = 'st.product_id = ?';  $params[] = $productId; }
-            if ($dateFrom)  { $where[] = 'st.created_at >= ?'; $params[] = $dateFrom; }
+            if ($productId) {
+                $where[] = 'st.product_id = ?';
+                $params[] = $productId;
+            }
+            if ($dateFrom) {
+                $where[] = 'st.created_at >= ?';
+                $params[] = $dateFrom;
+            }
             if ($dateTo) {
                 $nextDay  = date('Y-m-d', strtotime($dateTo . ' +1 day'));
                 $where[]  = 'st.created_at < ?';

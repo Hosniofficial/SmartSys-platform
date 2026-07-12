@@ -18,7 +18,7 @@ class Mailer
     public function __construct()
     {
         $this->logger = MonologHandler::getInstance('mailer');
-        
+
         $host = $_ENV['SMTP_HOST'] ?? '';
         $port = (int)($_ENV['SMTP_PORT'] ?? 0);
         $user = $_ENV['SMTP_USER'] ?? '';
@@ -48,19 +48,28 @@ class Mailer
         $this->mailer = $mail;
     }
 
-    public function isEnabled(): bool { return $this->enabled; }
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
 
     public function send(array $toEmails, string $subject, string $htmlBody): bool
     {
-        if (!$this->enabled) { return false; }
+        if (!$this->enabled) {
+            return false;
+        }
         try {
             // Clone per send due to PHPMailer statefulness
             $m = clone $this->mailer;
             foreach ($toEmails as $to) {
-                if (!$to) continue;
+                if (!$to) {
+                    continue;
+                }
                 $m->addAddress($to);
             }
-            if (empty($m->getToAddresses())) { return false; }
+            if (empty($m->getToAddresses())) {
+                return false;
+            }
             $m->isHTML(true);
             $m->Subject = $subject;
             $m->Body = $htmlBody;

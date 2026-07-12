@@ -52,7 +52,12 @@ class SaleApprovalService
     {
         try {
             (new \App\Handlers\AuditHandler($this->pdo))->logAction(
-                $action, $entity, $entityId, $details, $tenantId, $this->userId
+                $action,
+                $entity,
+                $entityId,
+                $details,
+                $tenantId,
+                $this->userId
             );
         } catch (\Throwable $e) {
             // لا نوقف العملية بسبب فشل التدقيق
@@ -97,10 +102,14 @@ class SaleApprovalService
 
     private function isRoleEnforced(int $tenantId, ?int $roleId): bool
     {
-        if (!$roleId) return false;
+        if (!$roleId) {
+            return false;
+        }
         $raw  = (string) $this->settingsRepo->get($tenantId, 'pos.sessions.enforce_for_roles', '');
         $trim = trim($raw);
-        if ($trim === '') return false;
+        if ($trim === '') {
+            return false;
+        }
         $enforce = strpos($trim, '[') === 0
             ? (array) json_decode($trim, true)
             : array_filter(array_map('trim', explode(',', $trim)));
@@ -136,7 +145,7 @@ class SaleApprovalService
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // ✅ نفس ترتيب القفل المستخدم في الإنشاء لمنع deadlock
-        usort($items, fn($a, $b) => (int)$a['product_id'] <=> (int)$b['product_id']);
+        usort($items, fn ($a, $b) => (int)$a['product_id'] <=> (int)$b['product_id']);
 
         foreach ($items as $item) {
             $baseQuantity = (float) $item['quantity'] * (float) ($item['conversion_factor'] ?? 1);
@@ -278,7 +287,10 @@ class SaleApprovalService
 
                 if ($overridePaidAmount > 0) {
                     $resolvedCc = $this->accounting->resolveCostCenterForService(
-                        (int) $tenantId, $this->userId, $sale['cost_center_id'] ?? null, $branchId
+                        (int) $tenantId,
+                        $this->userId,
+                        $sale['cost_center_id'] ?? null,
+                        $branchId
                     );
                     $methodId  = $overrideMethodId ?? (int) ($sale['payment_method_id'] ?? 1);
                     $currency  = $this->getCompanyCurrency((int) $tenantId);
@@ -314,7 +326,10 @@ class SaleApprovalService
             }
 
             $resolvedCc     = $this->accounting->resolveCostCenterForService(
-                (int) $tenantId, $this->userId, $sale['cost_center_id'] ?? null, $branchId
+                (int) $tenantId,
+                $this->userId,
+                $sale['cost_center_id'] ?? null,
+                $branchId
             );
             $journalEntryId = $this->accounting->postSaleJournalEntry(
                 $saleId,
@@ -350,7 +365,9 @@ class SaleApprovalService
 
             foreach ($drafts as $dp) {
                 $amt = (float) ($dp['amount'] ?? 0);
-                if ($amt <= 0) continue;
+                if ($amt <= 0) {
+                    continue;
+                }
                 $sumDraft += $amt;
 
                 $methodId = (int) ($dp['payment_method_id'] ?? $sale['payment_method_id'] ?? 1);
@@ -359,14 +376,17 @@ class SaleApprovalService
 
                 if ($isCash) {
                     $sessionId = $this->findOpenCashierSession(
-                        (int) $tenantId, (int) $branchId, (int) $this->userId
+                        (int) $tenantId,
+                        (int) $branchId,
+                        (int) $this->userId
                     );
                     if (!$sessionId) {
                         $roleId   = $this->getCurrentUserRoleId();
                         $enforced = $this->isRoleEnforced((int) $tenantId, $roleId);
                         if (!$enforced) {
                             $sessionId = $this->findOpenGlobalCashierSession(
-                                (int) $tenantId, (int) $this->userId
+                                (int) $tenantId,
+                                (int) $this->userId
                             );
                         }
                     }
@@ -397,7 +417,10 @@ class SaleApprovalService
 
                 if ($isCash) {
                     $resolvedCcForCt = $this->accounting->resolveCostCenterForService(
-                        (int) $tenantId, $this->userId, $sale['cost_center_id'] ?? null, $branchId
+                        (int) $tenantId,
+                        $this->userId,
+                        $sale['cost_center_id'] ?? null,
+                        $branchId
                     );
                     $this->pdo->prepare("
                         INSERT INTO cash_transactions (
