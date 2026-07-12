@@ -179,6 +179,49 @@ export const useSessionStore = defineStore('session', () => {
   };
 
   /**
+   * 🆕 جلب ملخصات متعددة للجلسات (Batch - يحل N+1 Problem)
+   * POST /sessions/batch-summaries
+   * Reduces network round-trips from N to 1
+   */
+  const getSessionSummaries = async (sessionIds = []) => {
+    try {
+      if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+        return {
+          status: 'success',
+          data: {},
+        };
+      }
+
+      // Limit to 100 sessions per request (backend enforces this too)
+      const ids = sessionIds.slice(0, 100).map(id => parseInt(id, 10)).filter(id => id > 0);
+      if (ids.length === 0) {
+        return {
+          status: 'success',
+          data: {},
+        };
+      }
+
+      const response = await apiClient.post('/sessions/batch-summaries', {
+        session_ids: ids,
+      });
+
+      const summaries = response?.data?.data || {};
+
+      return {
+        status: 'success',
+        data: summaries,
+      };
+    } catch (err) {
+      error.value = err.response?.data?.message || err.message || 'فشل جلب ملخصات الجلسات';
+      return {
+        status: 'error',
+        message: error.value,
+        data: {},
+      };
+    }
+  };
+
+  /**
    * جلب قائمة الجلسات
    */
   const fetchSessions = async (params = {}, force = false) => {
@@ -242,6 +285,7 @@ export const useSessionStore = defineStore('session', () => {
     openSession,
     closeSession,
     getSessionSummary,
+    getSessionSummaries,
     fetchSessions,
     clearCache,
   };

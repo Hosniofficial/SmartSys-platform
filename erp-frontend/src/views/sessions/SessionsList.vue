@@ -621,20 +621,20 @@ async function fetchData() {
         }
       }
 
-      // Load full summaries in background (non-blocking) for المدفوعات / النقد المتوقع columns
-      Promise.allSettled(
-        items.value.map(item =>
-          sessionStore.getSessionSummary(item.id, true)
-            .then(s => {
-              if (s.status === 'success') {
-                summaries.value[item.id] = s.data;
-              }
-            })
-            .catch(() => {})
-        )
-      ).finally(() => {
-        items.value = [...items.value];
-      });
+      // 🚀 Load full summaries in background using BATCH API (fixes N+1 problem)
+      const sessionIds = items.value.map(item => item.id);
+      if (sessionIds.length > 0) {
+        sessionStore.getSessionSummaries(sessionIds).then(result => {
+          if (result.status === 'success' && result.data) {
+            // Merge batch results into summaries
+            Object.assign(summaries.value, result.data);
+            // Force reactivity update
+            items.value = [...items.value];
+          }
+        }).catch(err => {
+          console.warn('Failed to load batch summaries:', err);
+        });
+      }
     }
 
   } catch (e) {

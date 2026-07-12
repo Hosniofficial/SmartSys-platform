@@ -556,6 +556,166 @@ class CashierSessionService
         };
     }
 
+    /**
+     * Build summaries for multiple sessions efficiently (single bulk query approach).
+     * Reduces database round-trips from N×4 queries to ~4 queries total.
+     *
+     * @param int   $tenantId
+     * @param array $sessionIds  Array of session IDs
+     * @return array  Map of session_id => summary data
+     */
+    public function buildBulkSessionSummaries(int $tenantId, array $sessionIds): array
+    {
+        if (empty($sessionIds)) {
+            return [];
+        }
+
+        // Cast and deduplicate
+        $sessionIds = array_unique(array_map('intval', $sessionIds));
+        $placeholders = implode(',', array_fill(0, count($sessionIds), '?'));
+
+        // ─── Query 1: Fetch all sessions data ────────────────────────────────
+        $sessionsStmt = $this->db->prepare("
+            SELECT id, opening_cash_amount, closing_cash_amount, variance_reason,
+                   branch_id, cashier_id, status, start_time, end_time,
+                   session_type, device_id, device_name, terminal_id, shift_id, closed_by
+            FROM cashier_sessions
+            WHERE id IN ($placeholders) AND tenant_id = ?
+        ");
+        $sessionsStmt->execute(array_merge($sessionIds, [$tenantId]));
+        $sessionsData = $sessionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Index by session_id
+        $sessions = [];
+        $closedByIds = [];
+        foreach ($sessionsData as $session) {
+            $sessionId = (int)$session['id'];
+            $session['session_type_label'] = $this->getSessionTypeLabel($session['session_type'] ?? 'manual');
+            $sessions[$sessionId] = $session;
+
+            if (!empty($session['closed_by'])) {
+                $closedByIds[] = (int)$session['closed_by'];
+            }
+        }
+
+        // Fetch closed_by user names
+        $closedByNames = [];
+        if (!empty($closedByIds)) {
+            $closedByPlaceholders = implode(',', array_fill(0, count($closedByIds), '?'));
+            $closedByStmt = $this->db->prepare("
+                SELECT id, name FROM users WHERE id IN ($closedByPlaceholders) AND tenant_id = ?
+            ");
+            $closedByStmt->execute(array_merge(array_unique($closedByIds), [$tenantId]));
+            $closedByNames = array_column($closedByStmt->fetchAll(PDO::FETCH_ASSOC), 'name', 'id');
+        }
+
+        foreach ($sessions as &$session) {
+            if (!empty($session['closed_by'])) {
+                $session['closed_by_name'] = $closedByNames[$session['closed_by']] ?? 'مستخدم غير معروف';
+            }
+        }
+        unset($session);
+
+        // ─── Query 2: Fetch all cash transactions ────────────────────────────
+        $transactionsStmt = $this->db->prepare("
+            SELECT id, session_id, type, amount, reference_type, reference_id, notes, created_at, created_by
+            FROM cash_transactions
+            WHERE tenant_id = ? AND session_id IN ($placeholders)
+            ORDER BY session_id, created_at ASC
+        ");
+        $transactionsStmt->execute(array_merge([$tenantId], $sessionIds));
+        $allTransactions = $transactionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Group by session_id
+        $transactionsBySession = [];
+        $createdByIds = [];
+        foreach ($allTransactions as $tx) {
+            $sessionId = (int)$tx['session_id'];
+            $transactionsBySession[$sessionId][] = $tx;
+            if (!empty($tx['created_by'])) {
+                $createdByIds[] = (int)$tx['created_by'];
+            }
+        }
+
+        // Fetch created_by user names
+        $userNames = [];
+        if (!empty($createdByIds)) {
+            $userPlaceholders = implode(',', array_fill(0, count(array_unique($createdByIds)), '?'));
+            $userStmt = $this->db->prepare("
+                SELECT id, name FROM users WHERE id IN ($userPlaceholders) AND tenant_id = ?
+            ");
+            $userStmt->execute(array_merge(array_unique($createdByIds), [$tenantId]));
+            $userNames = array_column($userStmt->fetchAll(PDO::FETCH_ASSOC), 'name', 'id');
+        }
+
+        // Enhance transactions with user names
+        foreach ($transactionsBySession as &$transactions) {
+            foreach ($transactions as &$tx) {
+                $tx['created_by_name'] = $userNames[$tx['created_by']] ?? 'System';
+                $tx['amount'] = (float)$tx['amount'];
+            }
+            unset($tx);
+        }
+        unset($transactions);
+
+        // ─── Query 3: Fetch total sales per session ──────────────────────────
+        $salesStmt = $this->db->prepare("
+            SELECT s.session_id, COALESCE(SUM(s.net_total_amount + COALESCE(s.tax_amount, 0)), 0) AS total_sales
+            FROM sales s
+            WHERE s.tenant_id = ? AND s.session_id IN ($placeholders) AND s.status != 'cancelled'
+            GROUP BY s.session_id
+        ");
+        $salesStmt->execute(array_merge([$tenantId], $sessionIds));
+        $salesBySession = array_column($salesStmt->fetchAll(PDO::FETCH_ASSOC), 'total_sales', 'session_id');
+
+        // ─── Build summaries ───────────────────────────────────────────────────
+        $summaries = [];
+        foreach ($sessionIds as $sessionId) {
+            $session = $sessions[$sessionId] ?? null;
+            if (!$session) {
+                continue; // Session not found for this tenant
+            }
+
+            $transactions = $transactionsBySession[$sessionId] ?? [];
+            $totalSales = (float)($salesBySession[$sessionId] ?? 0);
+
+            // Calculate cash_in and cash_out
+            $cashIn = 0.0;
+            $cashOut = 0.0;
+            foreach ($transactions as $tx) {
+                if (in_array($tx['type'], ['income', 'return_receipt', 'sale', 'deposit'], true)) {
+                    $cashIn += (float)$tx['amount'];
+                } elseif (in_array($tx['type'], ['expense', 'return_payment', 'purchase', 'withdrawal'], true)) {
+                    $cashOut += (float)$tx['amount'];
+                }
+            }
+
+            $openingBalance = (float)$session['opening_cash_amount'];
+            $closingBalance = isset($session['closing_cash_amount']) ? (float)$session['closing_cash_amount'] : null;
+            $expectedCash = $openingBalance + $cashIn - $cashOut;
+            $varianceAmount = $closingBalance !== null ? $closingBalance - $expectedCash : null;
+
+            $summaries[$sessionId] = [
+                'session' => $session,
+                'totals' => [
+                    'payments' => $totalSales,
+                    'cash_in' => $cashIn,
+                    'cash_out' => $cashOut,
+                    'total_sales' => $totalSales,
+                ],
+                'calculated' => [
+                    'expected_cash' => $expectedCash,
+                    'variance_amount' => $varianceAmount,
+                    'opening_balance' => $openingBalance,
+                    'closing_balance' => $closingBalance,
+                ],
+                'transactions' => $transactions,
+            ];
+        }
+
+        return $summaries;
+    }
+
     public function checkAndCloseInactiveAdminSessions(int $tenantId): void
     {
         try {

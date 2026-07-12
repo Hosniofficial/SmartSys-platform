@@ -546,4 +546,49 @@ class SessionsHandler extends BaseHandler
             }
         }
     }
+
+    // =========================================================================
+    // POST /sessions/batch-summaries  (🆕 BATCH ENDPOINT - Fixes N+1 Problem)
+    // =========================================================================
+
+    public function batchSummaries(Request $request, Response $response): Response
+    {
+        try {
+            $tenantId = $request->getAttribute('tenant_id');
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+
+            // Get session IDs from request body
+            $data = $request->getParsedBody() ?? [];
+            $sessionIds = $data['session_ids'] ?? [];
+
+            if (!is_array($sessionIds) || count($sessionIds) === 0) {
+                return $this->errorResponse($response, 'مطلوب قائمة معرفات الجلسات (session_ids).', 400);
+            }
+
+            // Limit to 100 sessions per request to prevent abuse
+            if (count($sessionIds) > 100) {
+                return $this->errorResponse($response, 'يمكن طلب ملخصات لـ 100 جلسة كحد أقصى فقط.', 400);
+            }
+
+            // Cast to integers and filter
+            $sessionIds = array_unique(array_map(
+                fn($id) => (int)$id,
+                array_filter($sessionIds, fn($id) => !empty($id))
+            ));
+
+            if (count($sessionIds) === 0) {
+                return $this->successResponse($response, [], 200);
+            }
+
+            // 🚀 Use bulk query method - reduces DB queries from N×4 to ~4 total
+            $summaries = $this->sessionService()->buildBulkSessionSummaries((int)$tenantId, $sessionIds);
+
+            return $this->successResponse($response, $summaries, 200);
+        } catch (Throwable $e) {
+            $this->logger->error('Batch summaries failed', ['message' => $e->getMessage()]);
+            return $this->errorResponse($response, 'فشل في جلب ملخصات الجلسات', 500);
+        }
+    }
 }

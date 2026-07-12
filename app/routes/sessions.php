@@ -15,5 +15,6 @@ return function (RouteCollectorProxy $group, Container $container): void {
             $group->get('', [$handler, 'listSessions']);
             $group->get('/{id}/summary', [$handler, 'summary']);
             $group->get('/summary/daily', [$handler, 'dailySummary']);
+            $group->post('/batch-summaries', [$handler, 'batchSummaries']);  // 🆕 Batch API
         });
 };
