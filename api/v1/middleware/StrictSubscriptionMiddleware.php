@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Middleware;
 
 use Psr\Http\Message\ResponseInterface as Response;
@@ -562,7 +564,7 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
     {
         $deviceFingerprint = $this->generateDeviceFingerprint($request);
         $userAgent = $request->getHeaderLine('User-Agent');
-        $requestData = json_decode($request->getBody()->getContents(), true) ?? [];
+        $requestData = $request->getParsedBody() ?? [];
 
         $stmt = $this->db->prepare("
             INSERT INTO subscription_attempts 

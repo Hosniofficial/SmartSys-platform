@@ -37,7 +37,7 @@ class SuppliersHandler extends BaseContactHandler
     /**
      * Returns detailed account statement for a supplier by delegating to AccountStatementHandler.
      */
-    public function getStatement(Request $request, Response $response, array $args)
+    public function getStatement(Request $request, Response $response, array $args): Response
     {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
@@ -164,14 +164,14 @@ class SuppliersHandler extends BaseContactHandler
     /**
      * Creates a new supplier and its corresponding sub-account in the chart of accounts.
      */
-    public function createSupplier(Request $request, Response $response)
+    public function createSupplier(Request $request, Response $response): Response
     {
         $tenantId = $this->extractTenantId($request);
         if (!$tenantId) {
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
         }
 
-        $data = json_decode($request->getBody()->getContents(), true);
+        $data = $request->getParsedBody() ?? [];
         if (!is_array($data)) {
             $data = [];
         }
@@ -222,7 +222,7 @@ class SuppliersHandler extends BaseContactHandler
                 'message' => 'تم إنشاء المورد وحسابه بنجاح',
                 'data' => $data
             ], 201);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
@@ -238,7 +238,7 @@ class SuppliersHandler extends BaseContactHandler
     /**
      * Updates an existing supplier's information.
      */
-    public function updateSupplier(Request $request, Response $response, $args)
+    public function updateSupplier(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'];
         $tenantId = $this->extractTenantId($request);
@@ -246,7 +246,7 @@ class SuppliersHandler extends BaseContactHandler
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
         }
 
-        $data = json_decode($request->getBody()->getContents(), true);
+        $data = $request->getParsedBody() ?? [];
         if (!is_array($data)) {
             $data = [];
         }
@@ -312,7 +312,7 @@ class SuppliersHandler extends BaseContactHandler
                 'message' => "تم تحديث المورد #$id بنجاح",
                 'data' => $data
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
                 try {
                     $this->db->rollBack();

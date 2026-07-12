@@ -69,7 +69,7 @@ class BranchHandler extends BaseHandler
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$tenantId]);
             return $this->successResponse($response, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب الفروع مع المجاميع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب بيانات الفروع', 500);
         }
@@ -97,7 +97,7 @@ class BranchHandler extends BaseHandler
                 return $this->errorResponse($response, 'Branch not found.', 404);
             }
             return $this->successResponse($response, $branch, 200);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في جلب بيانات الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في جلب بيانات الفرع', 400);
         }
@@ -181,10 +181,6 @@ class BranchHandler extends BaseHandler
                 'message' => 'branch created successfully',
                 'data'    => ['id' => $newBranchId, 'account_id' => $newAccountId, 'account_code' => $newCode],
             ], 201);
-        } catch (PDOException $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
-            $this->logger->error('خطأ في إنشاء الفرع: ' . $e->getMessage());
-            return $this->errorResponse($response, 'فشل في إنشاء الفرع. قد يكون الاسم مكرراً أو هناك خطأ في البيانات.', 400);
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             $this->logger->error('خطأ في إنشاء الفرع: ' . $e->getMessage());
@@ -245,7 +241,7 @@ class BranchHandler extends BaseHandler
 
             $this->db->commit();
             return $this->jsonResponse($response, ['status' => 'success', 'message' => 'Branch updated successfully']);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             $this->logger->error('خطأ في تحديث الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في تحديث بيانات الفرع', 400);
@@ -283,7 +279,7 @@ class BranchHandler extends BaseHandler
                 ->execute([$args['id'], $tenantId]);
 
             return $this->jsonResponse($response, ['status' => 'success', 'message' => 'Branch deleted successfully']);
-        } catch (PDOException $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('خطأ في حذف الفرع: ' . $e->getMessage());
             return $this->errorResponse($response, 'فشل في حذف الفرع', 400);
         }

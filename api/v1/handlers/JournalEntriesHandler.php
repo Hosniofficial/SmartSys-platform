@@ -80,8 +80,7 @@ class JournalEntriesHandler extends BaseHandler
             return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
         }
 
-        $rawBody = (string) $request->getBody();
-        $data = json_decode($rawBody, true);
+        $data = $request->getParsedBody() ?? [];
 
         if (!$data || empty($data['lines']) || !is_array($data['lines'])) {
             return $this->errorResponse($response, 'مطلوب إدخال أسطر القيد المحاسبي', 400);

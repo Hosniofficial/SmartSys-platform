@@ -21,9 +21,9 @@ class CashVouchersHandler extends BaseHandler
     private CostCenterService $costCenterService;
     private BalanceCalculationService $balanceCalcService;
 
-    public function __construct($db)
+    public function __construct(PDO $db)
     {
-        parent::__construct($db instanceof \Database ? $db->pdo : $db);
+        parent::__construct($db);
         $this->logger = MonologHandler::getInstance('cash_vouchers');
         $this->costCenterService = new CostCenterService($this->db, 'cash_vouchers');
         $this->balanceCalcService = new BalanceCalculationService($this->db);

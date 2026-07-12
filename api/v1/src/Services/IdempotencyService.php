@@ -44,11 +44,13 @@ class IdempotencyService
 
     /** TTL in seconds (default: 24 hours) */
     private int $ttl;
+    private MonologHandler $logger;
 
     public function __construct(PDO $db, int $ttl = 86400)
     {
         $this->db  = $db;
         $this->ttl = $ttl;
+        $this->logger = MonologHandler::getInstance('idempotency');
     }
 
     /**
@@ -122,7 +124,9 @@ class IdempotencyService
             ]);
         } catch (\Throwable $e) {
             // Non-fatal — log but don't block the response
-            error_log('[IdempotencyService] Failed to store key: ' . $e->getMessage());
+            $this->logger->error('[IdempotencyService] Failed to store key', [
+                'message' => $e->getMessage()
+            ]);
         }
     }
 

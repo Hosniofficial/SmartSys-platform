@@ -65,6 +65,7 @@ class TwoFactorEncryptionService
     private string $encryptionKey;
 
     private bool $encryptionEnabled = false;
+    private MonologHandler $logger;
 
     /**
      * Constructor - initializes encryption if key is available
@@ -74,6 +75,8 @@ class TwoFactorEncryptionService
      */
     public function __construct(bool $requireKey = false)
     {
+        $this->logger = MonologHandler::getInstance('2fa_encryption');
+        
         $keyBase64 = $_ENV['TWO_FA_ENCRYPTION_KEY'] ?? null;
 
         if (!$keyBase64) {
@@ -133,7 +136,7 @@ class TwoFactorEncryptionService
 
         // If encryption is disabled, return plaintext (backward compatibility)
         if (!$this->encryptionEnabled) {
-            error_log('WARNING: 2FA encryption is disabled (TWO_FA_ENCRYPTION_KEY not set). Storing secrets in plaintext.');
+            $this->logger->warning('2FA encryption is disabled (TWO_FA_ENCRYPTION_KEY not set). Storing secrets in plaintext.');
             return $plainSecret;
         }
 
@@ -184,7 +187,7 @@ class TwoFactorEncryptionService
 
         // Check if it's plaintext (not encrypted yet - migration scenario)
         if (!$this->isEncrypted($encryptedSecret)) {
-            error_log('WARNING: 2FA secret appears to be plaintext. Run migration: php scripts/migrate_encrypt_2fa_secrets.php');
+            $this->logger->warning('2FA secret appears to be plaintext. Run migration: php scripts/migrate_encrypt_2fa_secrets.php');
             return $encryptedSecret; // Return as-is for backward compatibility
         }
 

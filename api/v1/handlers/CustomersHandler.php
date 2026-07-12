@@ -294,7 +294,7 @@ class CustomersHandler extends BaseContactHandler
                 return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
             }
 
-            $data = json_decode($request->getBody()->getContents(), true);
+            $data = $request->getParsedBody() ?? [];
             $data = is_array($data) ? $data : [];
             $userId = $this->extractUserId($request);
 
@@ -428,7 +428,7 @@ class CustomersHandler extends BaseContactHandler
             return $this->errorResponse($response, 'مطلوب رقم العميل', 400);
         }
 
-        $data = json_decode($request->getBody()->getContents(), true);
+        $data = $request->getParsedBody() ?? [];
         $data = is_array($data) ? $data : [];
         $userId = $this->extractUserId($request);
 

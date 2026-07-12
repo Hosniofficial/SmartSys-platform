@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -11,9 +13,12 @@ class Mailer
     private bool $enabled = false;
     private string $fromEmail = '';
     private string $fromName = 'ERP System';
+    private MonologHandler $logger;
 
     public function __construct()
     {
+        $this->logger = MonologHandler::getInstance('mailer');
+        
         $host = $_ENV['SMTP_HOST'] ?? '';
         $port = (int)($_ENV['SMTP_PORT'] ?? 0);
         $user = $_ENV['SMTP_USER'] ?? '';
@@ -61,7 +66,9 @@ class Mailer
             $m->Body = $htmlBody;
             return $m->send();
         } catch (\Throwable $e) {
-            error_log('Mailer send error: ' . $e->getMessage());
+            $this->logger->error('Mailer send error', [
+                'message' => $e->getMessage()
+            ]);
             return false;
         }
     }
