@@ -473,8 +473,9 @@ const fetchReturns = async () => {
 
   isLoadingReturns.value = true;
   try {
-    // Check for branch_id requirement
+    // ✅ Set branch filter based on user type
     if (!isExempt.value) {
+      // Regular user - must have branch assigned
       const wid = authStore?.user?.branch_id;
       if (!wid) {
         rows.value = [];
@@ -484,7 +485,7 @@ const fetchReturns = async () => {
       }
       filters.selectedBranch.value = String(wid);
     }
-    // isExempt + no branch selected → no filter → show all returns
+    // If admin (isExempt) and no branch selected → show all branches (branchId will be null)
 
     // استخدم getApiParams من useHistoryFilters
     const params = filters.getApiParams({

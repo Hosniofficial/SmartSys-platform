@@ -675,7 +675,9 @@ const fetchSalesHistory = async () => {
   try {
     const params = filters.getApiParams({ includeTotals: true });
 
+    // ✅ Add branch_id based on user type
     if (!isExempt.value) {
+      // Regular user - must have branch assigned
       const wid = authStore?.user?.branch_id;
       if (!wid) {
         sales.value = [];
@@ -687,7 +689,11 @@ const fetchSalesHistory = async () => {
         return;
       }
       params.branchId = String(wid);
+    } else if (filters.selectedBranch.value) {
+      // Admin user - use selected branch from filter if any
+      params.branchId = String(filters.selectedBranch.value);
     }
+    // If admin and no branch selected, fetch all branches (no branchId param)
 
     // Use salesStore for better caching and deduplication with business logic
     const response = await salesStore.fetchSalesList(params);
