@@ -1,0 +1,800 @@
+Developer Implementation Report
+Redesign → Original Functional Parity Checklist
+
+Scope: This report documents every functional difference found between the original and redesigned versions across all 20 matched page pairs. Only files with actual functional differences are listed. Pure visual/styling changes are excluded per instructions and are only counted in the summary.
+
+1. FILE: Cashier Dashboard (CashierDashboard.vue)
+Issue 1.1 — Manual Shift Open/Close Removed
+Location: <script setup> — functions openShift, closeShift; template — shift control buttons in header
+What exists in original: Full manual shift lifecycle: isOpeningShift, isClosingShift, shiftOpeningAmount, shiftClosingAmount, shiftNotes refs; openShift() and closeShift() functions calling shiftStore.openShift()/shiftStore.closeShift(); small +/× buttons next to "وردية تلقائية" label allowing manual override of the automatic shift.
+What is missing in redesign: All of the above — functions, refs, and buttons are completely removed. Comment in redesigned file states shift is now "100% automatic."
+Why required: If any workflow depends on manually opening/closing a shift independent of the session (e.g., correcting a shift that didn't auto-create, or splitting a shift mid-session), that capability is gone.
+How to restore: Re-add isOpeningShift, isClosingShift, shiftOpeningAmount, shiftClosingAmount, shiftNotes refs; re-add openShift()/closeShift() functions calling shiftStore.openShift()/shiftStore.closeShift(); re-add the manual override buttons in the header shift-pill.
+Priority: High (confirm with product owner first — may be an intentional deprecation, but must be confirmed before deleting the restore work)
+Issue 1.2 — Device Rename Feature Removed
+Location: <script setup> — functions openRenameDevice, saveDeviceName; template — "تسمية الجهاز" button and Rename Device modal
+What exists in original: Button in header opens a modal (showRenameDevice) with input bound to deviceNameInput; saveDeviceName() persists to localStorage['pos_device_name'].
+What is missing in redesign: Button, modal, and both functions are entirely absent.
+Why required: Users lose the ability to label POS terminals/devices for identification in session/shift records.
+How to restore: Re-add showRenameDevice, deviceNameInput refs; re-add openRenameDevice()/saveDeviceName() functions; re-add button + modal to template.
+Priority: Medium
+Issue 1.3 — Recent Activities Data Source Changed
+Location: fetchDashboardData() — activity mapping block
+What exists in original: Maps data.latest[] (sales-only records) into recentActivities, with single icon/color (fa-receipt, emerald).
+What is missing in redesign: Now maps data.recentActivities[] — a different field name — with type-aware icon/color branching for sale/return/withdrawal/deposit.
+Why required: If the backend response was not updated to emit a recentActivities field (only latest), the "Recent Activities" panel will silently render empty in the redesigned page.
+How to restore: Verify with backend team that the API response includes recentActivities with a type field before shipping. If not present, either (a) update backend to emit this field, or (b) revert the frontend mapping to use data.latest.
+Priority: Critical (silent data-loss risk if unverified)
+Issue 1.4 — Admin Branch Selection Moved Out of Session Modal
+Location: Open Session modal — admin branch selector
+What exists in original: Admin picks the branch inside the "Open Session" modal via an editable <select v-model="modalSelectedBranchId">.
+What is missing in redesign: Modal now shows the branch read-only, sourced from the header's adminSelectedBranch. Admin must select branch from the header dropdown before opening the session modal.
+Why required: This is a workflow change — if an admin opens the modal without first setting the header branch, they can no longer choose it in-context.
+How to restore: Either (a) accept this as an intended UX change (confirm with product), or (b) re-add the in-modal editable branch <select> bound to a modal-local variable as in the original.
+Priority: High (must be a confirmed product decision, not a silent change)
+Issue 1.5 — New Terminal-Existence Validation Added
+Location: triggerOpenSession()
+What exists in original: No check for terminal existence before opening the session modal.
+What is missing/added in redesign: New logic fetches terminals and blocks session opening with a toast if none exist for the branch; also auto-selects the first terminal.
+Why required: This is new, stricter behavior not present in the original. For strict functional parity, this guard should be flagged as an addition — not a bug — but it changes what previously succeeded into a blocked action.
+How to restore: If strict parity to original is required, remove the terminal-existence blocking check. Recommended: keep as a genuine improvement, but confirm with product before finalizing since it changes existing behavior for branches without terminals configured.
+Priority: Medium (behavior change requiring product sign-off, not a defect)
+2. FILE: Purchase History (PurchaseHistory.vue)
+Issue 2.1 — viewPurchaseDetails Signature Mismatch (Bug in Original)
+Location: viewPurchaseDetails(purchaseRow) function; template @click="viewPurchaseDetails(purchase.id)"
+What exists in original: Function expects a full row object (purchaseRow.id), but the template calls it with a bare ID (purchase.id). Because (id).id is undefined, the internal guard if (!purchaseRow || !purchaseRow.id) return; fires and the function does nothing — the "view details" button is non-functional in the original as-shipped.
+What is missing/changed in redesign: Function signature was changed to accept purchaseId directly, matching the template call — this fixes the bug and makes the button work.
+Why required: For strict "identical to original" parity, this fix technically introduces new working behavior that didn't exist before. However, since the original behavior was a defect (button did nothing), this should be treated as a bug fix to keep, not a regression to revert.
+How to restore: No action needed — recommend keeping the redesigned (fixed) behavior. Flag to QA/product that the original had this defect, and confirm the fix is desired going forward.
+Priority: Low (informational — fix should likely be kept, not reverted)
+Issue 2.2 — Item-Count Fallback Chain Shortened
+Location: Table cell rendering total_items/items_count
+What exists in original: purchase.total_items ?? purchase.items_count ?? (Array.isArray(purchase.items) ? purchase.items.length : '-')
+What is missing in redesign: Final fallback to purchase.items.length is dropped: purchase.total_items ?? purchase.items_count ?? '-'
+Why required: Edge case where backend omits both total_items and items_count but includes a populated items array — original would still show a correct count; redesign shows '-'.
+How to restore: Add back the third fallback: purchase.total_items ?? purchase.items_count ?? (Array.isArray(purchase.items) ? purchase.items.length : '-')
+Priority: Low
+3. FILE: Sessions List (SessionsList.vue)
+Issue 3.1 — Transaction Type Labels Dropped for discount/tax
+Location: getTransactionTypeLabel(type) mapping object
+What exists in original: Map includes discount: 'خصم' and tax: 'ضريبة'.
+What is missing in redesign: Both keys removed from the mapping object.
+Why required: If a session transaction has type: 'discount' or type: 'tax', the redesigned page will display the raw (likely English) type string instead of the Arabic label, breaking UI consistency and readability for end users.
+How to restore: Add back discount: 'خصم' and tax: 'ضريبة' to the getTransactionTypeLabel mapping object.
+Priority: Medium
+4. FILE: Purchase Management (PurchaseManagement.vue + PurchaseForm.vue)
+Issue 4.1 — Discount Input Newly Exposed in UI
+Location: PurchaseForm.vue template — new "نوع الخصم" (discount type) selector and value input; discountAmount computed
+What exists in original: form.discount, discountAmount computed, and discount_type field exist in the script and are sent in the payload, but there is no UI control to set them — they are always 0/'fixed' and effectively dead code.
+What is missing/added in redesign: A full discount UI (type selector + value input) was added to PurchaseForm.vue, along with correct percentage/fixed calculation logic and edit-mode pre-fill from p.discount_value/p.discount_type.
+Why required: This changes the actual data submitted to the backend (previously always 0 discount; now can be non-zero) and represents new user-facing functionality not present in the original.
+How to restore: This is a feature addition, not a regression. For strict "identical to original" parity, the discount UI would need to be removed/hidden. Recommended: keep the feature, but require explicit product/QA sign-off since it changes what values reach the purchase-creation API.
+Priority: High (requires product decision — do not silently ship a new feature as if it's a "redesign")
+Issue 4.2 — Quick-Add Supplier No Longer Overwrites Existing Selection
+Location: PurchaseManagement.vue → saveNewSupplier(); PurchaseForm.vue → pendingSupplierId watcher
+What exists in original: saveNewSupplier() unconditionally sets form.value.supplier_id = data.id after creating a new supplier via the quick-add modal, even if a supplier was already selected in the form.
+What is missing/changed in redesign: The child form's watcher on pendingSupplierId only applies the new supplier ID if localForm.supplier_id is currently empty — it will not overwrite an existing selection.
+Why required: This is a behavior change: in the original, quick-adding a supplier while another was already selected would silently switch the form's selected supplier. The redesign no longer does this.
+How to restore: If original (overwrite) behavior is required, remove the "only if empty" guard in the pendingSupplierId watcher in PurchaseForm.vue so it always applies the newly created supplier ID.
+Priority: Medium (likely the redesigned behavior is preferable, but confirm with product before deciding which is "correct")
+Issue 4.3 — Quick-Add Product Now Sets Additional Fields (Bug Fix)
+Location: PurchaseManagement.vue → saveNewProduct(); PurchaseForm.vue → pendingProductAdd watcher
+What exists in original: saveNewProduct() sets only product_id and purchase_price on the target row. It does not set unit_id, has_batch_number, has_expiry_date, or has_serial_number — meaning tracking-input fields (batch/expiry/serial) fail to appear for a quick-added product until the user manually re-selects it from the dropdown.
+What is missing/changed in redesign: The pendingProductAdd watcher in PurchaseForm.vue sets all of these fields, matching the behavior of the manual onProductChange handler.
+Why required: This is a bug fix in the redesign — original behavior was defective (missing tracking fields after quick-add).
+How to restore: No action needed — recommend keeping the fixed behavior. Flag to QA that original had this defect.
+Priority: Low (informational — fix should likely be kept)
+5. FILE: Cash Vouchers (CashVouchers.vue + VoucherForm.vue)
+Issue 5.1 — Edit-Modal Branch ID Fallback Removed
+Location: Original openEditModal(v); Redesigned onEditVoucher(v)
+What exists in original: When opening the Edit modal, if the voucher record has no branch_id (legacy data), the code explicitly derives a fallback: branchIsolation.getRequiredBranchId() for non-exempt (cashier) users, or branchStore.selectedBranchId for exempt (admin) users — then validates the derived ID against the branches list before assigning it.
+What is missing in redesign: onEditVoucher simply does form.value = { ...v, payment_to_type: ... } with no fallback logic for a missing branch_id.
+Why required: Editing an old/legacy voucher record that lacks a branch_id will now fail the "branch is required" validation on submit, where the original page would have self-healed by deriving a valid branch.
+How to restore: Add back the fallback logic in onEditVoucher/openEditModal: if !v.branch_id, derive it via branchIsolation.getRequiredBranchId() (non-exempt) or branchStore.selectedBranchId (exempt), validate against branches.value, and assign before opening the modal.
+Priority: Critical (breaks editing of legacy records)
+Issue 5.2 — Edit-Modal Auto-Link Account-from-Payment-Method Removed
+Location: Original openEditModal(v) — post-assignment account linking block
+What exists in original: After populating editForm, if editForm.value.payment_method_id is set but editForm.value.account_id is missing, the code looks up the matching payment method in validPaymentMethods and assigns its account_id.
+What is missing in redesign: This auto-link-on-open logic is absent. The redesigned form only re-derives account_id reactively via updateAccount(), which fires on the payment method <select>'s @change event — not when the modal first opens.
+Why required: Legacy vouchers with a payment method but no linked account will have account_id empty when the edit modal opens, and will stay empty unless the user manually re-selects (or re-confirms) the payment method dropdown. This can block submission (form requires a linked account) or submit with a missing account link.
+How to restore: Add an onMounted/immediate-effect check in VoucherForm.vue (or in onEditVoucher before showing the modal) that re-derives account_id from payment_method_id if not already set, mirroring the original's post-assignment block.
+Priority: Critical (breaks editing of legacy records, potential silent submission errors)
+Issue 5.3 — Payload Sends Explicit null Instead of Omitting Fields
+Location: Original submitAddVoucher/submitEditVoucher payload construction; Redesigned VoucherForm.vue → handleSave()
+What exists in original: Uses conditional object spreads so that, e.g., for a payment-type voucher, the customer_id/sale_id keys are entirely absent from the JSON payload.
+What is missing/changed in redesign: handleSave() explicitly sets these fields to null (e.g., payload.customer_id = null; payload.sale_id = null;) rather than omitting them.
+Why required: If the backend distinguishes "field omitted" from "field explicitly null" (common in PATCH-style partial-update APIs or strict schema validators), this could cause different backend behavior (e.g., clearing a field that should have been left untouched).
+How to restore: Verify with backend team whether the voucher create/update endpoints treat omitted vs. null fields differently. If they do, change handleSave() to delete payload.customer_id / delete payload.sale_id etc. instead of assigning null.
+Priority: High (verify before ship — data integrity risk)
+Issue 5.4 — Branches No Longer Refreshed on Every Modal Open
+Location: Original fetchLists() called from onAddVoucher/openEditModal; Redesigned fetchLists() in onMounted only
+What exists in original: fetchLists() (which includes branchStore.fetchBranches()) is called every time the Add or Edit voucher modal is opened.
+What is missing in redesign: Branches are fetched once on page mount only; opening the modal does not re-fetch them.
+Why required: If a branch is added/modified elsewhere in the system while the Cash Vouchers page is open, the original would pick up the change on next modal open; the redesign will show stale branch data until a full page reload.
+How to restore: Add branchStore.fetchBranches() (or a full fetchLists() call) into onAddVoucher() and onEditVoucher() in the redesigned page.
+Priority: Low
+Issue 5.5 — New Client-Side Amount Validation Added
+Location: VoucherForm.vue → validateForm()
+What exists in original: No explicit script-level check that amount > 0; only enforced via HTML input attributes (bypassable).
+What is missing/added in redesign: New check: if (!localForm.value.amount || Number(localForm.value.amount) <= 0) { localError.value = '...'; return false; }
+Why required: This is a new safety validation not present in the original. For strict identical behavior it should be flagged, though it is a net improvement.
+How to restore: No removal recommended. Confirm with product/QA that this stricter validation is acceptable (it will block previously-possible zero/negative amount submissions, if any existed).
+Priority: Low (informational — likely safe to keep)
+6. FILE: Inventory Management (InventoryManagement.vue)
+Issue 6.1 — expiringSoon KPI Newly Wired to API
+Location: stats ref initialization; loadSummary() function
+What exists in original: stats ref and loadSummary() never populate an expiringSoon field. The "قريبة الانتهاء" (Expiring Soon) KPI card reads stats.expiringSoon || 0 in the template but the field is never set — the card always displays 0 regardless of actual data.
+What is missing/changed in redesign: expiringSoon: res.data.expiring_soon ?? 0 is added to both the initial stats ref and inside loadSummary(), actually wiring this KPI card to a real backend field.
+Why required: This is a bug fix — the KPI was dead/non-functional in the original. However, this depends on the backend actually returning an expiring_soon field in the inventory summary response.
+How to restore: Verify with backend that expiring_soon is a valid field in the /inventory/summary (or equivalent) response before relying on this KPI. If the field doesn't exist, the card will now show 0 correctly (same net visual result as before, but via real data) or undefined/incorrect data if the field name doesn't match.
+Priority: Medium (verify backend contract; likely safe to keep as it fixes a real defect)
+7. FILE: Sales History (SalesHistory.vue)
+Issue 7.1 — exportCsv() (Export-All) Function Removed
+Location: <script setup> — exportCsv() function
+What exists in original: Function exists in the script that exports all rows (not just selected ones) to CSV.
+What is missing in redesign: Function is deleted entirely.
+Why required: Technically a removed function — however, it is not wired to any button in the original template either (only exportSelectedCsv() is called from the UI). This is dead code removal, not a user-facing regression.
+How to restore: No user-facing action required. If a future requirement calls for an "export all" button, the function can be re-added, but there is no current behavioral gap.
+Priority: Low (informational only — no functional impact)
+Issue 7.2 — Date Format Verbosity Changed
+Location: formatDateTime(dateTimeString) function
+What exists in original: toLocaleString('en-US', { year: 'numeric', month: 'long', ... }) — full month name (e.g., "January").
+What is missing/changed in redesign: month: 'short' — abbreviated month name (e.g., "Jan").
+Why required: Minor display/formatting difference; does not affect underlying data or logic, but is a visible output change on every date-time cell.
+How to restore: Change month: 'short' back to month: 'long' in formatDateTime() if exact original formatting is required.
+Priority: Low
+8. FILE: App Layout / Top Nav (Layout.vue / LayoutRedesign.vue)
+Issue 8.1 — Relative Date Locale Changed for Old Notifications
+Location: formatRelativeTime(date) function — fallback branch for dates older than 7 days
+What exists in original: notifDate.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })
+What is missing/changed in redesign: notifDate.toLocaleDateString('en-US', { ... })
+Why required: Changes the displayed date language/format for notifications older than 7 days from Arabic-localized to English-localized, inconsistent with the rest of the Arabic-first UI.
+How to restore: Change the locale argument back to 'ar-EG' in formatRelativeTime().
+Priority: Low
+Files Confirmed With NO Functional Differences (Pure Visual Refactor)
+
+The following files were audited and found to have byte-for-byte identical business logic — no action required:
+
+Admin Dashboard (AdminDashboard.vue)
+Returns History — read-only (ReturnsHistory.vue)
+Returns Management (ReturnsManagement.vue)
+ReturnForm.vue
+Product Management (ProductManagement.vue)
+Sales Approvals (SalesApprovals.vue)
+Branches List (Branches.vue)
+Bulk Distribution (BulkDistribution.vue)
+Opening Balance (OpeningBalance.vue)
+Customers Management (Customers.vue)
+Suppliers Management (Suppliers.vue)
+Warranty Management (Warranty.vue)
+
+(These files may still contain minor cosmetic-only text/format differences noted in the audit but require no functional restoration.)
+
+FINAL SUMMARY
+Metric	Count
+Total files with functional differences	8 (Cashier Dashboard, Purchase History, Sessions List, Purchase Management, Cash Vouchers, Inventory Management, Sales History, App Layout)
+Total files confirmed pure visual refactor (no action needed)	12
+Total missing/removed business logic items requiring restoration	9 (Issues 1.1, 1.2, 1.4, 3.1, 5.1, 5.2, 5.3, 5.4, and the conditional Cashier 1.4 branch-picker workflow)
+Total new/added functionality requiring product sign-off (not a defect, but a deviation)	5 (Issues 1.5, 4.1, 4.2, 5.5, and the terminal-validation addition)
+Total bug-fixes present in redesign that should likely be kept, not reverted	3 (Issues 2.1, 4.3, 6.1)
+Total cosmetic/formatting-only differences (no functional impact)	3 (Issues 2.2 is data-visible but low-impact; 7.1 dead code; 7.2 and 8.1 are pure format/locale changes)
+Total Critical priority items	3 (Issues 1.3, 5.1, 5.2)
+Total High priority items	4 (Issues 1.1, 1.4, 4.1, 5.3)
+Is the redesigned page 100% functionally equivalent after applying these fixes?
+
+Not yet — conditionally, after the following are completed:
+
+All Critical items (1.3, 5.1, 5.2) must be fixed or explicitly verified as non-issues (e.g., backend confirms the recentActivities field exists; branch-fallback and account-link logic restored in Cash Vouchers).
+All High priority items (1.1, 1.4, 4.1, 5.3) require an explicit product/business decision — these are not straightforward bugs but intentional-seeming deviations that must be confirmed as acceptable or reverted.
+Once Critical and High items are resolved (either by restoration or by documented product approval), and Medium/Low items are triaged at the team's discretion, the redesigned page can be considered functionally equivalent to the original, with three areas (Purchase History's fixed button, Purchase Management's tracking-field fix, and Inventory's newly-wired KPI) representing net improvements over the original that should be retained rather than reverted.
+
+Using your previous comparison results, generate a Developer Patch Report instead of a review.
+The goal is for another developer to apply the missing logic without comparing the two files again.
+Instructions
+Only include actual missing business logic.
+Do NOT include:
+
+UI improvements
+Styling changes
+Layout differences
+Bug fixes that should remain
+New features
+Product recommendations
+UX suggestions
+Formatting changes
+
+For every affected file
+Create a separate section.
+Example:
+File: PurchaseManagement.vue
+Missing Logic #1
+Location
+
+<script setup>
+
+Original Code
+Copy the exact code from the original file that is missing.
+Include the complete code block exactly as it appears in the original implementation.
+Do NOT rewrite it.
+Do NOT summarize it.
+Do NOT simplify it.
+If the missing logic is 2 lines, include the 2 lines.
+If it is 10 lines, include the 10 lines.
+If it is an entire function, copy the entire function.
+If it is a watcher, copy the entire watcher.
+If it is a computed property, copy the entire computed.
+If it is a lifecycle hook, copy the entire hook.
+Insert After
+Specify exactly where this code should be inserted inside the redesigned file.
+Examples:
+
+After loadPurchases()
+Before onMounted()
+Inside handleSubmit()
+Before return
+Inside <script setup>
+Inside the template before <PurchaseFormModal />
+
+Reason
+One short sentence explaining why this code is required.
+Repeat this for every missing code block.
+Important
+Do not paraphrase the original implementation.
+Copy the missing code exactly from the original source.
+Preserve:
+
+variable names
+function names
+formatting
+comments
+spacing
+indentation
+
+The goal is to produce a report that can be used almost like a manual patch.
+If an entire function is missing, include the complete function.
+If only two lines are missing, include only those two lines.
+Do not generate new implementations.
+Only extract the exact missing code from the original file.
+
+Thought for 1m 20s
+Developer Patch Report
+Exact Missing Code Blocks for Manual Restoration
+
+This report contains only verified missing business logic extracted verbatim from the original implementation. Each block can be copy-pasted directly into the redesigned file at the specified location.
+
+File: CashierDashboard.vue
+Missing Logic #1 — Manual Shift State Refs
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+// Shift state
+const shiftState = ref('active');
+const closingCashInput = ref(null);
+const currentShift = ref(null);
+const isOpeningShift = ref(false);
+const isClosingShift = ref(false);
+const shiftOpeningAmount = ref(0);
+const shiftClosingAmount = ref(0);
+const shiftNotes = ref('');
+
+Insert After
+const isOpeningSession = ref(false); block, before the // عند تغيير الفرع من الأدمن handler
+
+Reason
+The redesigned file already declares shiftState, closingCashInput, currentShift but is missing isOpeningShift, isClosingShift, shiftOpeningAmount, shiftClosingAmount, shiftNotes, which are required by the manual shift functions below.
+
+Missing Logic #2 — Manual openShift/closeShift Functions
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+// ─── Shift Actions (منطق غير مُغيَّر — فقط عُرضت بصرياً بشكل مختلف في الـ Header) ──
+const openShift = async () => {
+  if (isOpeningShift.value) return;
+  try {
+    let wid = null;
+    try {
+      wid = branchIsolation.getRequiredBranchId();
+    } catch (e) {
+      showToast(e.message || 'الرجاء اختيار الفرع قبل فتح الوردية', 'error');
+      return;
+    }
+    if (!wid) { showToast('الرجاء اختيار الفرع قبل فتح الوردية', 'error'); return; }
+    if (!selectedTerminalId.value) { showToast('الرجاء اختيار جهاز نقطة البيع', 'error'); return; }
+    isOpeningShift.value = true;
+    const result = await shiftStore.openShift({
+      branch_id: String(wid),
+      terminal_id: selectedTerminalId.value,
+      opening_cash_amount: Number(shiftOpeningAmount.value) || 0,
+      notes: shiftNotes.value || undefined
+    });
+    if (result?.status === 'success') {
+      currentShift.value = result.data || null;
+      shiftOpeningAmount.value = 0;
+      shiftNotes.value = '';
+      showToast('تم فتح الوردية بنجاح', 'success');
+    } else {
+      showToast(result?.message || 'تعذر فتح الوردية', 'error');
+    }
+  } catch (e) { showToast(e?.response?.data?.message || 'تعذر فتح الوردية', 'error'); }
+  finally { isOpeningShift.value = false; }
+};
+
+const closeShift = async () => {
+  if (isClosingShift.value || !currentShift.value?.id) { showToast('لا يوجد وردية مفتوحة', 'info'); return; }
+  try {
+    isClosingShift.value = true;
+    const result = await shiftStore.closeShift({
+      shift_id: currentShift.value.id,
+      closing_cash_amount: Number(shiftClosingAmount.value) || 0,
+      notes: shiftNotes.value || undefined
+    });
+    if (result?.status === 'success') {
+      currentShift.value = null;
+      shiftClosingAmount.value = 0;
+      shiftNotes.value = '';
+      showToast('تم إغلاق الوردية بنجاح', 'success');
+    } else {
+      showToast(result?.message || 'تعذر إغلاق الوردية', 'error');
+    }
+  } catch (e) { showToast(e?.response?.data?.message || 'تعذر إغلاق الوردية', 'error'); }
+  finally { isClosingShift.value = false; }
+};
+
+Insert After
+confirmOpenSession() function, before // ─── Device section
+
+Reason
+These functions implement the manual shift open/close capability entirely removed from the redesign; required for any workflow that needs to open/close a shift independent of the session.
+
+Missing Logic #3 — Manual Shift Buttons in Header Template
+
+Location
+
+<template> — inside the cashier name/status header block
+
+Original Code
+
+html
+              <!-- ✅ REORGANIZED: الوردية = حالة تلقائية ثانوية مجمّعة هنا بوضوح.
+                   نفس openShift/closeShift بالضبط، فقط تمثيل بصري أصغر وأقل بروزاً. -->
+              <div
+                class="flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100"
+                title="تُدار الوردية تلقائياً مع الجلسة"
+              >
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">وردية تلقائية</span>
+                <span v-if="currentShift" class="text-[10px] font-black text-indigo-500">#{{ currentShift.id }}</span>
+                <span v-else class="text-[10px] font-black text-slate-300">—</span>
+                <button
+                  v-if="!currentShift"
+                  @click="openShift"
+                  :disabled="isOpeningShift"
+                  class="w-5 h-5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 flex items-center justify-center transition-all disabled:opacity-40"
+                  title="فتح الوردية يدوياً (نادراً ما يلزم)"
+                  aria-label="فتح الوردية يدوياً"
+                >
+                  <i class="fas fa-plus text-[9px]"></i>
+                </button>
+                <button
+                  v-else
+                  @click="closeShift"
+                  :disabled="isClosingShift"
+                  class="w-5 h-5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 flex items-center justify-center transition-all disabled:opacity-40"
+                  title="إغلاق الوردية يدوياً"
+                  aria-label="إغلاق الوردية يدوياً"
+                >
+                  <i class="fas fa-xmark text-[9px]"></i>
+                </button>
+              </div>
+
+Insert After
+The Session Status Badge div (sessionStatus.icon block), inside the same flex container
+
+Reason
+Provides the UI trigger for the manual shift functions restored above; without it openShift/closeShift are unreachable by the user.
+
+Missing Logic #4 — Device Rename State Refs
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+const showRenameDevice = ref(false);
+const deviceNameInput = ref('');
+
+Insert After
+const isLoadingData = ref(false); / const hasLoadedOnce = ref(false); block
+
+Reason
+Required state for the device rename modal and its input field.
+
+Missing Logic #5 — Device Rename Functions
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+// ─── Device ───────────────────────────────────────────────────────────────────
+const openRenameDevice = () => { deviceNameInput.value = (localStorage.getItem('pos_device_name') || '').trim(); showRenameDevice.value = true; };
+const saveDeviceName = () => {
+  const val = (deviceNameInput.value || '').trim();
+  try { if (val) localStorage.setItem('pos_device_name', val.slice(0, 64)); else localStorage.removeItem('pos_device_name'); showToast('تم حفظ اسم الجهاز', 'success'); } catch { showToast('تعذر الحفظ', 'error'); }
+  showRenameDevice.value = false;
+};
+
+Insert After
+The closeShift() function restored in Missing Logic #2
+
+Reason
+Implements the persist-to-localStorage logic for device naming; required by the button and modal restored below.
+
+Missing Logic #6 — Device Rename Button in Header Template
+
+Location
+
+<template> — Clock & Global Actions section
+
+Original Code
+
+html
+            <button @click="openRenameDevice" class="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all text-slate-400 hover:text-blue-600" title="تسمية الجهاز" aria-label="تسمية الجهاز">
+              <i class="fas fa-edit"></i>
+            </button>
+
+Insert After
+The refresh button (handleRefresh button), before the "فتح جلسة" button
+
+Reason
+Provides the UI entry point to open the device rename modal.
+
+Missing Logic #7 — Rename Device Modal
+
+Location
+
+<template> — modals section
+
+Original Code
+
+html
+    <!-- Rename Device Modal -->
+    <div v-if="showRenameDevice" class="modal-overlay" @keydown.esc="showRenameDevice = false">
+      <div
+        ref="renameDeviceModalRef"
+        class="modal-content-modern animate-modalIn"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="renameDeviceTitle"
+        tabindex="-1"
+      >
+        <div class="p-8 border-b border-slate-50">
+          <h3 id="renameDeviceTitle" class="text-xl font-black text-slate-800">تسمية جهاز نقطة البيع</h3>
+          <p class="text-slate-400 text-xs mt-2 font-bold">يظهر الاسم في الجلسات والتقارير</p>
+        </div>
+        <div class="p-8 space-y-4">
+          <label class="modal-label" for="deviceNameInput">اسم الجهاز</label>
+          <input id="deviceNameInput" v-model.trim="deviceNameInput" type="text" maxlength="64" class="form-input-modern"
+            placeholder="مثال: كاشير 1 - الفرع الرئيسي" />
+          <p class="text-[10px] text-slate-400">اتركه فارغًا للعودة للاسم الافتراضي</p>
+        </div>
+        <div class="px-8 pb-8 flex gap-4">
+          <button @click="showRenameDevice = false" class="flex-1 py-4 rounded-2xl border-2 border-slate-100 font-black text-slate-400 hover:bg-slate-50 transition-colors">إلغاء</button>
+          <button @click="saveDeviceName" class="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 transition-all active:scale-95">حفظ</button>
+        </div>
+      </div>
+    </div>
+
+Insert After
+The closing </div> of the End Shift Modal, before the final </div> that closes the root template element
+
+Reason
+Provides the modal UI required for openRenameDevice/saveDeviceName to function.
+
+Missing Logic #8 — Rename Device Modal Ref + Focus Watcher
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+const renameDeviceModalRef = ref(null);
+javascript
+watch(showRenameDevice, (val) => {
+  if (val) nextTick(() => renameDeviceModalRef.value?.focus());
+});
+
+Insert After
+The openSessionModalRef/endShiftModalRef declarations, and alongside the other focus-management watchers respectively
+
+Reason
+Provides accessibility focus-trap behavior for the rename device modal, matching the pattern used for the other modals.
+
+Missing Logic #9 — Admin In-Modal Branch Selector (Open Session)
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+// ✅ RENAMED (was `selectedBranchId`): modal-only, temporary branch pick for THIS
+// session open — not persisted to localStorage. Renamed to avoid confusion with
+// the unrelated `adminSelectedBranch` computed below. No behavior change.
+const modalSelectedBranchId = ref(null);
+
+Insert After
+const isOpeningSession = ref(false);
+
+Reason
+Required state variable for the in-modal branch selector used by admins when opening a session, restored below.
+
+Missing Logic #10 — Admin Branch Select Field in Open Session Modal
+
+Location
+
+<template> — Open Session Modal body
+
+Original Code
+
+html
+          <!-- Branch Selector for Admin -->
+          <div v-if="authStore.isAdmin && branches.length > 0">
+            <label class="modal-label" for="modalBranchSelect">الفرع / الفرع</label>
+            <!-- ✅ FIX: كان اسمه selectedBranchId ويتشابه مع adminSelectedBranch — أُعيدت تسميته -->
+            <select id="modalBranchSelect" v-model="modalSelectedBranchId" class="form-select-modern font-bold">
+              <option :value="null" disabled>-- اختر الفرع المطلوب --</option>
+              <option v-for="w in branches" :key="w.id" :value="w.id">{{ w.name }}</option>
+            </select>
+          </div>
+
+Insert After
+The Open Session Modal header block, inside <div class="p-8 space-y-6">, replacing the redesigned read-only branch display
+
+Reason
+Allows the admin to select the target branch directly inside the modal, rather than requiring pre-selection from the header dropdown.
+
+Missing Logic #11 — Branch Validation Using modalSelectedBranchId
+
+Location
+
+<script setup> — inside confirmOpenSession()
+
+Original Code
+
+javascript
+    if (authStore.isAdmin) {
+      // ✅ RENAMED: modalSelectedBranchId (كان selectedBranchId)
+      if (!modalSelectedBranchId.value) {
+        showToast('الرجاء تحديد الفرع قبل المتابعة', 'error');
+        isOpeningSession.value = false;
+        return;
+      }
+      wid = modalSelectedBranchId.value;
+    } else {
+
+Insert After
+let wid = null; inside confirmOpenSession(), replacing the redesigned block that reads adminSelectedBranch.value
+
+Reason
+Restores validation and branch resolution logic tied to the in-modal selector rather than the header-only selector.
+
+Missing Logic #12 — Recent Activities Mapping (Conditional Restore)
+
+Location
+
+<script setup> — inside fetchDashboardData()
+
+Original Code
+
+javascript
+    if (Array.isArray(data.latest)) {
+      const sorted = [...data.latest].sort((a, b) =>
+        new Date(b.time || 0) - new Date(a.time || 0)
+      );
+      recentActivities.value = sorted.map(activity => {
+        const createdAt = activity.time || null;
+        const parsedAmount = parseFloat(activity.amount || 0) || 0;
+        const reference = activity.sale_id || '';
+        const base = {
+          id: activity.sale_id,
+          reference_id: activity.sale_id,
+          type: 'sale',
+          amount: parsedAmount,
+          raw_amount: parsedAmount,
+          reference,
+          time: createdAt ? formatRelativeTime(new Date(createdAt)) : '',
+          fullTime: createdAt ? new Date(createdAt).toLocaleString('en-US', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+        };
+        return {
+          ...base,
+          description: `فاتورة مبيعات #${reference}`,
+          icon: 'fa-receipt',
+          colorClass: 'text-emerald-600 bg-emerald-100'
+        };
+      });
+    } else {
+      recentActivities.value = [];
+    }
+
+Insert After
+await fetchPaymentBreakdown(); — replace the redesigned block that reads data.recentActivities only if backend confirmation shows the API does not return a recentActivities field
+
+Reason
+The redesign reads a different response field (data.recentActivities instead of data.latest); if the backend was not updated to emit this new field, the activity feed will render empty. This block restores the original working mapping as a fallback.
+
+File: PurchaseHistory.vue
+Missing Logic #1 — Item Count Fallback Chain
+
+Location
+
+<template> — purchases table row, items count cell
+
+Original Code
+
+{{ purchase.total_items ?? purchase.items_count ?? (Array.isArray(purchase.items) ? purchase.items.length : '-') }}
+
+Insert After
+Replace the redesigned expression:
+{{ purchase.total_items ?? purchase.items_count ?? '-' }}
+
+Reason
+Restores the third fallback that derives the item count from purchase.items.length when neither total_items nor items_count is present in the API response.
+
+File: SessionsList.vue
+Missing Logic #1 — Discount/Tax Transaction Type Labels
+
+Location
+
+<script setup>
+
+Original Code
+
+javascript
+const getTransactionTypeLabel = (t) => ({
+  sale: 'عملية بيع', expense: 'مصروف', income: 'إيراد إضافي',
+  return: 'مرتجع مبيعات', withdrawal: 'سحب نقدي', deposit: 'إيداع نقدي',
+  payment: 'دفعة', refund: 'استرداد', discount: 'خصم', tax: 'ضريبة'
+}[t] || t);
+
+Insert After
+Replace the redesigned getTransactionTypeLabel function entirely (which is missing the discount and tax keys)
+
+Reason
+Without these two keys, transactions of type discount or tax display the raw (unlocalized) type string instead of the correct Arabic label.
+
+File: CashVouchers.vue
+Missing Logic #1 — Branch ID Fallback for Legacy Vouchers in Edit Modal
+
+Location
+
+<script setup> — inside openEditModal(v) / onEditVoucher(v)
+
+Original Code
+
+javascript
+  // إضافة حقول احتياطية للسندات القديمة
+  let editData = { ...v };
+  
+  // إضافة payment_method_id احتياطياً
+  if (!('payment_method_id' in editData)) {
+    editData.payment_method_id = '';
+  }
+  
+  // إضافة branch_id احتياطياً
+  if (!editData.branch_id) {
+    let userBranchId = '';
+    if (!isExempt.value) {
+      try {
+        userBranchId = branchIsolation.getRequiredBranchId();
+      } catch {
+        userBranchId = '';
+      }
+    } else {
+      userBranchId = branchStore.selectedBranchId || '';
+    }
+    if (userBranchId && branches.value.length > 0) {
+      const validBranch = branches.value.find(b => String(b.id) === String(userBranchId));
+      editData.branch_id = validBranch ? userBranchId : branches.value[0]?.id || '';
+    }
+  }
+  
+  // منطق payment_to_type الصحيح
+  editData.payment_to_type = v.supplier_id ? 'supplier' : (v.expense_account_id ? 'expense' : 'supplier');
+  
+  editForm.value = editData;
+
+Insert After
+await fetchLists(); inside onEditVoucher(v) — replace the redesigned line:
+form.value = { ...v, payment_to_type: v.supplier_id ? 'supplier' : (v.expense_account_id ? 'expense' : 'supplier') };
+
+Reason
+Without this fallback, editing a legacy voucher record that has no branch_id will fail branch-required validation on submit instead of self-healing to a valid branch.
+
+Missing Logic #2 — Auto-Link Account from Payment Method on Edit Open
+
+Location
+
+<script setup> — inside openEditModal(v) / onEditVoucher(v)
+
+Original Code
+
+javascript
+  // Auto-link account from payment method if not set
+  if (editForm.value.payment_method_id && !editForm.value.account_id) {
+    const pm = validPaymentMethods.value.find(p => p.id === editForm.value.payment_method_id);
+    if (pm?.account_id) {
+      editForm.value.account_id = pm.account_id;
+    }
+  }
+
+Insert After
+The editForm.value = editData; line restored in Missing Logic #1 above (or directly after form.value = { ... } assignment in the redesigned function)
+
+Reason
+Without this, opening the edit modal on a legacy voucher that has a payment_method_id but no account_id leaves account_id empty, which can block submission or save an incorrectly-linked account until the user manually re-selects the payment method.
+
+Missing Logic #3 — Voucher Payload Construction Using Conditional Field Omission
+
+Location
+
+<script setup> — inside submitAddVoucher() / handleSave()
+
+Original Code
+
+javascript
+    // 🔴 Payload آمن ومحدد بدلاً من spread
+    const payload = {
+      type: addForm.value.type,
+      date: addForm.value.date,
+      amount: addForm.value.amount,
+      currency: currencyCode.value,
+      account_id: addForm.value.account_id,
+      payment_method_id: addForm.value.payment_method_id || null,
+      branch_id: addForm.value.branch_id,
+      description: addForm.value.description,
+      ...(addForm.value.type === 'receipt' && {
+        customer_id: addForm.value.customer_id,
+        ...(addForm.value.sale_id ? { sale_id: addForm.value.sale_id } : {})
+      }),
+      ...(addForm.value.type === 'payment' && {
+        payment_to_type: addForm.value.payment_to_type,
+        ...(addForm.value.payment_to_type === 'supplier' && {
+          supplier_id: addForm.value.supplier_id,
+          ...(addForm.value.purchase_id ? { purchase_id: addForm.value.purchase_id } : {})
+        }),
+        ...(addForm.value.payment_to_type === 'expense' && { expense_account_id: addForm.value.expense_account_id })
+      })
+    };
+
+Insert After
+Replace the redesigned payload construction in handleSave() that sets payload.customer_id = null, payload.sale_id = null, payload.supplier_id = null, payload.purchase_id = null, payload.expense_account_id = null with explicit nulls
+
+Reason
+The original omits irrelevant fields entirely from the payload using conditional spreads; the redesign sends them as explicit null. If the backend API distinguishes an omitted field from an explicitly-null field (common in partial-update/PATCH semantics), this changes what data reaches the server. Verify backend contract before applying this patch — only apply if the backend requires field omission rather than null.
+
+FINAL SUMMARY
+Metric	Count
+Total files patched	4 (CashierDashboard.vue, PurchaseHistory.vue, SessionsList.vue, CashVouchers.vue)
+Total missing logic items documented	16
+Critical priority patches	4 (Missing Logic #1–#2 in CashVouchers.vue; #12 in CashierDashboard.vue conditional on backend verification)
+Items requiring backend verification before applying	2 (CashierDashboard #12, CashVouchers #3)
+Patches safe to apply directly (no backend dependency)	14
+
+Note: All code blocks above are copied verbatim from the original source files with original variable names, comments, and formatting preserved. No logic has been rewritten, simplified, or reinterpreted.

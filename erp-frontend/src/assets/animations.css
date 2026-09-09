@@ -1,0 +1,141 @@
+/* ═══════════════════════════════════════════════════
+   animations.css — ERP Global Transitions & Keyframes
+   Import once in main.js: import '@/assets/animations.css'
+═══════════════════════════════════════════════════ */
+
+/* ─── Design Tokens ─────────────────────────────── */
+:root {
+  --dur-fast:   120ms;
+  --dur-base:   200ms;
+  --dur-slow:   320ms;
+  --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:    cubic-bezier(0.4, 0, 1, 1);
+  --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ════════════════════════════════════════════════
+   1. FADE
+════════════════════════════════════════════════ */
+.fade-enter-active  { transition: opacity var(--dur-base) var(--ease-out); }
+.fade-leave-active  { transition: opacity var(--dur-fast) var(--ease-in); }
+.fade-enter-from,
+.fade-leave-to      { opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   2. SCALE (modals, popovers)
+════════════════════════════════════════════════ */
+.scale-enter-active { transition: opacity var(--dur-base) var(--ease-out),
+                                  transform var(--dur-base) var(--ease-out); }
+.scale-leave-active { transition: opacity var(--dur-fast) var(--ease-in),
+                                  transform var(--dur-fast) var(--ease-in); }
+.scale-enter-from,
+.scale-leave-to     { opacity: 0; transform: scale(0.94); }
+
+/* ════════════════════════════════════════════════
+   3. SLIDE-RIGHT (panel from right)
+════════════════════════════════════════════════ */
+.slide-right-enter-active { transition: transform var(--dur-slow) var(--ease-out),
+                                         opacity  var(--dur-slow) var(--ease-out); }
+.slide-right-leave-active { transition: transform var(--dur-base) var(--ease-in),
+                                         opacity  var(--dur-base) var(--ease-in); }
+.slide-right-enter-from,
+.slide-right-leave-to     { transform: translateX(100%); opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   4. SLIDE-LEFT (drawers from left)
+════════════════════════════════════════════════ */
+.slide-left-enter-active { transition: transform var(--dur-slow) var(--ease-out),
+                                        opacity  var(--dur-slow) var(--ease-out); }
+.slide-left-leave-active { transition: transform var(--dur-base) var(--ease-in),
+                                        opacity  var(--dur-base) var(--ease-in); }
+.slide-left-enter-from,
+.slide-left-leave-to     { transform: translateX(-100%); opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   5. SLIDE-DOWN (dropdowns, toasts from top)
+════════════════════════════════════════════════ */
+.slide-down-enter-active { transition: transform var(--dur-base) var(--ease-out),
+                                        opacity  var(--dur-base) var(--ease-out); }
+.slide-down-leave-active { transition: transform var(--dur-fast) var(--ease-in),
+                                        opacity  var(--dur-fast) var(--ease-in); }
+.slide-down-enter-from,
+.slide-down-leave-to     { transform: translateY(-12px); opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   6. SLIDE-UP (toasts from bottom, bottom panel)
+════════════════════════════════════════════════ */
+.slide-up-enter-active { transition: transform var(--dur-slow) var(--ease-out),
+                                      opacity  var(--dur-slow) var(--ease-out); }
+.slide-up-leave-active { transition: transform var(--dur-base) var(--ease-in),
+                                      opacity  var(--dur-base) var(--ease-in); }
+.slide-up-enter-from,
+.slide-up-leave-to     { transform: translateY(20px); opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   7. PAGE TRANSITION (route changes)
+════════════════════════════════════════════════ */
+.page-enter-active { transition: opacity var(--dur-slow) var(--ease-out),
+                                  transform var(--dur-slow) var(--ease-out); }
+.page-leave-active { transition: opacity var(--dur-fast) var(--ease-in); }
+.page-enter-from   { opacity: 0; transform: translateY(8px); }
+.page-leave-to     { opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   8. LIST STAGGER
+════════════════════════════════════════════════ */
+.list-enter-active { transition: all var(--dur-base) var(--ease-out); }
+.list-leave-active { transition: all var(--dur-fast) var(--ease-in); }
+.list-enter-from   { opacity: 0; transform: translateX(10px); }
+.list-leave-to     { opacity: 0; transform: translateX(-10px); }
+.list-move         { transition: transform var(--dur-base) var(--ease-inout); }
+
+/* ════════════════════════════════════════════════
+   9. OVERLAY
+════════════════════════════════════════════════ */
+.overlay-enter-active { transition: opacity var(--dur-base) var(--ease-out); }
+.overlay-leave-active { transition: opacity var(--dur-base) var(--ease-in); }
+.overlay-enter-from,
+.overlay-leave-to     { opacity: 0; }
+
+/* ════════════════════════════════════════════════
+   10. KEYFRAMES
+════════════════════════════════════════════════ */
+@keyframes spin      { to { transform: rotate(360deg); } }
+@keyframes pulse     { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+@keyframes skeleton  {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@keyframes bounce-in {
+  0%   { transform: scale(0.8); opacity: 0; }
+  60%  { transform: scale(1.04); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+@keyframes toast-in  {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ════════════════════════════════════════════════
+   11. UTILITY CLASSES
+════════════════════════════════════════════════ */
+.anim-spin       { animation: spin 0.7s linear infinite; }
+.anim-pulse      { animation: pulse 1.4s ease-in-out infinite; }
+.anim-bounce-in  { animation: bounce-in 0.35s var(--ease-out) forwards; }
+.anim-fade-in    { animation: fadeInSimple var(--dur-slow) var(--ease-out) forwards; }
+
+@keyframes fadeInSimple {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger helper — set via inline style --delay -->  */
+.stagger > * { animation: fadeInSimple var(--dur-slow) var(--ease-out) both; }
+.stagger > *:nth-child(1)  { animation-delay: 0ms;   }
+.stagger > *:nth-child(2)  { animation-delay: 60ms;  }
+.stagger > *:nth-child(3)  { animation-delay: 120ms; }
+.stagger > *:nth-child(4)  { animation-delay: 180ms; }
+.stagger > *:nth-child(5)  { animation-delay: 240ms; }
+.stagger > *:nth-child(6)  { animation-delay: 300ms; }
+.stagger > *:nth-child(7)  { animation-delay: 360ms; }
+.stagger > *:nth-child(8)  { animation-delay: 420ms; }
