@@ -1,30 +1,50 @@
+# ========================================
 # SMARTSYS ERP - Git Ignore Rules
+# ========================================
 
-# Environment variables (NEVER commit secrets)
+# -------- SECURITY: NEVER COMMIT --------
 .env
 .env.local
 .env.*.local
 .env.backup
+.env.production.local
+.env.staging
+secretsfile.txt
+private_key.pem
+*.p12
 
-# Dependencies
+# -------- DEPENDENCIES --------
 /vendor/
 /node_modules/
 composer.lock
 package-lock.json
+yarn.lock
 
-# Logs
+# -------- LOGS --------
 /logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Temporary files
+# -------- TEMPORARY FILES --------
 /tmp/
 /temp/
 *.tmp
 *.cache
+*.bak
+*.backup
+*.orig
+
+# -------- OS & EDITOR --------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # IDE
@@ -36,85 +56,45 @@ Thumbs.db
 .project
 .classpath
 .c9/
+*.sublime-project
+*.sublime-workspace
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-
-# Build outputs
+# -------- BUILD & DIST --------
 /dist/
 /build/
 *.min.js
 *.min.css
+/erp-frontend/dist/
+/erp-frontend/.vite/
+/erp-frontend/.nuxt/
+/erp-frontend/.output/
 
-# Backup files
-*.backup
-*.bak
-*.orig
+# -------- FRONTEND --------
+/erp-frontend/node_modules/
 
-# Database backups (keep repo clean - use external storage)
+# -------- PHP SPECIFIC --------
+.phpunit.result.cache
+coverage/
+.coverage
+
+# -------- UPLOADS & DYNAMIC FILES --------
+/public/uploads/
+/api/public/uploads/
+
+# -------- DATABASE --------
 *.sql
 *.sql.gz
 *.dump
 *.sqlite
 *.db
 
-# Exclude specific SQL files
-check_cogs_data.sql
-
-# Local development
-.local/
-.testing/
-
-# Node dev files (Frontend)
-/erp-frontend/node_modules/
-/erp-frontend/dist/
-/erp-frontend/.vite/
-/erp-frontend/.nuxt/
-/erp-frontend/.output/
-
-# PHP specific
-.phpunit.result.cache
-coverage/
-.coverage
-
-# Uploads and dynamic files
-/public/uploads/
-/api/public/uploads/
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Keep production config but not local overrides
-.env.production.local
-.env.staging
-
-# Git
-.git/
-.gitkeep!
-
-# CI/CD
-.github/workflows/secrets.yml
-.gitlab-ci.yml.bak
-
-# Never commit these files
-secretsfile.txt
-private_key.pem
-*.p12
+# -------- ARCHIVES --------
 *.rar
 *.zip
 *.tar.gz
+*.7z
 
-# Exclude specific files
-smartsys_backend.rar
-php -S localhost8000.txt
-مهم للانتاج.txt
-
-# Misc
+# -------- MISC --------
+.gitkeep!
 package.json.bak
 composer.json.bak

@@ -1,0 +1,65 @@
+# ========================================
+# ERP Frontend - Git Ignore Rules
+# ========================================
+
+# -------- DEPENDENCIES --------
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# -------- BUILD OUTPUT --------
+dist/
+dist-ssr/
+*.local
+
+# -------- LOGS --------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -------- IDE & EDITOR --------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+
+# -------- VITE --------
+.vite/
+
+# -------- VUEPRESS --------
+.vuepress/dist/
+
+# -------- NUXT --------
+.nuxt/
+.output/
+.env
+.env.*
+!.env.example
+
+# -------- OS --------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# -------- MISC --------
+.cache/
+.temp/
+*.bak
+*.backup
