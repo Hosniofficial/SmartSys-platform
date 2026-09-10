@@ -7,6 +7,7 @@ namespace App\Handlers;
 use PDO;
 use Pusher\Pusher;
 use App\Services\MonologHandler;
+use App\Services\NotificationAggregatorService;
 use App\Utils\PaginationHelper;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -14,11 +15,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class NotificationHandler extends BaseHandler
 {
     private ?Pusher $pusher = null;
+    private NotificationAggregatorService $aggregator;
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
         $this->logger = MonologHandler::getInstance('notification');
+        $this->aggregator = new NotificationAggregatorService($db, $this->logger);
         $this->initializePusher();
     }
 
@@ -141,17 +144,20 @@ class NotificationHandler extends BaseHandler
                 $product = $results[0];
 
                 foreach ($results as $row) {
-                    $this->createNotification(
+                    // Low stock is important - use aggregator with instant mode
+                    // (user preference will determine actual delivery)
+                    $this->aggregator->queueNotification(
                         (int) $row['user_id'],
                         (int) $product['tenant_id'],
                         'low_stock_alert',
-                        'تنبيه مخزون منخفض',
                         [
-                            'message' => "المنتج {$product['name']} ({$product['sku']}) = {$product['current_stock']} قطعة",
                             'product_id' => $productId,
+                            'product_name' => $product['name'],
+                            'sku' => $product['sku'],
                             'current_stock' => $product['current_stock'],
-                            'minimum_stock' => $product['minimum_stock']
-                        ]
+                            'minimum_stock' => $product['minimum_stock'],
+                        ],
+                        NotificationAggregatorService::PRIORITY_HIGH
                     );
                 }
             }
@@ -212,6 +218,12 @@ class NotificationHandler extends BaseHandler
         }
     }
 
+    /**
+     * Send new order notification using smart aggregation
+     * 
+     * @param int $orderId
+     * @return void
+     */
     public function sendNewOrderNotification(int $orderId): void
     {
         try {
@@ -237,17 +249,17 @@ class NotificationHandler extends BaseHandler
                 $order = $results[0];
 
                 foreach ($results as $row) {
-                    $this->createNotification(
+                    // Use smart aggregation instead of direct notification
+                    $this->aggregator->queueNotification(
                         (int) $row['user_id'],
                         (int) $order['tenant_id'],
                         'new_order',
-                        'طلب جديد',
                         [
-                            'message' => "طلب جديد #{$order['id']} من {$order['customer_name']}",
                             'order_id' => $orderId,
                             'customer_name' => $order['customer_name'],
-                            'total_amount' => $order['total_amount']
-                        ]
+                            'amount' => (float) $order['total_amount']
+                        ],
+                        NotificationAggregatorService::PRIORITY_NORMAL
                     );
                 }
             }
@@ -282,8 +294,9 @@ class NotificationHandler extends BaseHandler
                 FROM sales s
                 JOIN customers c ON c.id = s.customer_id
                 JOIN users u ON u.tenant_id = s.tenant_id
+                JOIN roles r ON r.id = u.role_id
                 WHERE s.id = ?
-                  AND (u.role = 'admin' OR u.role = 'sales_manager')
+                  AND (r.name = 'admin' OR r.name = 'sales_manager')
             ");
 
             $stmt->execute([$orderId]);
@@ -341,7 +354,8 @@ class NotificationHandler extends BaseHandler
             $total = (int) (($countStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0));
 
             $stmt = $this->db->prepare("
-                SELECT id, type, title, message, data, is_read, created_at, read_at
+                SELECT id, type, title, message, data, is_read, created_at, read_at,
+                       aggregated_count, priority
                 FROM notifications
                 WHERE user_id = ? AND tenant_id = ?
                 ORDER BY created_at DESC
@@ -479,5 +493,263 @@ class NotificationHandler extends BaseHandler
 
             return false;
         }
+    }
+
+    /**
+     * Get user notification preferences
+     * 
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
+    public function getPreferences(Request $request, Response $response): Response
+    {
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+
+            $userId = $this->extractUserId($request);
+            if (!$userId) {
+                return $this->errorResponse($response, 'User ID is required', 400);
+            }
+
+            $stmt = $this->db->prepare("
+                SELECT 
+                    id,
+                    notification_type,
+                    delivery_mode,
+                    batch_interval_minutes,
+                    threshold_enabled,
+                    threshold_value,
+                    enable_in_app,
+                    enable_email,
+                    enable_push
+                FROM notification_preferences
+                WHERE user_id = ? AND tenant_id = ?
+                ORDER BY notification_type
+            ");
+
+            $stmt->execute([$userId, $tenantId]);
+            $preferences = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            return $this->successResponse($response, [
+                'preferences' => $preferences
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('getPreferences error', [
+                'message' => $e->getMessage()
+            ]);
+
+            return $this->errorResponse($response, 'Failed to retrieve preferences', 500);
+        }
+    }
+
+    /**
+     * Update user notification preferences
+     * 
+     * @param Request $request
+     * @param Response $response
+     * @param array $args
+     * @return Response
+     */
+    public function updatePreferences(Request $request, Response $response, array $args = []): Response
+    {
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+
+            $userId = $this->extractUserId($request);
+            if (!$userId) {
+                return $this->errorResponse($response, 'User ID is required', 400);
+            }
+
+            $data = $this->extractAndValidateRequestData($request, [
+                'notification_type',
+                'delivery_mode'
+            ]);
+
+            // Validate delivery mode
+            $validModes = ['instant', 'batched', 'digest', 'disabled'];
+            if (!in_array($data['delivery_mode'], $validModes)) {
+                return $this->errorResponse($response, 'Invalid delivery mode', 400);
+            }
+
+            // Check if preference exists
+            $checkStmt = $this->db->prepare("
+                SELECT id FROM notification_preferences
+                WHERE user_id = ? AND tenant_id = ? AND notification_type = ?
+            ");
+            $checkStmt->execute([$userId, $tenantId, $data['notification_type']]);
+            $exists = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($exists) {
+                // Update existing preference
+                $stmt = $this->db->prepare("
+                    UPDATE notification_preferences
+                    SET delivery_mode = ?,
+                        batch_interval_minutes = ?,
+                        threshold_enabled = ?,
+                        threshold_value = ?,
+                        enable_in_app = ?,
+                        enable_email = ?,
+                        enable_push = ?,
+                        updated_at = NOW()
+                    WHERE user_id = ? AND tenant_id = ? AND notification_type = ?
+                ");
+
+                $stmt->execute([
+                    $data['delivery_mode'],
+                    $data['batch_interval_minutes'] ?? 30,
+                    $data['threshold_enabled'] ?? 0,
+                    $data['threshold_value'] ?? null,
+                    $data['enable_in_app'] ?? 1,
+                    $data['enable_email'] ?? 0,
+                    $data['enable_push'] ?? 0,
+                    $userId,
+                    $tenantId,
+                    $data['notification_type']
+                ]);
+            } else {
+                // Insert new preference
+                $stmt = $this->db->prepare("
+                    INSERT INTO notification_preferences (
+                        tenant_id,
+                        user_id,
+                        notification_type,
+                        delivery_mode,
+                        batch_interval_minutes,
+                        threshold_enabled,
+                        threshold_value,
+                        enable_in_app,
+                        enable_email,
+                        enable_push
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+
+                $stmt->execute([
+                    $tenantId,
+                    $userId,
+                    $data['notification_type'],
+                    $data['delivery_mode'],
+                    $data['batch_interval_minutes'] ?? 30,
+                    $data['threshold_enabled'] ?? 0,
+                    $data['threshold_value'] ?? null,
+                    $data['enable_in_app'] ?? 1,
+                    $data['enable_email'] ?? 0,
+                    $data['enable_push'] ?? 0
+                ]);
+            }
+
+            return $this->successResponse($response, [
+                'message' => 'تم تحديث التفضيلات بنجاح',
+                'preference' => [
+                    'notification_type' => $data['notification_type'],
+                    'delivery_mode' => $data['delivery_mode']
+                ]
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('updatePreferences error', [
+                'message' => $e->getMessage()
+            ]);
+
+            return $this->errorResponse($response, 'Failed to update preferences', 500);
+        }
+    }
+
+    /**
+     * Get notification statistics
+     * 
+     * @param Request $request
+     * @param Response $response
+     * @return Response
+     */
+    public function getStatistics(Request $request, Response $response): Response
+    {
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+
+            $userId = $this->extractUserId($request);
+            if (!$userId) {
+                return $this->errorResponse($response, 'User ID is required', 400);
+            }
+
+            // Get count by type
+            $typeStmt = $this->db->prepare("
+                SELECT 
+                    type,
+                    COUNT(*) as count,
+                    SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unread_count
+                FROM notifications
+                WHERE user_id = ? AND tenant_id = ?
+                GROUP BY type
+            ");
+            $typeStmt->execute([$userId, $tenantId]);
+            $byType = $typeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            // Get total unread
+            $unreadStmt = $this->db->prepare("
+                SELECT COUNT(*) as total_unread
+                FROM notifications
+                WHERE user_id = ? AND tenant_id = ? AND is_read = 0
+            ");
+            $unreadStmt->execute([$userId, $tenantId]);
+            $unread = $unreadStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Get aggregation stats
+            $aggStmt = $this->db->prepare("
+                SELECT 
+                    COUNT(*) as aggregated_notifications,
+                    SUM(aggregated_count) as total_events,
+                    AVG(aggregated_count) as avg_events_per_notification
+                FROM notifications
+                WHERE user_id = ? AND tenant_id = ? AND aggregated_count > 1
+            ");
+            $aggStmt->execute([$userId, $tenantId]);
+            $aggregation = $aggStmt->fetch(PDO::FETCH_ASSOC);
+
+            return $this->successResponse($response, [
+                'total_unread' => (int) ($unread['total_unread'] ?? 0),
+                'by_type' => $byType,
+                'aggregation' => [
+                    'aggregated_notifications' => (int) ($aggregation['aggregated_notifications'] ?? 0),
+                    'total_events' => (int) ($aggregation['total_events'] ?? 0),
+                    'avg_events_per_notification' => round((float) ($aggregation['avg_events_per_notification'] ?? 0), 2),
+                    'reduction_percentage' => $this->calculateReductionPercentage(
+                        (int) ($aggregation['aggregated_notifications'] ?? 0),
+                        (int) ($aggregation['total_events'] ?? 0)
+                    )
+                ]
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('getStatistics error', [
+                'message' => $e->getMessage()
+            ]);
+
+            return $this->errorResponse($response, 'Failed to retrieve statistics', 500);
+        }
+    }
+
+    /**
+     * Calculate notification reduction percentage
+     * 
+     * @param int $notifications
+     * @param int $events
+     * @return float
+     */
+    private function calculateReductionPercentage(int $notifications, int $events): float
+    {
+        if ($events === 0) {
+            return 0.0;
+        }
+
+        $reduction = (($events - $notifications) / $events) * 100;
+        return round($reduction, 2);
     }
 }

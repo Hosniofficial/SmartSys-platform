@@ -193,15 +193,26 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
 
     /**
      * Check individual rate limiting rule
+     * 
+     * ✅ Updated to use tenant_id:user_id as primary identifier
+     * Each user gets independent rate limits regardless of shared IP
      */
     private function checkRule(array $rule, string $ipAddress, string $deviceFingerprint, string $path): void
     {
         $identifiers = [];
 
-        if ($rule['ip_based']) {
+        // Priority 1: Use tenant_id:user_id if available (per-user rate limiting)
+        $tenantUserId = $this->getTenantUserIdentifier();
+        if ($tenantUserId !== null) {
+            $identifiers[] = ['type' => 'tenant_user', 'value' => $tenantUserId];
+        }
+
+        // Priority 2: IP-based (fallback for unauthenticated requests)
+        if ($rule['ip_based'] && empty($identifiers)) {
             $identifiers[] = ['type' => 'ip', 'value' => $ipAddress];
         }
 
+        // Priority 3: Device-based
         if ($rule['device_based'] && !empty($deviceFingerprint)) {
             $identifiers[] = ['type' => 'device', 'value' => $deviceFingerprint];
         }
@@ -250,6 +261,52 @@ class StrictSubscriptionMiddleware implements MiddlewareInterface
                 ");
                 $insertStmt->execute([$rule['id'], $identifier['value'], $identifier['type'], $windowStart, $windowEnd]);
             }
+        }
+    }
+
+    /**
+     * Extract tenant_id:user_id from JWT token
+     * 
+     * Returns format: "5:10" (tenant_id:user_id)
+     * Returns null if no valid JWT found
+     */
+    private function getTenantUserIdentifier(): ?string
+    {
+        // Try to get JWT from Authorization header
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
+        
+        if (!$authHeader || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+            return null;
+        }
+
+        $jwt = $matches[1];
+
+        try {
+            // Decode JWT (without verification for speed - only extracting IDs)
+            $parts = explode('.', $jwt);
+            if (count($parts) !== 3) {
+                return null;
+            }
+
+            $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $parts[1])), true);
+            
+            if (!$payload || !isset($payload['tenant_id']) || !isset($payload['user_id'])) {
+                return null;
+            }
+
+            $tenantId = (int) $payload['tenant_id'];
+            $userId = (int) $payload['user_id'];
+
+            // Validate IDs are positive integers
+            if ($tenantId <= 0 || $userId <= 0) {
+                return null;
+            }
+
+            return "{$tenantId}:{$userId}";
+
+        } catch (\Exception $e) {
+            // Silently fail - will fallback to IP-based rate limiting
+            return null;
         }
     }
 
