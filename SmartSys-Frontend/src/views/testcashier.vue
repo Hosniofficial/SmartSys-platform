@@ -1,32 +1,35 @@
 <template>
   <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100" dir="rtl">
-    
+
     <!-- Global Loading Progress -->
     <div v-if="isLoadingData" class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-50">
       <div class="h-full bg-blue-600 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
     </div>
 
     <!-- Sticky Header: Glassmorphism & High-Contrast Navigation -->
-    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-3">
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 lg:px-6 py-3">
       <div class="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
         
         <!-- User Identity & Status -->
         <div class="flex items-center gap-4">
-          <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-sm shrink-0">
+          <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-sm shrink-0 transition-transform hover:scale-105">
             <i class="fas fa-user-tie text-sm"></i>
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h1 class="text-sm font-bold text-slate-900">مرحباً، {{ cashierName }}</h1>
-              <!-- Shift Auto-Pill: Refined as a status tag -->
-              <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-[10px] font-bold text-indigo-600">
-                <span class="opacity-70 uppercase tracking-tighter">وردية</span>
-                <span>#{{ currentShift?.id || '—' }}</span>
+              <h1 class="text-sm font-bold text-slate-900 leading-none">مرحباً، {{ cashierName }}</h1>
+              <!-- Shift Status Badge -->
+              <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-[9px] font-bold text-indigo-600 uppercase tracking-tighter">
+                <span>الوردية الحالية</span>
+                <span class="font-mono">#{{ currentShift?.id || '—' }}</span>
               </div>
             </div>
-            <div class="flex items-center gap-2 mt-1">
-              <span :class="[activeSessionId ? 'text-emerald-600' : 'text-amber-600']" class="text-[10px] font-bold flex items-center gap-1">
-                <i :class="activeSessionId ? 'fas fa-circle text-[6px]' : 'fas fa-exclamation-triangle'"></i>
+            <div class="flex items-center gap-2 mt-1.5">
+              <span :class="[activeSessionId ? 'text-emerald-600' : 'text-amber-600']" class="text-[10px] font-bold flex items-center gap-1.5">
+                <span class="relative flex h-1.5 w-1.5">
+                  <span v-if="activeSessionId" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-1.5 w-1.5" :class="activeSessionId ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                </span>
                 {{ sessionStatus.text }}
               </span>
             </div>
@@ -35,36 +38,38 @@
 
         <!-- Global Controls -->
         <div class="flex items-center gap-3">
-          <!-- Time Display: Mono font for stability -->
-          <div class="hidden xl:flex items-center gap-3 px-4 border-l border-slate-200">
-            <span class="text-sm font-bold font-mono tracking-tighter text-slate-700">{{ currentTime }}</span>
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ currentDate }}</span>
+          <!-- Time/Clock Display -->
+          <div class="hidden xl:flex items-center gap-4 px-4 border-l border-slate-200">
+            <div class="text-left">
+              <p class="text-[11px] font-bold text-slate-900 leading-none font-mono tracking-tighter">{{ currentTime }}</p>
+              <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">{{ currentDate }}</p>
+            </div>
           </div>
 
-          <!-- Branch Context (Admin only) -->
+          <!-- Branch Selector (AdminPatterns) -->
           <div v-if="authStore.isAdmin && branches.length" class="relative">
             <select
               v-model="adminSelectedBranch"
               @change="handleAdminBranchChange"
-              class="h-9 pr-9 pl-4 rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-slate-300 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all appearance-none cursor-pointer min-w-[160px]"
+              class="h-9 pr-9 pl-4 rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-slate-300 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all appearance-none cursor-pointer min-w-[160px]"
             >
               <option :value="null" disabled>اختر الفرع</option>
               <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
             </select>
-            <i class="fas fa-warehouse absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]"></i>
+            <i class="fas fa-warehouse absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
           </div>
 
           <div class="flex items-center gap-2">
-            <button @click="handleRefresh" class="h-9 w-9 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 hover:text-blue-600 transition-colors shadow-sm">
+            <button @click="handleRefresh" class="h-9 w-9 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 hover:text-blue-600 transition-colors shadow-sm" title="تحديث البيانات">
               <i class="fas fa-sync-alt text-xs" :class="{ 'animate-spin': isLoadingData }"></i>
             </button>
 
-            <!-- Primary Action Toggle -->
-            <button v-if="!activeSessionId" @click="triggerOpenSession" class="h-9 px-4 bg-emerald-600 text-white rounded-md text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all flex items-center gap-2">
-              <i class="fas fa-play text-[10px]"></i> فتح الجلسة
+            <!-- Operational Decision Buttons -->
+            <button v-if="!activeSessionId" @click="triggerOpenSession" class="h-9 px-5 bg-emerald-600 text-white rounded-md text-xs font-bold shadow-lg shadow-emerald-900/20 hover:bg-emerald-700 transition-all flex items-center gap-2 active:scale-95">
+              <i class="fas fa-play text-[9px]"></i> فتح جلسة
             </button>
-            <button v-else @click="attemptEndShift" class="h-9 px-4 bg-rose-600 text-white rounded-md text-xs font-bold shadow-sm hover:bg-rose-700 transition-all flex items-center gap-2">
-              <i class="fas fa-power-off text-[10px]"></i> إنهاء الجلسة
+            <button v-else @click="attemptEndShift" class="h-9 px-5 bg-rose-600 text-white rounded-md text-xs font-bold shadow-lg shadow-rose-900/20 hover:bg-rose-700 transition-all flex items-center gap-2 active:scale-95">
+              <i class="fas fa-power-off text-[9px]"></i> إغلاق الجلسة
             </button>
           </div>
         </div>
@@ -73,22 +78,22 @@
 
     <main class="max-w-[1600px] mx-auto p-6 lg:p-8 space-y-8">
       
-      <!-- KPI Grid -->
+      <!-- KPI Grid: Supabase-inspired Data Cards -->
       <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <template v-if="isLoadingData && !hasLoadedOnce">
           <div v-for="n in 4" :key="n" class="h-28 bg-white border border-slate-200 rounded-xl animate-pulse"></div>
         </template>
         <template v-else>
-          <div v-for="card in summaryCards" :key="card.id" class="group bg-white border border-slate-200 p-6 rounded-xl hover:border-blue-500/30 transition-all">
+          <div v-for="card in summaryCards" :key="card.id" class="group bg-white border border-slate-200 p-6 rounded-xl hover:border-blue-500/30 transition-all shadow-sm">
             <div class="flex justify-between items-start mb-3">
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ card.title }}</span>
-              <div :class="[card.iconBg, card.iconColor, 'w-8 h-8 rounded-lg flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity']">
+              <div :class="[card.iconBg, card.iconColor, 'w-8 h-8 rounded-lg flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity shadow-inner']">
                 <i :class="card.icon"></i>
               </div>
             </div>
             <div class="flex items-baseline gap-2">
-              <h3 :class="[card.valueColor, 'text-xl font-bold tracking-tight']">{{ formatPrice(card.value) }}</h3>
-              <span v-if="card.tooltip" class="text-[9px] font-bold text-slate-300 uppercase">{{ card.tooltip }}</span>
+              <h3 :class="[card.valueColor, 'text-2xl font-bold tracking-tight font-mono']">{{ formatPrice(card.value) }}</h3>
+              <span v-if="card.tooltip" class="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">{{ card.tooltip }}</span>
             </div>
           </div>
         </template>
@@ -97,37 +102,40 @@
       <!-- Cash Reconciliation: Stripe-inspired High Density Card -->
       <section class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <h2 class="text-sm font-bold flex items-center gap-2">
+          <h2 class="text-sm font-bold flex items-center gap-2 text-slate-900 uppercase tracking-tight">
             <i class="fas fa-vault text-slate-400"></i>
-            تسوية المدفوعات والسيولة
+            تسوية المدفوعات والسيولة (Reconciliation)
           </h2>
-          <div class="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> نقدي</span>
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> إلكتروني</span>
+          <div class="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> نقدي</span>
+            <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> إلكتروني</span>
           </div>
         </div>
         
         <div class="grid grid-cols-1 lg:grid-cols-2">
-          <!-- Physical Cash Container -->
-          <div class="p-8 border-l border-slate-100 flex flex-col items-center justify-center text-center space-y-2">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">النقدية الفعلية بالخزينة</span>
-            <div class="text-4xl font-bold text-slate-900 tracking-tighter">
+          <!-- Physical Cash: The Bottom Line -->
+          <div class="p-10 border-l border-slate-100 flex flex-col items-center justify-center text-center space-y-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">النقدية الفعلية بالخزينة</p>
+            <div class="text-5xl font-bold text-slate-900 tracking-tighter font-mono">
               {{ formatPrice(dashboardStats.cashControl?.cashSales || cashDrawerTotal) }}
             </div>
-            <span class="text-[10px] font-medium text-slate-400 italic">تشمل المبيعات النقدية والعهد الافتتاحية فقط</span>
+            <p class="text-[10px] font-medium text-slate-400 italic">✓ تشمل المبيعات النقدية والعهد الافتتاحية والمصروفات</p>
           </div>
 
-          <!-- Electronic Breakdown -->
-          <div class="p-8 bg-slate-50/30">
-            <div class="grid grid-cols-3 gap-4 mb-6">
-              <div v-for="(val, key) in { 'البطاقات': 'card', 'المحفظة': 'wallet', 'آجل': 'credit' }" :key="key" class="space-y-1">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">{{ key }}</p>
-                <p class="text-lg font-bold text-slate-800">{{ formatPrice(dashboardStats.electronicSettlements?.[val] || 0) }}</p>
+          <!-- Electronic Breakdown: Modern Ledger Style -->
+          <div class="p-10 bg-slate-50/30 flex flex-col justify-center">
+            <div class="grid grid-cols-3 gap-6 mb-8">
+              <div v-for="(val, key) in { 'البطاقات': 'card', 'المحفظة': 'wallet', 'آجل': 'credit' }" :key="key" class="space-y-2">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ key }}</p>
+                <p class="text-xl font-bold text-slate-800 font-mono tracking-tighter">{{ formatPrice(dashboardStats.electronicSettlements?.[val] || 0) }}</p>
               </div>
             </div>
-            <div class="pt-4 border-t border-slate-200 flex justify-between items-center">
-              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">إجمالي التسويات الإلكترونية</span>
-              <span class="text-xl font-bold text-blue-600">{{ formatPrice(dashboardStats.electronicSettlements?.total || 0) }}</span>
+            <div class="pt-6 border-t border-slate-200 flex justify-between items-end">
+              <div>
+                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">إجمالي التسويات الرقمية</p>
+                <p class="text-2xl font-bold text-blue-600 font-mono tracking-tighter">{{ formatPrice(dashboardStats.electronicSettlements?.total || 0) }}</p>
+              </div>
+              <span class="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Settled Automatically</span>
             </div>
           </div>
         </div>
@@ -136,190 +144,208 @@
       <!-- Main Operational Area -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <!-- Left: Quick Actions & Feed -->
-        <div class="lg:col-span-4 space-y-8 flex flex-col">
-          <!-- Actions -->
-          <div class="bg-white border border-slate-200 rounded-xl p-6" style="height: 400px;">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <i class="fas fa-bolt text-amber-400"></i> اختصارات العمليات
+        <!-- Left Column: Operations & Activity -->
+        <div class="lg:col-span-4 space-y-8">
+          <!-- Quick Actions: Functional Tiles -->
+          <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+            <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <i class="fas fa-bolt text-amber-500"></i> اختصارات سريعة
             </h3>
-            <div class="grid grid-cols-1 gap-3">
+            <div class="grid grid-cols-1 gap-2.5">
               <button v-for="action in displayedQuickActions" :key="action.id" @click="handleQuickAction(action)"
-                :class="[action.primary ? 'bg-blue-600 text-white border-blue-600 shadow-blue-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50']"
-                class="w-full px-4 py-4 border rounded-lg flex items-center justify-between transition-all group">
+                :class="[action.primary ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50']"
+                class="w-full px-4 py-3.5 border rounded-lg flex items-center justify-between transition-all group active:scale-95">
                 <div class="flex items-center gap-3">
-                  <i :class="[action.icon, action.primary ? 'text-white' : 'text-slate-400 group-hover:text-blue-500']" class="text-sm transition-colors"></i>
-                  <span class="text-sm font-bold">{{ action.title }}</span>
+                  <i :class="[action.icon, action.primary ? 'text-blue-400' : 'text-slate-400 group-hover:text-blue-600']" class="text-sm transition-colors"></i>
+                  <div class="text-right">
+                    <p class="text-xs font-bold">{{ action.title }}</p>
+                    <p class="text-[9px] opacity-50 font-medium">{{ action.description }}</p>
+                  </div>
                 </div>
-                <i class="fas fa-chevron-left text-xs opacity-30 group-hover:opacity-100 transition-opacity"></i>
+                <i class="fas fa-chevron-left text-[8px] opacity-30 group-hover:opacity-100 transition-opacity"></i>
               </button>
             </div>
-          </div>
+          </section>
 
-          <!-- Activity Feed -->
-          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col max-h-[500px]">
-            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">النشاطات الأخيرة</h3>
-              <span class="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500">{{ recentActivities.length }}</span>
+          <!-- Activity Feed: Professional Timeline -->
+          <section class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest">النشاطات الأخيرة</h3>
+              <span class="px-2 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-500 font-mono">{{ recentActivities.length }}</span>
             </div>
-            <div class="flex-1 overflow-y-auto custom-scroll divide-y divide-slate-50">
+            <div class="flex-1 overflow-y-auto custom-scroll divide-y divide-slate-50 max-h-[500px]">
               <div v-for="activity in recentActivities" :key="activity.id" @click="handleActivityClick(activity)"
-                class="p-4 hover:bg-slate-50 transition-colors cursor-pointer group flex items-center justify-between">
+                class="p-4 hover:bg-blue-50/30 transition-colors cursor-pointer group flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                  <div :class="[activity.colorClass, 'w-8 h-8 rounded-lg flex items-center justify-center text-[10px] bg-opacity-10']">
+                  <div :class="[activity.colorClass, 'w-9 h-9 rounded-lg flex items-center justify-center text-xs bg-opacity-10']">
                     <i :class="['fas', activity.icon]"></i>
                   </div>
                   <div>
-                    <p class="text-xs font-bold text-slate-800">{{ activity.description }}</p>
-                    <p class="text-[9px] text-slate-400 font-medium" :title="activity.fullTime">{{ activity.time }}</p>
+                    <p class="text-xs font-bold text-slate-800 leading-snug group-hover:text-blue-600 transition-colors">{{ activity.description }}</p>
+                    <p class="text-[9px] text-slate-400 font-medium uppercase mt-1" :title="activity.fullTime">{{ activity.time }}</p>
                   </div>
                 </div>
-                <span :class="[activity.amount > 0 ? 'text-emerald-600' : 'text-rose-600']" class="text-xs font-bold font-mono">
+                <span :class="[activity.amount > 0 ? 'text-emerald-600' : 'text-rose-600']" class="text-xs font-bold font-mono tracking-tighter">
                   {{ formatPrice(activity.amount) }}
                 </span>
               </div>
-              <div v-if="!recentActivities.length" class="py-12 text-center text-slate-300">
-                <p class="text-[10px] font-bold uppercase tracking-widest">لا توجد عمليات</p>
+              <div v-if="!recentActivities.length" class="py-20 text-center text-slate-300">
+                <i class="fas fa-stream text-2xl mb-2 opacity-20 block mx-auto"></i>
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em]">لا توجد عمليات مسجلة</p>
               </div>
             </div>
-          </div>
+          </section>
         </div>
 
-        <!-- Right: Charts & Rankings -->
+        <!-- Right Column: Visual Insights -->
         <div class="lg:col-span-8 space-y-8">
-          <!-- Main Sales Chart -->
-          <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div class="flex items-center justify-between mb-8">
-              <h3 class="text-sm font-bold flex items-center gap-2">
-                <i class="fas fa-chart-line text-blue-500"></i> منحنى المبيعات اللحظي
+          <!-- Real-time Sales Chart Card -->
+          <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col overflow-hidden relative group">
+            <div class="absolute top-0 left-0 w-40 h-40 bg-blue-500/5 rounded-full -translate-x-12 -translate-y-12 group-hover:scale-110 transition-transform duration-1000"></div>
+            <div class="flex items-center justify-between mb-8 relative z-10">
+              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <i class="fas fa-chart-line text-blue-500"></i> تحليل مبيعات الجلسة
               </h3>
+              <span class="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">Live Trend</span>
             </div>
-            <div class="h-[300px]">
+            <div class="h-[320px] relative z-10">
               <canvas ref="salesChart"></canvas>
             </div>
-          </div>
+          </section>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="bg-white border border-slate-200 rounded-xl p-6">
-              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">توزيع مبيعات الأصناف</h3>
-              <div class="h-[220px]">
+            <!-- Top Selling Products -->
+            <section class="bg-white border border-slate-200 rounded-xl p-6">
+              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8">توزيع مبيعات الأصناف</h3>
+              <div class="h-[240px]">
                 <canvas ref="topProductsChart"></canvas>
               </div>
-            </div>
+            </section>
 
-            <div class="bg-white border border-slate-200 rounded-xl p-6">
-              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">الأصناف الأكثر طلباً</h3>
-              <div class="space-y-3">
+            <!-- Leaderboard Table -->
+            <section class="bg-white border border-slate-200 rounded-xl p-6 flex flex-col">
+              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">الأصناف الأكثر طلباً</h3>
+              <div class="flex-grow space-y-4">
                 <div v-for="(product, index) in topProducts" :key="product.id" class="flex items-center justify-between group">
                   <div class="flex items-center gap-3">
-                    <span class="text-[10px] font-black text-slate-300 w-4">{{ index + 1 }}</span>
-                    <div>
-                      <p class="text-xs font-bold text-slate-800 truncate max-w-[140px]">{{ product.name }}</p>
-                      <p class="text-[10px] text-slate-400 font-medium">{{ formatNumber(product.quantity) }} {{ product.unit }}</p>
+                    <div :class="[getProductColor(index).bg, getProductColor(index).text]" class="w-7 h-7 rounded-md flex items-center justify-center font-black text-[10px] shadow-sm">
+                      {{ index + 1 }}
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-bold text-slate-800 truncate max-w-[140px] group-hover:text-blue-600 transition-colors">{{ product.name }}</p>
+                      <p class="text-[9px] text-slate-400 font-medium font-mono uppercase">{{ formatNumber(product.quantity) }} {{ product.unit }}</p>
                     </div>
                   </div>
-                  <p class="text-xs font-bold text-slate-700">{{ formatPrice(product.totalSales) }}</p>
+                  <p class="text-xs font-bold text-slate-900 font-mono tracking-tighter">{{ formatPrice(product.totalSales) }}</p>
                 </div>
-                <div v-if="!topProducts.length" class="py-10 text-center text-slate-300 italic text-[10px]">
-                   لا توجد مبيعات مسجلة اليوم
+                <div v-if="!topProducts.length" class="h-full flex flex-col items-center justify-center py-10 opacity-20">
+                   <i class="fas fa-box-open text-3xl mb-2"></i>
+                   <p class="text-[10px] font-black uppercase tracking-widest text-center">لا توجد بيانات</p>
                 </div>
               </div>
-            </div>
+            </section>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- Modals: Redesigned as Minimal Overlays -->
-    <div v-if="openSessionModal || shiftState === 'ending'" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-      
-      <!-- Open Session Modal -->
-      <div v-if="openSessionModal" ref="openSessionModalRef" class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" aria-labelledby="open-session-title" @keydown.esc="openSessionModal = false" tabindex="-1">
-        <div class="p-6 border-b border-slate-100 bg-slate-50">
-          <h3 id="open-session-title" class="text-base font-bold text-slate-900">بدء جلسة عمل جديدة</h3>
-          <p class="text-[10px] text-slate-500 font-medium uppercase mt-1">يرجى تأكيد العهدة الافتتاحية للموقع</p>
-        </div>
-        <div class="p-6 space-y-5">
-          <div v-if="authStore.isAdmin">
-            <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">الفرع المختار للعمل</label>
-            <div class="h-10 border border-slate-200 rounded-lg px-3 flex items-center bg-blue-50 text-sm font-bold text-blue-700">
-              {{ branches.find(b => b.id === adminSelectedBranch)?.name || 'لم يتم التحديد' }}
+    <!-- Modals Section: High-End Functional Overlays -->
+    <Teleport to="body">
+      <div v-if="openSessionModal || shiftState === 'ending'" class="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        
+        <!-- Open Session Modal -->
+        <div v-if="openSessionModal" ref="openSessionModalRef" class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" tabindex="-1">
+          <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white"><i class="fas fa-key text-sm"></i></div>
+              <h3 class="text-sm font-bold text-slate-900 uppercase">بدء جلسة عمل جديدة</h3>
             </div>
-          </div>
-          <div v-if="terminals && terminals.length > 0">
-            <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">جهاز نقطة البيع</label>
-            <select v-model="selectedTerminalId" class="w-full h-10 border border-slate-200 rounded-lg px-3 text-sm">
-              <option :value="null" disabled>-- اختر جهازاً --</option>
-              <option v-for="t in terminals" :key="t.id" :value="t.id">{{ t.code }} - {{ t.name }}</option>
-            </select>
-            <p v-if="!selectedTerminalId" class="text-[9px] text-rose-500 mt-1">⚠️ يجب اختيار جهاز</p>
-          </div>
-          <div v-else class="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <div class="flex items-start gap-3">
-              <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
-              <div class="flex-1">
-                <p class="text-xs font-bold text-amber-900">لا توجد أجهزة نقاط بيع</p>
-                <p class="text-[10px] text-amber-700 mt-1">يرجى إضافة جهاز نقطة بيع (Terminal) للفرع من صفحة الإعدادات أولاً.</p>
-              </div>
-            </div>
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">المبلغ النقدي الافتتاحي (العهدة)</label>
-            <div class="relative">
-              <input v-model.number="openingCashAmount" type="number" class="w-full h-12 border border-slate-200 rounded-lg px-4 text-xl font-bold text-center text-blue-600 focus:border-blue-500 outline-none transition-all" />
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-300">{{ formatCurrencyLocale(0, 0).replace('0', '').trim() }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="p-6 bg-slate-50 flex gap-3">
-          <button @click="openSessionModal = false" class="flex-1 h-10 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors">إلغاء</button>
-          <button @click="confirmOpenSession" :disabled="isOpeningSession || !selectedTerminalId" class="flex-[2] h-10 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-            {{ isOpeningSession ? 'جارٍ الفتح...' : 'تأكيد وبدء العمل' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- End Shift/Session Modal -->
-      <div v-if="shiftState === 'ending'" ref="endShiftModalRef" class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" aria-labelledby="end-shift-title" @keydown.esc="shiftState = 'active'" tabindex="-1">
-        <div class="p-6 border-b border-slate-100 bg-slate-50">
-          <h3 id="end-shift-title" class="text-base font-bold text-slate-900">إغلاق الجلسة وتصفية الخزينة</h3>
-        </div>
-        <div class="p-6 space-y-6">
-          <div class="grid grid-cols-2 gap-4">
-            <div v-for="item in [{l:'المبيعات', v:dashboardStats.sessionData?.total_sales, c:'text-emerald-600'}, {l:'المرتجعات', v:dashboardStats.totalReturns, c:'text-rose-600'}, {l:'الرصيد الافتتاحي', v:dashboardStats.openingBalance, c:'text-slate-600'}]" :key="item.l" class="p-3 bg-slate-50 rounded-lg">
-              <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">{{ item.l }}</p>
-              <p :class="[item.c, 'text-sm font-bold']">{{ formatPrice(item.v) }}</p>
-            </div>
-            <div class="p-3 bg-slate-900 rounded-lg text-center">
-              <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">المتوقع بالخزينة</p>
-              <p class="text-sm font-bold text-blue-400">{{ formatPrice(dashboardStats.sessionData?.expected_cash || expectedInDrawer) }}</p>
-            </div>
+            <button @click="openSessionModal = false" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times text-lg"></i></button>
           </div>
           
-          <div class="space-y-4">
-            <label class="text-[10px] font-bold text-slate-400 uppercase block text-center">المبلغ الفعلي الموجود حالياً بالخزينة</label>
-            <input v-model.number="closingCashInput" type="number" class="w-full h-14 border-2 border-slate-100 rounded-xl px-4 text-2xl font-bold text-center focus:border-blue-500 outline-none transition-all" />
-            
-            <div v-if="closingCashInput !== null" :class="[cashDifference === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700']" class="p-3 rounded-lg text-center text-xs font-bold">
-              الفرق: {{ formatPrice(cashDifference) }}
+          <div class="p-8 space-y-6">
+            <div v-if="authStore.isAdmin" class="space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">الفرع المحدد</label>
+              <div class="h-10 px-4 rounded-lg bg-blue-50 border border-blue-100 flex items-center text-xs font-bold text-blue-700">
+                <i class="fas fa-building ml-2 opacity-50"></i> {{ branches.find(b => b.id === adminSelectedBranch)?.name || '-' }}
+              </div>
+            </div>
+
+            <div v-if="terminals && terminals.length > 0" class="space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">جهاز نقطة البيع</label>
+              <select v-model="selectedTerminalId" class="h-10 w-full border border-slate-200 rounded-lg px-3 text-xs font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all">
+                <option :value="null" disabled>-- اختر الجهاز --</option>
+                <option v-for="t in terminals" :key="t.id" :value="t.id">{{ t.code }} - {{ t.name }}</option>
+              </select>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">العهدة الافتتاحية</label>
+              <div class="relative">
+                <input v-model.number="openingCashAmount" type="number" class="h-14 w-full border-2 border-slate-100 rounded-xl px-4 text-3xl font-bold text-center text-blue-600 focus:border-blue-500 outline-none transition-all" />
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300 uppercase">{{ formatCurrencyLocale(0,0).replace(/[0-9]/g, '').trim() }}</span>
+              </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+              <button @click="openSessionModal = false" class="flex-1 h-10 text-xs font-bold text-slate-500">إلغاء</button>
+              <button @click="confirmOpenSession" :disabled="isOpeningSession || !selectedTerminalId" class="flex-2 h-10 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all">
+                {{ isOpeningSession ? 'جاري المعالجة...' : 'تأكيد البدء' }}
+              </button>
             </div>
           </div>
+        </div>
 
-          <div v-if="closingCashInput !== null && Math.abs(cashDifference) > 0.01" class="space-y-3 border-t border-slate-200 pt-4">
-            <label class="text-xs font-bold text-slate-600 block">سبب العجز / الزيادة</label>
-            <select v-model="selectedVarianceReason" @change="handleVarianceReasonChange" class="w-full h-10 px-3 border-2 border-slate-100 rounded-lg text-xs font-bold focus:border-blue-500 outline-none">
-              <option v-for="reason in varianceReasons" :key="reason.value" :value="reason.value">{{ reason.label }}</option>
-            </select>
-            <textarea v-if="selectedVarianceReason === 'other'" v-model="varianceReason" rows="2" class="w-full px-3 py-2 border-2 border-slate-100 rounded-lg text-xs font-bold focus:border-blue-500 outline-none resize-none" placeholder="يرجى كتابة التوضيح هنا..." />
+        <!-- End Session Modal: Reconciliation Form -->
+        <div v-if="shiftState === 'ending'" ref="endShiftModalRef" class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" tabindex="-1">
+          <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 uppercase">إغلاق وتصفية الجلسة</h3>
+            <button @click="shiftState = 'active'" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times text-lg"></i></button>
+          </div>
+
+          <div class="p-8 space-y-8">
+            <div class="grid grid-cols-2 gap-4">
+              <div v-for="it in [
+                {l:'إجمالي المبيعات', v:dashboardStats.sessionData?.total_sales, c:'text-emerald-600'},
+                {l:'الرصيد الافتتاحي', v:dashboardStats.openingBalance, c:'text-slate-500'},
+                {l:'المرتجعات', v:dashboardStats.totalReturns, c:'text-rose-500'}
+              ]" :key="it.l" class="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">{{ it.l }}</p>
+                <p :class="[it.c, 'text-sm font-bold font-mono tracking-tighter']">{{ formatPrice(it.v) }}</p>
+              </div>
+              <div class="p-4 bg-slate-900 rounded-lg text-center flex flex-col justify-center shadow-lg">
+                <p class="text-[9px] font-bold text-white/30 uppercase mb-1">النقد المتوقع</p>
+                <p class="text-sm font-bold text-blue-400 font-mono tracking-tighter">{{ formatPrice(dashboardStats.sessionData?.expected_cash || expectedInDrawer) }}</p>
+              </div>
+            </div>
+
+            <div class="text-center space-y-4">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">جرد الخزينة (المبلغ الفعلي)</label>
+              <input v-model.number="closingCashInput" type="number" class="h-16 w-full border-2 border-slate-100 rounded-xl px-4 text-4xl font-bold text-center text-slate-800 focus:border-blue-500 outline-none transition-all font-mono" placeholder="0.00" />
+              
+              <transition name="fade">
+                <div v-if="closingCashInput !== null" :class="[cashDifference === 0 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-rose-600 bg-rose-50 border-rose-100']" class="p-3 rounded-lg border text-xs font-bold font-mono">
+                  الفارق: {{ formatPrice(cashDifference) }}
+                </div>
+              </transition>
+            </div>
+
+            <div v-if="closingCashInput !== null && Math.abs(cashDifference) > 0.01" class="space-y-3 animate-fadeIn">
+               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">سبب التباين</label>
+               <select v-model="selectedVarianceReason" @change="handleVarianceReasonChange" class="h-10 w-full border border-slate-200 rounded-lg px-3 text-xs font-bold outline-none">
+                 <option v-for="r in varianceReasons" :key="r.value" :value="r.value">{{ r.label }}</option>
+               </select>
+               <textarea v-if="selectedVarianceReason === 'other'" v-model="varianceReason" rows="2" class="w-full p-4 bg-slate-50 border border-slate-100 rounded-lg text-xs font-medium italic outline-none focus:bg-white transition-all" placeholder="ملاحظات توضيحية للفارق..."></textarea>
+            </div>
+
+            <div class="flex gap-3">
+              <button @click="shiftState = 'active'" class="flex-1 h-11 text-xs font-bold text-slate-500">تراجع</button>
+              <button @click="confirmEndShift" class="flex-2 h-11 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-rose-900/20 active:scale-95 transition-all">تأكيد التصفية والإغلاق</button>
+            </div>
           </div>
         </div>
-        <div class="p-6 bg-slate-50 flex gap-3">
-          <button @click="shiftState = 'active'" class="flex-1 h-10 text-xs font-bold text-slate-500">تراجع</button>
-          <button @click="confirmEndShift" class="flex-[2] h-10 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 shadow-sm transition-all">إغلاق وتصفية</button>
-        </div>
       </div>
-
-    </div>
+    </Teleport>
 
   </div>
 </template>
@@ -1194,9 +1220,12 @@ onBeforeUnmount(() => {
 <style scoped>
 @keyframes loading { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
-.custom-scroll::-webkit-scrollbar { width: 4px; }
+.custom-scroll::-webkit-scrollbar { width: 5px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
 
 @keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 .animate-modalIn { animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+.animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>

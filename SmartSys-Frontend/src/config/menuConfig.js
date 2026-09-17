@@ -80,12 +80,17 @@ import {
  *   see policy notes #6-#7 above.
  */
 export const menuConfig = [
+  // ═══════════════════════════════════════════════════════════════════════
+  // I. CORE OPERATIONS — الأساسية (المبيعات والمشتريات والمخزون)
+  // ═══════════════════════════════════════════════════════════════════════
+
   {
     name: 'لوحة التحكم',
     path: '/admin-dashboard',
     icon: LayoutDashboard,
     access: 'user'
   },
+
   {
     name: 'المبيعات',
     key: 'sales',
@@ -102,6 +107,7 @@ export const menuConfig = [
       { path: '/sales/:id', label: 'تفاصيل المبيعة', access: 'user' },
     ]
   },
+
   {
     name: 'المرتجعات',
     key: 'returns',
@@ -113,6 +119,18 @@ export const menuConfig = [
     ],
     relatedRoutes: []
   },
+
+  {
+    name: 'الضمان',
+    key: 'warranty',
+    icon: Shield,
+    access: 'user',
+    items: [
+      { name: 'طلبات الضمان', path: '/warranty', icon: Shield, access: 'user' },
+    ],
+    relatedRoutes: []
+  },
+
   {
     name: 'المشتريات',
     key: 'purchases',
@@ -126,6 +144,7 @@ export const menuConfig = [
       { path: '/purchases/:id', label: 'تفاصيل المشتريات', access: 'user' },
     ]
   },
+
   {
     name: 'المخزون',
     key: 'inventory',
@@ -142,6 +161,11 @@ export const menuConfig = [
       { path: '/branches/:id', label: 'تفاصيل الفرع', access: 'admin' },
     ]
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // II. RELATIONSHIPS — العلاقات (العملاء والموردين)
+  // ═══════════════════════════════════════════════════════════════════════
+
   {
     name: 'العملاء والموردين',
     key: 'contacts',
@@ -156,6 +180,11 @@ export const menuConfig = [
       { path: '/contacts/:type/:id/statement', label: 'كشف حساب', access: 'user' },
     ]
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // III. FINANCE & ACCOUNTING — المالية والحسابات
+  // ═══════════════════════════════════════════════════════════════════════
+
   {
     name: 'المالية',
     key: 'finance',
@@ -169,16 +198,7 @@ export const menuConfig = [
     ],
     relatedRoutes: []
   },
-  {
-    name: 'الضمان',
-    key: 'warranty',
-    icon: Shield,
-    access: 'user',
-    items: [
-      { name: 'طلبات الضمان', path: '/warranty', icon: Shield, access: 'user' },
-    ],
-    relatedRoutes: []
-  },
+
   {
     name: 'التقارير',
     key: 'reports',
@@ -198,6 +218,11 @@ export const menuConfig = [
     ],
     relatedRoutes: []
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // IV. ADMINISTRATION & SYSTEM — الإدارة والنظام
+  // ═══════════════════════════════════════════════════════════════════════
+
   {
     name: 'الإعدادات',
     key: 'settings',
@@ -210,6 +235,7 @@ export const menuConfig = [
     ],
     relatedRoutes: []
   },
+
   {
     name: 'النظام والتدقيق',
     key: 'system',
@@ -221,6 +247,7 @@ export const menuConfig = [
     ],
     relatedRoutes: []
   },
+
   {
     name: 'الاشتراكات',
     key: 'subscriptions',

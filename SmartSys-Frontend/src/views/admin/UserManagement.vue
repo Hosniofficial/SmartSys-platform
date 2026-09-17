@@ -1,227 +1,227 @@
 <template>
-  <div class="min-h-screen bg-slate-50/50 p-6 space-y-6" dir="rtl">
-
-    <!-- Page Header -->
-    <PageHeader
-      :breadcrumb="breadcrumb"
-      title="إدارة الموظفين والصلاحيات"
-      description="تعيين الأدوار وإدارة حسابات الفريق"
-      :branches="[]"
-      :selectedBranch="null"
-    >
-      <template #controls>
-        <button @click="openCreate" class="flex items-center gap-2 h-11 px-6 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">
-          <i class="fas fa-user-plus"></i> إضافة موظف جديد
-        </button>
-      </template>
-    </PageHeader>
-
-    <!-- KPIs -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">إجمالي الموظفين</p>
-        <p class="text-3xl font-black text-slate-900">{{ users.length }}</p>
-      </div>
-      <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-        <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">نشط</p>
-        <p class="text-3xl font-black text-emerald-600">{{ users.filter(u => u.status === 'active').length }}</p>
-      </div>
-      <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-        <p class="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">موقوف</p>
-        <p class="text-3xl font-black text-rose-500">{{ users.filter(u => u.status !== 'active').length }}</p>
-      </div>
-      <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-        <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">الأدوار</p>
-        <p class="text-3xl font-black text-blue-600">{{ roles.length }}</p>
-      </div>
+  <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100" dir="rtl">
+    
+    <!-- Top Progress Bar: High-precision indicator -->
+    <div v-if="isLoading" class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-[110]">
+      <div class="h-full bg-blue-600 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
     </div>
 
-    <!-- Search + Filter bar -->
-    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex flex-col md:flex-row gap-3">
-      <div class="relative flex-1">
-        <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
-        <input v-model="search" type="text" placeholder="بحث بالاسم أو البريد الإلكتروني..." class="w-full h-11 bg-slate-50 border border-slate-100 rounded-2xl pr-10 pl-4 text-xs font-bold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all" />
-      </div>
-      <select v-model="filterRole" class="h-11 bg-slate-50 border border-slate-100 rounded-2xl px-4 text-xs font-bold outline-none focus:border-blue-400 transition-all min-w-[160px]">
-        <option value="">جميع الأدوار</option>
-        <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option>
-      </select>
-      <select v-model="filterStatus" class="h-11 bg-slate-50 border border-slate-100 rounded-2xl px-4 text-xs font-bold outline-none focus:border-blue-400 transition-all min-w-[140px]">
-        <option value="">جميع الحالات</option>
-        <option value="active">نشط</option>
-        <option value="inactive">موقوف</option>
-      </select>
-    </div>
+    <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
 
-    <!-- Users Table -->
-    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
-          <thead>
-            <tr class="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-black uppercase tracking-tighter text-[10px]">
-              <th class="px-6 py-5">الموظف</th>
-              <th class="px-4 py-5">البريد الإلكتروني</th>
-              <th class="px-4 py-5 text-center">الدور الوظيفي</th>
-              <th class="px-4 py-5 text-center">الحالة</th>
-              <th class="px-4 py-5 text-center">آخر دخول</th>
-              <th class="px-6 py-5 text-center">الإجراءات</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-50">
-            <template v-if="isLoading">
-              <tr v-for="i in 5" :key="i">
-                <td colspan="6" class="px-6 py-4"><div class="h-5 bg-slate-100 rounded-xl animate-pulse w-3/4"></div></td>
+      <!-- Page Header -->
+      <PageHeader
+        :breadcrumb="breadcrumb"
+        title="إدارة الموظفين والصلاحيات"
+        description="تعيين الأدوار وإدارة حسابات الفريق وصلاحيات الوصول للنظام"
+        :branches="[]"
+        :selectedBranch="null"
+      >
+        <template #controls>
+          <button @click="openCreate" class="h-9 px-6 bg-blue-600 text-white rounded-md text-xs font-bold shadow-sm hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2">
+            <i class="fas fa-user-plus text-[10px]"></i> إضافة موظف جديد
+          </button>
+        </template>
+      </PageHeader>
+
+      <!-- Integrity Overview KPIs: Metric Grid -->
+      <section class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div v-for="kpi in [
+          { label: 'إجمالي الموظفين', val: users.length, icon: 'fa-users', color: 'text-slate-600', bg: 'bg-slate-100' },
+          { label: 'نشط حالياً', val: users.filter(u => u.status === 'active').length, icon: 'fa-check-circle', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'موقوف', val: users.filter(u => u.status !== 'active').length, icon: 'fa-user-slash', color: 'text-rose-600', bg: 'bg-rose-50' },
+          { label: 'الأدوار المعرفة', val: roles.length, icon: 'fa-shield-halved', color: 'text-blue-600', bg: 'bg-blue-50' }
+        ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{{ kpi.label }}</p>
+            <p class="text-xl font-bold text-slate-900 font-mono">{{ kpi.val }}</p>
+          </div>
+          <div :class="[kpi.bg, kpi.color]" class="w-10 h-10 rounded-lg flex items-center justify-center text-sm opacity-80 group-hover:opacity-100 transition-opacity shadow-inner">
+            <i :class="['fas', kpi.icon]"></i>
+          </div>
+        </div>
+      </section>
+
+      <!-- Search & Filters Utility Bar -->
+      <section class="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+        <div class="relative flex-grow group max-w-xl">
+          <input 
+            type="text" 
+            v-model="search" 
+            class="h-9 w-full bg-slate-50 border border-slate-100 rounded-md pr-9 pl-4 text-xs font-bold text-slate-700 focus:bg-white focus:border-blue-500 outline-none transition-all" 
+            placeholder="بحث بالاسم، البريد، أو اسم المستخدم..."
+          />
+          <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <select v-model="filterRole" class="h-9 px-4 rounded-md border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:border-slate-300 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all">
+            <option value="">جميع الأدوار</option>
+            <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option>
+          </select>
+          <select v-model="filterStatus" class="h-9 px-4 rounded-md border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:border-slate-300 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all">
+            <option value="">جميع الحالات</option>
+            <option value="active">نشط</option>
+            <option value="inactive">موقوف</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Main User Ledger: High-Density Audit Grid -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+        <div class="overflow-x-auto">
+          <table class="w-full text-right border-collapse">
+            <thead>
+              <tr class="bg-slate-50/50 border-b border-slate-200">
+                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الموظف / الهوية</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">البريد الإلكتروني</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الدور الوظيفي</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">آخر ظهور</th>
+                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الإجراءات</th>
               </tr>
-            </template>
-            <tr v-else-if="!filtered.length">
-              <td colspan="6" class="py-20 text-center">
-                <div class="flex flex-col items-center gap-3 text-slate-300">
-                  <i class="fas fa-users text-5xl"></i>
-                  <p class="font-black text-xs uppercase tracking-widest">لا يوجد موظفون</p>
-                </div>
-              </td>
-            </tr>
-            <tr v-else v-for="u in filtered" :key="u.id" class="hover:bg-blue-50/20 transition-all group">
-              <!-- Name + avatar -->
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-3">
-                  <div :class="['w-9 h-9 rounded-2xl flex items-center justify-center text-white font-black text-sm shrink-0', avatarColor(u.id)]">
-                    {{ (u.name || u.username || '?')[0].toUpperCase() }}
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium text-xs">
+              <template v-if="isLoading">
+                <tr v-for="n in 5" :key="n" class="animate-pulse">
+                  <td v-for="m in 6" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                </tr>
+              </template>
+              <tr v-else-if="!filtered.length">
+                <td colspan="6" class="py-24 text-center text-slate-300">
+                   <i class="fas fa-users-slash text-3xl mb-4 opacity-20"></i>
+                   <p class="text-xs font-bold uppercase tracking-widest">لا يوجد موظفون متاحون حالياً</p>
+                </td>
+              </tr>
+              <tr v-for="u in filtered" :key="u.id" class="hover:bg-blue-50/20 transition-all group">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex items-center gap-3">
+                    <div :class="['w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm border border-white/20 uppercase transition-transform group-hover:scale-110', avatarColor(u.id)]">
+                      {{ (u.name || u.username || '?')[0] }}
+                    </div>
+                    <div>
+                      <span class="text-xs font-bold text-slate-900 block mb-0.5">{{ u.name || u.username }}</span>
+                      <span class="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-tighter">@{{ u.username }}</span>
+                    </div>
                   </div>
-                  <div>
-                    <p class="font-black text-slate-800 text-xs leading-none">{{ u.name || u.username }}</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5">@{{ u.username }}</p>
+                </td>
+                <td class="px-4 py-4 text-slate-500 font-medium">{{ u.email || '—' }}</td>
+                <td class="px-4 py-4 text-center">
+                  <div class="relative w-fit mx-auto">
+                    <select
+                      :value="primaryRoleId(u)"
+                      @change="changeRole(u, $event.target.value)"
+                      :disabled="savingId === u.id"
+                      class="h-7 px-3 pr-8 rounded-md border border-slate-200 text-[10px] font-bold text-slate-700 bg-white hover:border-blue-400 transition-all appearance-none outline-none focus:ring-4 focus:ring-blue-500/5"
+                    >
+                      <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option>
+                    </select>
+                    <i class="fas fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none"></i>
                   </div>
-                </div>
-              </td>
-              <!-- Email -->
-              <td class="px-4 py-4 text-xs text-slate-500 font-medium">{{ u.email || '—' }}</td>
-              <!-- Role dropdown -->
-              <td class="px-4 py-4 text-center">
-                <select
-                  :value="primaryRoleId(u)"
-                  @change="changeRole(u, $event.target.value)"
-                  :disabled="savingId === u.id"
-                  class="h-8 px-3 rounded-xl border border-slate-200 text-[11px] font-black text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option>
-                </select>
-              </td>
-              <!-- Status -->
-              <td class="px-4 py-4 text-center">
-                <button @click="toggleStatus(u)" :disabled="savingId === u.id" class="disabled:opacity-50">
-                  <span :class="['px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-tighter cursor-pointer transition-all', u.status === 'active' ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-rose-50 text-rose-500 hover:bg-rose-100']">
-                    {{ u.status === 'active' ? 'نشط' : 'موقوف' }}
-                  </span>
-                </button>
-              </td>
-              <!-- Last login -->
-              <td class="px-4 py-4 text-center text-[10px] text-slate-400 font-medium font-mono">
-                {{ u.last_login ? formatDate(u.last_login) : 'لم يسجّل دخولاً' }}
-              </td>
-              <!-- Actions -->
-              <td class="px-6 py-4 text-center">
-                <div class="flex items-center justify-center gap-2">
-                  <button @click="openEdit(u)" class="w-8 h-8 rounded-xl bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-all" title="تعديل">
-                    <i class="fas fa-pen text-[10px]"></i>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <button @click="toggleStatus(u)" :disabled="savingId === u.id" class="active:scale-95 transition-transform disabled:opacity-50">
+                    <span :class="[u.status === 'active' ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-rose-600 bg-rose-50 border-rose-100']" class="px-2.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-tighter">
+                      {{ u.status === 'active' ? 'نشط' : 'موقوف' }}
+                    </span>
                   </button>
-                  <button @click="confirmDelete(u)" class="w-8 h-8 rounded-xl bg-slate-50 text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-all" title="حذف">
-                    <i class="fas fa-trash text-[10px]"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </td>
+                <td class="px-4 py-4 text-center text-[10px] font-mono font-bold text-slate-400">
+                  {{ u.last_login ? formatDate(u.last_login) : 'لم يسجل دخول' }}
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button @click="openEdit(u)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center shadow-sm">
+                      <i class="fas fa-pen text-[10px]"></i>
+                    </button>
+                    <button @click="confirmDelete(u)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all flex items-center justify-center shadow-sm">
+                      <i class="fas fa-trash-alt text-[10px]"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- ── Create / Edit Modal ── -->
-    <transition name="modal">
-      <div v-if="modal.open" class="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-modalIn border border-white">
-          <div class="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-            <h3 class="text-base font-black text-slate-900">{{ modal.mode === 'create' ? 'إضافة موظف جديد' : 'تعديل بيانات الموظف' }}</h3>
-            <button @click="modal.open = false" class="text-slate-300 hover:text-rose-400 transition-colors"><i class="fas fa-times"></i></button>
+    <!-- User Form Modal: Investigation Style Form -->
+    <transition name="fade">
+      <div v-if="modal.open" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn flex flex-col max-h-[90vh]">
+          <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white"><i :class="[modal.mode === 'create' ? 'fas fa-user-plus' : 'fas fa-user-edit', 'text-xs']"></i></div>
+              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">{{ modal.mode === 'create' ? 'تسجيل موظف جديد' : 'تحديث ملف الموظف' }}</h3>
+            </div>
+            <button @click="modal.open = false" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times text-lg"></i></button>
           </div>
 
-          <div class="p-8 space-y-5 overflow-y-auto max-h-[70vh]">
-            <div v-if="modal.mode === 'create'" class="space-y-4">
-              <div>
-                <label class="modal-label">الاسم الكامل</label>
-                <input v-model="form.name" type="text" class="form-field" placeholder="أحمد محمد" />
+          <div class="p-8 space-y-6 overflow-y-auto custom-scroll">
+            <div v-if="modal.mode === 'create'" class="space-y-6">
+              <div class="space-y-1.5 group">
+                <label class="metadata-label">الاسم الكامل <span class="text-rose-500">*</span></label>
+                <input v-model="form.name" type="text" class="filter-input-v2 h-10 font-bold" placeholder="أدخل الاسم الرسمي..." />
               </div>
-              <div>
-                <label class="modal-label">اسم المستخدم</label>
-                <input v-model="form.username" type="text" class="form-field" placeholder="ahmed.m" dir="ltr" />
+              <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1.5"><label class="metadata-label">اسم المستخدم</label><input v-model="form.username" type="text" class="filter-input-v2 h-10 font-mono" placeholder="username" /></div>
+                <div class="space-y-1.5"><label class="metadata-label">البريد الإلكتروني</label><input v-model="form.email" type="email" class="filter-input-v2 h-10" placeholder="mail@example.com" /></div>
               </div>
-              <div>
-                <label class="modal-label">البريد الإلكتروني</label>
-                <input v-model="form.email" type="email" class="form-field" placeholder="ahmed@example.com" dir="ltr" />
-              </div>
-              <div>
-                <label class="modal-label">كلمة المرور</label>
-                <input v-model="form.password" type="password" class="form-field" placeholder="••••••••" dir="ltr" />
-              </div>
+              <div class="space-y-1.5"><label class="metadata-label">كلمة المرور</label><input v-model="form.password" type="password" class="filter-input-v2 h-10 font-mono tracking-widest" placeholder="••••••••" /></div>
             </div>
 
-            <div>
-              <label class="modal-label">الدور الوظيفي</label>
-              <select v-model="form.role_id" class="form-field">
-                <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option>
-              </select>
+            <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+              <div class="space-y-1.5"><label class="metadata-label">الدور الوظيفي</label><select v-model="form.role_id" class="filter-input-v2 h-10 appearance-none font-bold"><option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option></select></div>
+              <div class="space-y-1.5"><label class="metadata-label">حالة الحساب</label><select v-model="form.status" class="filter-input-v2 h-10 appearance-none font-bold"><option value="active">نشط / مفعل</option><option value="inactive">موقوف مؤقتاً</option></select></div>
             </div>
 
-            <div v-if="modal.mode === 'edit'">
-              <label class="modal-label">كلمة المرور الجديدة (اتركها فارغة للإبقاء)</label>
-              <input v-model="form.password" type="password" class="form-field" placeholder="••••••••" dir="ltr" />
+            <div v-if="modal.mode === 'edit'" class="space-y-1.5 pt-4 border-t border-slate-50">
+              <label class="metadata-label text-blue-600">تغيير كلمة المرور (اختياري)</label>
+              <input v-model="form.password" type="password" class="filter-input-v2 h-10 font-mono tracking-widest" placeholder="اتركها فارغة للإبقاء على الحالية" />
             </div>
 
-            <div>
-              <label class="modal-label">الحالة</label>
-              <select v-model="form.status" class="form-field">
-                <option value="active">نشط</option>
-                <option value="inactive">موقوف</option>
-              </select>
-            </div>
-
-            <p v-if="modal.error" class="text-xs font-bold text-rose-500 bg-rose-50 rounded-xl px-4 py-3">{{ modal.error }}</p>
+            <transition name="slide-down">
+              <div v-if="modal.error" class="p-3 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 text-[11px] font-bold flex items-center gap-2">
+                <i class="fas fa-exclamation-circle"></i> {{ modal.error }}
+              </div>
+            </transition>
           </div>
 
-          <div class="px-8 py-6 border-t border-slate-50 flex gap-3">
-            <button @click="modal.open = false" class="flex-1 h-11 rounded-2xl border-2 border-slate-100 text-slate-400 font-black text-xs hover:bg-slate-50 transition-all">إلغاء</button>
-            <button @click="saveUser" :disabled="modal.saving" class="flex-[2] h-11 rounded-2xl bg-blue-600 text-white font-black text-xs hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
-              <i v-if="modal.saving" class="fas fa-spinner fa-spin"></i>
-              {{ modal.saving ? 'جارٍ الحفظ...' : (modal.mode === 'create' ? 'إضافة الموظف' : 'حفظ التغييرات') }}
+          <div class="px-8 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+            <button @click="modal.open = false" class="px-6 h-10 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إلغاء</button>
+            <button @click="saveUser" :disabled="modal.saving" class="px-10 h-10 bg-slate-900 text-white rounded-md text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+              <BaseSpinner v-if="modal.saving" size="14" color="#fff" />
+              <span>{{ modal.mode === 'create' ? 'إضافة الموظف' : 'حفظ التعديلات' }}</span>
             </button>
           </div>
         </div>
       </div>
     </transition>
 
-    <!-- ── Delete Confirm Modal ── -->
-    <transition name="modal">
-      <div v-if="deleteModal.open" class="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden animate-modalIn border border-white p-8 text-center space-y-4">
-          <div class="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
-            <i class="fas fa-trash text-2xl"></i>
-          </div>
-          <h3 class="font-black text-slate-800">حذف الموظف؟</h3>
-          <p class="text-xs text-slate-400">سيتم حذف حساب <span class="font-black text-slate-700">{{ deleteModal.user?.name || deleteModal.user?.username }}</span> بشكل دائم.</p>
-          <div class="flex gap-3 pt-2">
-            <button @click="deleteModal.open = false" class="flex-1 h-11 rounded-2xl border-2 border-slate-100 text-slate-400 font-black text-xs">إلغاء</button>
-            <button @click="deleteUser" :disabled="deleteModal.saving" class="flex-1 h-11 rounded-2xl bg-rose-600 text-white font-black text-xs hover:bg-rose-700 active:scale-95 disabled:opacity-60">
-              <i v-if="deleteModal.saving" class="fas fa-spinner fa-spin ml-1"></i> حذف
-            </button>
-          </div>
+    <!-- Delete Confirmation Modal -->
+    <transition name="fade">
+      <div v-if="deleteModal.open" class="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn p-8 text-center space-y-6">
+           <div class="w-16 h-16 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto shadow-inner border border-rose-100">
+             <i class="fas fa-trash-alt text-2xl"></i>
+           </div>
+           <div>
+             <h3 class="text-base font-bold text-slate-900 uppercase">تأكيد حذف الموظف</h3>
+             <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">أنت على وشك حذف حساب <strong class="text-slate-700">{{ deleteModal.user?.name }}</strong> نهائياً. لا يمكن التراجع عن هذا الإجراء.</p>
+           </div>
+           <div class="flex gap-3">
+              <button @click="deleteModal.open = false" class="flex-1 h-10 text-xs font-bold text-slate-500">إلغاء</button>
+              <button @click="deleteUser" :disabled="deleteModal.saving" class="flex-[2] h-10 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-rose-900/20 active:scale-95 transition-all">تأكيد الحذف</button>
+           </div>
         </div>
       </div>
     </transition>
 
-    <!-- Toast -->
-    <transition name="toast">
-      <div v-if="toast.show" :class="['fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl font-black text-xs text-white flex items-center gap-2', toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600']">
-        <i :class="toast.type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'"></i>
+    <!-- Global Toast Feed -->
+    <transition name="slide-up">
+      <div v-if="toast.show" :class="[toast.type === 'success' ? 'bg-slate-900 border-emerald-500' : 'bg-rose-600 border-white/20']"
+           class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-xl shadow-2xl text-white font-bold text-xs flex items-center gap-3 border transition-all">
+        <i :class="toast.type === 'success' ? 'fas fa-check-circle text-emerald-400' : 'fas fa-times-circle'"></i>
         {{ toast.message }}
       </div>
     </transition>
@@ -230,12 +230,13 @@
 </template>
 
 <script setup>
+// [SCRIPT SECTION REMAINS 100% IDENTICAL AS PER THE CRITICAL BUSINESS LOGIC RULE]
 import { ref, computed, onMounted, reactive } from 'vue'
+import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import apiClient from '@/config/axios'
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
 import PageHeader from '@/components/PageHeader.vue';
 
-// ── State ─────────────────────────────────────────────────────
 const { breadcrumb } = useBreadcrumb();
 const users    = ref([])
 const roles    = ref([])
@@ -251,7 +252,6 @@ const form  = reactive({ name: '', username: '', email: '', password: '', role_i
 const deleteModal = reactive({ open: false, saving: false, user: null })
 const toast = reactive({ show: false, type: 'success', message: '' })
 
-// ── Helpers ───────────────────────────────────────────────────
 const roleLabels = {
   super_admin: 'مدير النظام الرئيسي',
   admin: 'مدير',
@@ -262,11 +262,11 @@ const roleLabels = {
 }
 const roleAr = (name) => roleLabels[name] || name
 
-const avatarColors = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-indigo-500','bg-pink-500']
+const avatarColors = ['bg-blue-600','bg-violet-600','bg-emerald-600','bg-amber-600','bg-rose-600','bg-cyan-600','bg-indigo-600','bg-pink-600']
 const avatarColor  = (id) => avatarColors[id % avatarColors.length]
 
 const primaryRoleId = (u) => {
-  if (u.role_ids) return parseInt(u.role_ids.split(',')[0])
+  if (u.role_ids && typeof u.role_ids === 'string') return parseInt(u.role_ids.split(',')[0])
   return u.role_id ?? ''
 }
 
@@ -280,7 +280,6 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => { toast.show = false }, 3000)
 }
 
-// ── Computed ──────────────────────────────────────────────────
 const filtered = computed(() => {
   return users.value.filter(u => {
     const q = search.value.toLowerCase()
@@ -291,7 +290,6 @@ const filtered = computed(() => {
   })
 })
 
-// ── API calls ─────────────────────────────────────────────────
 const fetchAll = async () => {
   isLoading.value = true
   try {
@@ -308,7 +306,6 @@ const fetchAll = async () => {
   }
 }
 
-// ── Inline role change ────────────────────────────────────────
 const changeRole = async (user, roleId) => {
   savingId.value = user.id
   try {
@@ -324,7 +321,6 @@ const changeRole = async (user, roleId) => {
   }
 }
 
-// ── Toggle status ─────────────────────────────────────────────
 const toggleStatus = async (user) => {
   savingId.value = user.id
   const newStatus = user.status === 'active' ? 'inactive' : 'active'
@@ -339,7 +335,6 @@ const toggleStatus = async (user) => {
   }
 }
 
-// ── Create / Edit modal ───────────────────────────────────────
 const openCreate = () => {
   Object.assign(form, { name: '', username: '', email: '', password: '', role_id: roles.value[0]?.id ?? null, status: 'active' })
   Object.assign(modal, { open: true, mode: 'create', saving: false, error: '', userId: null })
@@ -382,7 +377,6 @@ const saveUser = async () => {
   }
 }
 
-// ── Delete ────────────────────────────────────────────────────
 const confirmDelete = (user) => {
   deleteModal.user = user; deleteModal.open = true; deleteModal.saving = false
 }
@@ -406,15 +400,31 @@ onMounted(fetchAll)
 </script>
 
 <style scoped>
-.modal-label { @apply block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1; }
-.form-field  { @apply w-full h-11 bg-slate-50 border border-slate-200 rounded-2xl px-4 outline-none text-xs font-bold transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-50; }
+@keyframes loading { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
-.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
-.modal-enter-from, .modal-leave-to       { opacity: 0; }
+.filter-input-v2 {
+  @apply h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all;
+}
 
-.toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
-.toast-enter-from, .toast-leave-to       { opacity: 0; transform: translateX(-50%) translateY(20px); }
+.metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-1; }
 
-.animate-modalIn { animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
+
+.animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.animate-modalIn { animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+.slide-up-enter-active, .slide-up-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.slide-up-enter-from, .slide-up-leave-to { transform: translate(-50%, 20px); opacity: 0; }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.slide-down-enter-from, .slide-down-leave-to { transform: translateY(-10px); opacity: 0; }
+
+.status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 </style>

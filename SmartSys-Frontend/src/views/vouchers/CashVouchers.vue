@@ -89,9 +89,9 @@
 
               <div class="relative">
 
-                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2 pr-9" placeholder="رقم السند أو المرجع..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
+                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2" style="padding-right: 2rem;" placeholder="رقم السند أو المرجع..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
 
-                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
 
                 <Teleport to="body">
 
@@ -167,7 +167,10 @@
 
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">من تاريخ</label>
 
-              <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2 font-mono" />
+              <div class="relative">
+                <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2 font-mono" style="padding-left: 2rem;" />
+                <i @click="dateFromRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+              </div>
 
             </div>
 
@@ -175,7 +178,10 @@
 
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">إلى تاريخ</label>
 
-              <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2 font-mono" />
+              <div class="relative">
+                <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2 font-mono" style="padding-left: 2rem;" />
+                <i @click="dateToRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+              </div>
 
             </div>
 
@@ -467,19 +473,9 @@ const productStore = useProductStore();
 
 const costCenterStore = useCostCenterStore();
 
-// ✅ ensureExemptionLoaded: مطلوبة فقط لفحص جلسة الكاشير (تتحقق من السيرفر لـ non-privileged roles)
-const { ensureLoaded: ensureExemptionLoaded } = useSessionExemption();
-
-// ✅ isExempt: computed sync من authStore — يعطي القيمة الصحيحة فوراً بدون انتظار async
-// هذا يمنع الـ flash (dropdown يختفي لحظة ثم يظهر) ويضمن صحة الـ UI من أول render
-const isExempt = computed(() => {
-  const role = String(authStore.user?.role || '').toLowerCase();
-  const rid  = Number(authStore.user?.role_id || 0);
-  return (
-    ['admin', 'administrator', 'manager', 'owner', 'superadmin', 'super_admin'].includes(role) ||
-    rid === 1
-  );
-});
+// ✅ isExempt من useSessionExemption — المصدر المركزي الموحّد لكل الصفحات
+// ensureExemptionLoaded مطلوبة لتحميل الحالة من السيرفر قبل أي فحص
+const { isExempt, ensureLoaded: ensureExemptionLoaded } = useSessionExemption();
 
 const { formatCurrencyLocale, fetchSettings, currencySymbol, currencyCode } = useCompanyCurrency();
 
@@ -731,7 +727,7 @@ const onAddVoucher = async () => {
 
   await fetchLists();
 
-  let bId = branchStore.selectedBranchId || '';
+  let bId = branchStore.selectedBranchId || branches.value[0]?.id || '';
 
   if (!isExempt.value) {
 

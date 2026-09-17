@@ -654,7 +654,6 @@ class AccountingReportsHandler extends BaseHandler
                     ON a.id = jel.account_id AND a.tenant_id = je.tenant_id
                 WHERE je.tenant_id = ?
                   AND je.status   = 'posted'
-                  AND je.is_reversed = 0
                   AND (a.code LIKE '11%' OR a.type = 'cash')
                   AND (? IS NULL OR je.entry_date >= ?)
                   AND (? IS NULL OR je.entry_date <  ?)

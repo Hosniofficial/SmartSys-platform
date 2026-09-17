@@ -19,7 +19,7 @@
         :breadcrumb="breadcrumb"
         title="إدارة المشتريات"
         description="متابعة فواتير التوريد، تسوية حسابات الموردين، وإدارة تدفق المخزون."
-        :branches="branches"
+        :branches="isExempt ? branches : []"
         :selectedBranch="branchStore.selectedBranchId"
         @branch-changed="(val) => { branchStore.setSelectedBranch(val); selectedBranch.value = branchStore.selectedBranchId; handleBranchChange(); }"
       >
@@ -81,9 +81,9 @@
 
               <div class="relative">
 
-                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2 pr-9" placeholder="رقم الفاتورة أو المورد..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
+                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2" style="padding-right: 2rem;" placeholder="رقم الفاتورة أو المورد..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
 
-                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
 
                 <Teleport to="body">
 
@@ -155,7 +155,10 @@
 
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">من تاريخ</label>
 
-              <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2" />
+              <div class="relative">
+                <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2" style="padding-left: 2rem;" />
+                <i @click="dateFromRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+              </div>
 
             </div>
 
@@ -163,7 +166,10 @@
 
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">إلى تاريخ</label>
 
-              <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2" />
+              <div class="relative">
+                <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2" style="padding-left: 2rem;" />
+                <i @click="dateToRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+              </div>
 
             </div>
 
@@ -672,6 +678,16 @@ const openAddModal = async () => {
 
   let nextInv = ''; try { const res = await purchaseStore.getNextInvoiceNumber(); if (res.status === 'success') nextInv = res.data?.invoice_number || ''; } catch {}
 
+  // #4: إعادة تحميل إعدادات الضريبة في كل مرة يُفتح فيها Modal الإضافة
+  try {
+    const settings = await fetchSettings();
+    if (settings) {
+      taxEnabled.value = settings['company.tax_enabled'] === '1';
+      taxRate.value = parseFloat(settings['company.tax_rate']) || 0;
+      taxValue.value = taxEnabled.value ? taxRate.value : 0;
+    }
+  } catch (_) {}
+
   form.value = { supplier_id: '', branch_id: branchStore.selectedBranchId || branches.value[0]?.id || '', invoice_number: nextInv, purchase_date: getLocalDateISO(), status: 'received', discount: 0, discount_type: 'fixed', items: [], paid_amount: 0, payment_method_id: cashMethodId.value };
 
   showFormModal.value = true;
@@ -854,7 +870,7 @@ const saveNewProduct = async () => {
 
 const getPurchaseStatus = (s) => {
 
-  const map = { draft: { text: 'مسودة', class: 'bg-slate-50 text-slate-400 border-slate-100' }, pending: { text: 'قيد الانتظار', class: 'bg-amber-50 text-amber-600 border-amber-100' }, completed: { text: 'مكتملة', class: 'bg-emerald-50 text-emerald-600 border-emerald-100' }, partial: { text: 'جزئي', class: 'bg-amber-50 text-amber-600 border-amber-100' }, cancelled: { text: 'ملغاة', class: 'bg-rose-50 text-rose-600 border-rose-100' } };
+  const map = { draft: { text: 'مسودة', class: 'bg-slate-50 text-slate-400 border-slate-100' }, pending: { text: 'قيد الانتظار', class: 'bg-amber-50 text-amber-600 border-amber-100' }, approved: { text: 'معتمدة', class: 'bg-blue-50 text-blue-600 border-blue-100' }, received: { text: 'مستلمة', class: 'bg-indigo-50 text-indigo-600 border-indigo-100' }, completed: { text: 'مكتملة', class: 'bg-emerald-50 text-emerald-600 border-emerald-100' }, partial: { text: 'جزئي', class: 'bg-amber-50 text-amber-600 border-amber-100' }, cancelled: { text: 'ملغاة', class: 'bg-rose-50 text-rose-600 border-rose-100' } };
 
   return map[s] || { text: s, class: 'bg-slate-50' };
 

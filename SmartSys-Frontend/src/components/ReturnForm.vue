@@ -15,11 +15,12 @@
           @keydown.up="selectPrevResult"
           @keydown.enter.prevent="selectHighlightedResult"
           @keydown.escape="showInvoiceDropdown = false"
-          class="h-11 w-full bg-white border border-slate-200 rounded-lg px-10 text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+          class="h-11 w-full bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+          style="padding-right: 2rem; padding-left: 2rem;"
           placeholder="ابحث بـ: رقم الفاتورة أو اسم الطرف..."
           autocomplete="off"
         >
-        <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
+        <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
         <div v-if="isSearchingInvoice" class="absolute left-4 top-1/2 -translate-y-1/2"><BaseSpinner :size="16" color="#3b82f6" /></div>
 
         <!-- Search Dropdown Teleport Style -->

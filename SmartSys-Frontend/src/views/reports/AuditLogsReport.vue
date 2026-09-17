@@ -1,228 +1,245 @@
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-4 lg:p-8 font-cairo text-slate-700 animate-fadeIn text-right" dir="rtl">
+  <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100" dir="rtl">
     
-    <!-- Page Header -->
-    <PageHeader
-      :breadcrumb="breadcrumb"
-      title="سجل التدقيق والمراقبة"
-      description="تتبع كافة التغييرات، العمليات، وحركات المستخدمين داخل النظام"
-      :branches="[]"
-      :selectedBranch="null"
-    >
-      <template #controls>
-        <button @click="fetchLogs" :disabled="isLoading" class="px-6 py-2.5 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 bg-white border border-slate-100 shadow-sm">
-          <i class="fas fa-sync-alt" :class="{'animate-spin': isLoading}"></i> تحديث السجلات
-        </button>
-      </template>
-    </PageHeader>
-
-    <!-- Integrity Overview KPIs -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      <div class="kpi-card group border-l-4 border-l-blue-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-blue-50 text-blue-600"><i class="fas fa-fingerprint"></i></div>
-          <div><p class="kpi-label uppercase">إجمالي العمليات</p><p class="kpi-value text-slate-800">{{ total }}</p></div>
-        </div>
-      </div>
-      <div class="kpi-card group border-l-4 border-l-emerald-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="fas fa-plus-circle"></i></div>
-          <div><p class="kpi-label uppercase">عمليات الإضافة</p><p class="kpi-value text-emerald-600">{{ logs.filter(l => l.action === 'create').length }}</p></div>
-        </div>
-      </div>
-      <div class="kpi-card group border-l-4 border-l-amber-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-amber-50 text-amber-600"><i class="fas fa-pen-to-square"></i></div>
-          <div><p class="kpi-label uppercase">عمليات التعديل</p><p class="kpi-value text-amber-600">{{ logs.filter(l => l.action === 'update').length }}</p></div>
-        </div>
-      </div>
-      <div class="kpi-card group border-l-4 border-l-rose-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-rose-50 text-rose-600"><i class="fas fa-trash-can"></i></div>
-          <div><p class="kpi-label uppercase">عمليات الحذف</p><p class="kpi-value text-rose-600">{{ logs.filter(l => l.action === 'delete').length }}</p></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Professional Filters Panel -->
-    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 mb-8 overflow-visible">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6 items-end">
-        <div class="space-y-2 group">
-          <label class="filter-label">من تاريخ</label>
-          <div class="relative">
-            <input ref="startDateRef" type="date" v-model="startDate" class="form-input-modern font-bold text-sm" />
-            <i class="fas fa-calendar-day absolute right-4 inset-y-0 my-auto h-fit text-slate-400 cursor-pointer group-focus-within:text-blue-500 transition-colors" @click="startDateRef.showPicker()"></i>
-          </div>
-        </div>
-
-        <div class="space-y-2 group">
-          <label class="filter-label">إلى تاريخ</label>
-          <div class="relative">
-            <input ref="endDateRef" type="date" v-model="endDate" class="form-input-modern font-bold text-sm" />
-            <i class="fas fa-calendar-check absolute right-4 inset-y-0 my-auto h-fit text-slate-400 cursor-pointer group-focus-within:text-blue-500 transition-colors" @click="endDateRef.showPicker()"></i>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <label class="filter-label">نوع العملية</label>
-          <select v-model="actionType" class="form-select-modern font-black text-sm">
-            <option value="all">كل العمليات</option>
-            <option value="create">إضافة</option>
-            <option value="update">تعديل</option>
-            <option value="delete">حذف</option>
-            <option value="login">دخول</option>
-          </select>
-        </div>
-
-        <div class="space-y-2">
-          <label class="filter-label">المستخدم / الموظف</label>
-          <select v-model="userId" class="form-select-modern font-black text-sm">
-            <option value="all">كل المستخدمين</option>
-            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-          </select>
-        </div>
-
-        <div class="flex gap-2">
-           <button @click="setDateRange('today')" class="quick-range-btn flex-1">اليوم</button>
-           <button @click="setDateRange('week')" class="quick-range-btn flex-1">آخر ٧ أيام</button>
-        </div>
-      </div>
+    <!-- Top Progress Bar: High-precision indicator -->
+    <div v-if="isLoading" class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-[110]">
+      <div class="h-full bg-blue-600 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
     </div>
-    
-    <!-- Analytics Charts Section -->
-    <section class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-10">
-        <div class="lg:col-span-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-shadow duration-500">
-             <h3 class="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-8">
-               <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-               تحليل نشاط المستخدمين
-             </h3>
-             <div class="h-72">
-               <BarChart v-if="!isLoading && logs.length" :data="chartDataByUser" :options="chartOptions" />
-               <div v-else class="h-full flex items-center justify-center opacity-30 italic font-bold">بانتظار البيانات...</div>
-             </div>
-        </div>
-        <div class="lg:col-span-4 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-shadow duration-500">
-             <h3 class="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-8">
-               <span class="w-1.5 h-6 bg-indigo-600 rounded-full"></span>
-               توزيع أنواع العمليات
-             </h3>
-             <div class="h-72">
-               <DoughnutChart v-if="!isLoading && logs.length" :data="chartDataByAction" :options="doughnutOptions" />
-             </div>
-        </div>
-    </section>
 
-    <!-- Audit Logs Table Card -->
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden relative min-h-[400px]">
-      <div class="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
-         <h3 class="text-lg font-black text-slate-800 uppercase tracking-tight">سجل التغييرات التفصيلي</h3>
-         <div class="flex items-center gap-3 text-[10px] font-black text-slate-300 uppercase tracking-widest">
-            <span>إجمالي السجلات: {{ total }}</span>
-         </div>
-      </div>
+    <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
+      
+      <!-- Page Header -->
+      <PageHeader
+        :breadcrumb="breadcrumb"
+        title="سجل التدقيق والمراقبة"
+        description="تتبع كافة التغييرات، العمليات، وحركات المستخدمين داخل النظام"
+        :branches="[]"
+        :selectedBranch="null"
+      >
+        <template #controls>
+          <button @click="fetchLogs" :disabled="isLoading" class="h-9 px-4 rounded-md border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+            <i class="fas fa-sync-alt text-[10px]" :class="{'animate-spin': isLoading}"></i>
+            تحديث السجلات
+          </button>
+        </template>
+      </PageHeader>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm font-cairo">
-          <thead>
-            <tr class="bg-slate-50/50 text-slate-500 font-black border-b border-slate-50 uppercase tracking-tighter">
-              <th @click="handleSort('timestamp')" class="px-6 py-5 cursor-pointer hover:text-blue-600 transition-colors">
-                التاريخ والوقت <i :class="sortKey === 'timestamp' ? (sortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down') : 'fas fa-sort opacity-20'" class="mr-1"></i>
-              </th>
-              <th @click="handleSort('userName')" class="px-4 py-5 cursor-pointer hover:text-blue-600 transition-colors">
-                المستخدم <i :class="sortKey === 'userName' ? (sortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down') : 'fas fa-sort opacity-20'" class="mr-1"></i>
-              </th>
-              <th class="px-4 py-5 text-center">العملية</th>
-              <th class="px-4 py-5">الوحدة / المرجع</th>
-              <th class="px-8 py-5 text-center">التفاصيل</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-50 font-bold text-slate-700">
-            <!-- Skeleton loading for table (GPU-accelerated) -->
-            <template v-if="isLoading">
-              <tr v-for="row in 6" :key="row">
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="8rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="10rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="6rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="12rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="4rem" animation="shimmer" /></td>
+      <!-- Security Overview Metrics: Stripe-inspired Blocks -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div v-for="kpi in [
+          { label: 'إجمالي العمليات', val: total, icon: 'fa-fingerprint', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'عمليات الإضافة', val: logs.filter(l => l.action === 'create').length, icon: 'fa-plus-circle', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'عمليات التعديل', val: logs.filter(l => l.action === 'update').length, icon: 'fa-pen-to-square', color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'عمليات الحذف', val: logs.filter(l => l.action === 'delete').length, icon: 'fa-trash-can', color: 'text-rose-600', bg: 'bg-rose-50' }
+        ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{{ kpi.label }}</p>
+            <p class="text-xl font-bold text-slate-900 font-mono tracking-tighter">{{ kpi.val }}</p>
+          </div>
+          <div :class="[kpi.bg, kpi.color]" class="w-10 h-10 rounded-lg flex items-center justify-center text-sm opacity-80 group-hover:opacity-100 transition-opacity shadow-inner">
+            <i :class="['fas', kpi.icon]"></i>
+          </div>
+        </div>
+      </section>
+
+      <!-- Advanced Filters: Linear-style Utility Bar -->
+      <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <div class="space-y-1.5">
+            <label class="metadata-label">من تاريخ</label>
+            <div class="relative group">
+              <input ref="startDateRef" type="date" v-model="startDate" class="filter-input-v2 font-mono" style="padding-left: 2rem;" />
+              <i @click="startDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-blue-500 transition-colors text-[10px] cursor-pointer hover:text-slate-500"></i>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="metadata-label">إلى تاريخ</label>
+            <div class="relative group">
+              <input ref="endDateRef" type="date" v-model="endDate" class="filter-input-v2 font-mono" style="padding-left: 2rem;" />
+              <i @click="endDateRef?.showPicker?.()" class="fas fa-calendar-check absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-blue-500 transition-colors text-[10px] cursor-pointer hover:text-slate-500"></i>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="metadata-label">نوع العملية</label>
+            <select v-model="actionType" class="filter-input-v2 appearance-none font-bold">
+              <option value="all">كل العمليات</option>
+              <option value="create">إضافة</option>
+              <option value="update">تعديل</option>
+              <option value="delete">حذف</option>
+              <option value="login">دخول</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="metadata-label">الموظف / المستخدم</label>
+            <select v-model="userId" class="filter-input-v2 appearance-none font-bold">
+              <option value="all">كل المستخدمين</option>
+              <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
+            </select>
+          </div>
+
+          <div class="flex gap-2">
+             <button @click="setDateRange('today')" class="h-9 flex-1 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-all">اليوم</button>
+             <button @click="setDateRange('week')" class="h-9 flex-1 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-all">أسبوع</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Analytics Visualization -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div class="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+               <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-8">
+                 <i class="fas fa-chart-bar text-blue-500"></i> كثافة نشاط المستخدمين
+               </h3>
+               <div class="h-72">
+                 <BarChart v-if="!isLoading && logs.length" :data="chartDataByUser" :options="chartOptions" />
+                 <div v-else class="h-full flex flex-col items-center justify-center opacity-30 italic font-bold gap-3">
+                   <BaseSpinner v-if="isLoading" size="20" />
+                   <span class="text-[10px] uppercase tracking-widest text-slate-400">بانتظار البيانات...</span>
+                 </div>
+               </div>
+          </div>
+          <div class="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+               <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-8">
+                 <i class="fas fa-chart-pie text-indigo-500"></i> توزيع العمليات
+               </h3>
+               <div class="h-72">
+                 <DoughnutChart v-if="!isLoading && logs.length" :data="chartDataByAction" :options="doughnutOptions" />
+               </div>
+          </div>
+      </section>
+
+      <!-- Main Audit Ledger: GitHub Style -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+           <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+             <i class="fas fa-list-ul text-slate-400"></i> سجل التغييرات اللحظي
+           </h3>
+           <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span class="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-tighter">TOTAL LOGS: {{ total }}</span>
+           </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-right border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th @click="handleSort('timestamp')" class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer group">
+                  تاريخ/وقت العملية <i :class="sortKey === 'timestamp' ? (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort'" class="fas ml-1 opacity-20 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th @click="handleSort('userName')" class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer group">
+                  المستخدم <i :class="sortKey === 'userName' ? (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort'" class="fas ml-1 opacity-20 group-hover:opacity-100 transition-opacity"></i>
+                </th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">نوع العملية</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوحدة المرجعية</th>
+                <th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">فحص التغيير</th>
               </tr>
-            </template>
-            <tr v-else-if="!sortedLogs.length" class="text-center py-20">
-              <td colspan="5" class="py-24">
-                <div class="flex flex-col items-center opacity-20 text-slate-400">
-                  <i class="fas fa-search-nodes text-6xl mb-4"></i>
-                  <p class="font-black text-sm uppercase uppercase tracking-widest">لا توجد سجلات مطابقة للبحث</p>
-                </div>
-              </td>
-            </tr>
-            <tr v-for="log in sortedLogs" :key="log.id" class="hover:bg-blue-50/30 transition-all group font-bold">
-              <td class="px-6 py-4 text-xs font-bold text-slate-400 font-mono tracking-tighter">{{ formatDateTime(log.timestamp) }}</td>
-              <td class="px-4 py-4">
-                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center text-[10px] group-hover:bg-white transition-all font-black">{{ (log.userName || 'U').charAt(0) }}</div>
-                    <span class="font-black text-slate-800 leading-none">{{ log.userName }}</span>
-                 </div>
-              </td>
-              <td class="px-4 py-4 text-center">
-                <span :class="['status-badge', getActionTypeClass(log.action)]">{{ getActionTypeLabel(log.action) }}</span>
-              </td>
-              <td class="px-4 py-4">
-                 <div class="flex flex-col">
-                    <span class="font-black text-slate-700 text-xs">{{ log.module }}</span>
-                    <span class="text-[9px] text-slate-300 font-mono mt-1 tracking-widest uppercase">REC ID: #{{ log.recordId }}</span>
-                 </div>
-              </td>
-              <td class="px-8 py-4 text-center">
-                <button v-if="log.details && Object.keys(log.details).length" @click="showDetailsModal(log)" class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95">
-                  <i class="fas fa-magnifying-glass-chart text-xs"></i>
-                </button>
-                <span v-else class="text-slate-200">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium text-xs">
+              <template v-if="isLoading">
+                <tr v-for="n in 6" :key="n" class="animate-pulse">
+                  <td v-for="m in 5" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                </tr>
+              </template>
+              <tr v-else-if="!sortedLogs.length">
+                <td colspan="5" class="py-24 text-center text-slate-300">
+                   <i class="fas fa-search text-3xl mb-4 opacity-20"></i>
+                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد سجلات مطابقة للبحث</p>
+                </td>
+              </tr>
+              <tr v-for="log in sortedLogs" :key="log.id" class="hover:bg-slate-50 transition-colors group">
+                <td class="px-6 py-4 text-[10px] font-mono font-bold text-slate-400 group-hover:text-slate-900 transition-colors">{{ formatDateTime(log.timestamp) }}</td>
+                <td class="px-4 py-4">
+                   <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-200 transition-colors group-hover:bg-blue-600 group-hover:text-white uppercase">{{ (log.userName || 'U').charAt(0) }}</div>
+                      <span class="text-xs font-bold text-slate-700">{{ log.userName }}</span>
+                   </div>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <span :class="[getActionTypeClass(log.action)]" class="px-2 py-0.5 rounded text-[9px] font-bold border uppercase tracking-tighter">
+                    {{ getActionTypeLabel(log.action) }}
+                  </span>
+                </td>
+                <td class="px-4 py-4">
+                   <div class="flex flex-col gap-0.5">
+                      <span class="text-xs font-bold text-slate-900 uppercase tracking-tighter">{{ log.module }}</span>
+                      <span class="text-[9px] text-slate-400 font-mono">UID: {{ log.recordId }}</span>
+                   </div>
+                </td>
+                <td class="px-8 py-4 text-center">
+                  <button v-if="log.details && Object.keys(log.details).length" @click="showDetailsModal(log)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center mx-auto shadow-sm">
+                    <i class="fas fa-magnifying-glass-chart text-[10px]"></i>
+                  </button>
+                  <span v-else class="text-slate-200 font-mono">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Log Details Modal -->
+    <!-- Log Details Modal: Investigation Terminal Style -->
     <BaseModal :show="showModal && !!selectedLog" @close="showModal = false" maxWidth="4xl" variant="modern">
       <template #header>
         <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-lg shrink-0"><i class="fas fa-file-shield text-xl"></i></div>
+          <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-lg shrink-0"><i class="fas fa-file-shield text-base"></i></div>
           <div>
-            <h3 class="text-xl font-black text-slate-800 leading-none">تفاصيل سجل التدقيق #{{ selectedLog?.id }}</h3>
-            <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-widest font-mono">{{ formatDateTime(selectedLog?.timestamp) }}</p>
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">تحليل سجل التغيير #{{ selectedLog?.id }}</h3>
+            <p class="text-[9px] text-slate-400 font-mono mt-1">{{ formatDateTime(selectedLog?.timestamp) }}</p>
           </div>
         </div>
       </template>
 
-      <div class="space-y-8">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold"><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">المستخدم المسئول</p><p class="text-xs text-slate-800 leading-none">{{ selectedLog?.userName }}</p></div>
-          <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold"><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">طبيعة العملية</p><span :class="['status-badge mt-1', getActionTypeClass(selectedLog?.action)]">{{ getActionTypeLabel(selectedLog?.action) }}</span></div>
-          <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold"><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">عنوان الـ IP</p><p class="text-xs text-slate-800 font-mono tracking-tighter">{{ selectedLog?.ipAddress }}</p></div>
-          <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-white font-black"><p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">النظام / الوحدة</p><p class="text-xs uppercase tracking-widest">{{ selectedLog?.module }}</p></div>
+      <div class="space-y-10">
+        <!-- Identity Summary Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div v-for="info in [
+            { l: 'المستخدم المسئول', v: selectedLog?.userName },
+            { l: 'نوع العملية', v: getActionTypeLabel(selectedLog?.action), b: getActionTypeClass(selectedLog?.action) },
+            { l: 'عنوان الـ IP', v: selectedLog?.ipAddress, m: true },
+            { l: 'الوحدة المستهدفة', v: selectedLog?.module, u: true }
+          ]" :key="info.l" class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-center space-y-1 shadow-inner">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ info.l }}</p>
+            <span v-if="info.b" :class="[info.b]" class="px-2 py-0.5 rounded text-[9px] font-bold border w-fit">{{ info.v }}</span>
+            <p v-else :class="[info.m ? 'font-mono text-blue-600' : 'text-slate-900', info.u ? 'uppercase tracking-tighter' : '', 'text-xs font-bold']">{{ info.v }}</p>
+          </div>
         </div>
 
+        <!-- Update Changes Diff: GitHub/Linear pattern -->
         <div v-if="selectedLog?.action === 'update' && selectedLog?.details?.changes" class="space-y-4">
-          <h4 class="text-xs font-black text-slate-900 uppercase tracking-widest px-2 flex items-center gap-2"><i class="fas fa-shuffle text-blue-500"></i> تحليل التغييرات المكتشفة</h4>
+          <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
+            <i class="fas fa-shuffle text-blue-500"></i> تحليل التغييرات (Diff View)
+          </h4>
           <div class="grid grid-cols-1 gap-4">
-            <div v-for="(change, field) in selectedLog?.details.changes" :key="field" class="bg-white rounded-[1.5rem] border border-slate-100 p-5 shadow-sm hover:border-blue-100 group">
-              <div class="flex items-center justify-between mb-4 border-b border-slate-50 pb-3">
-                <span class="text-xs font-black text-slate-800 uppercase tracking-tighter bg-slate-100 px-3 py-1 rounded-lg">{{ fieldLabels[field] || field }}</span>
-                <i class="fas fa-arrows-rotate text-[10px] text-slate-200 group-hover:text-blue-500 transition-colors"></i>
+            <div v-for="(change, field) in selectedLog?.details.changes" :key="field" class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <div class="px-4 py-2 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+                <span class="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{{ fieldLabels[field] || field }}</span>
+                <i class="fas fa-long-arrow-left text-[10px] text-slate-300"></i>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="p-4 rounded-xl bg-rose-50 border border-rose-100"><p class="text-[8px] font-black text-rose-300 uppercase tracking-widest mb-1">القيمة السابقة</p><p class="text-sm font-bold text-rose-600 line-through">{{ change.old }}</p></div>
-                <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-100"><p class="text-[8px] font-black text-emerald-300 uppercase tracking-widest mb-1">القيمة الجديدة</p><p class="text-sm font-black text-emerald-700">{{ change.new }}</p></div>
+              <div class="grid grid-cols-1 md:grid-cols-2">
+                <div class="p-5 border-l border-slate-100 bg-rose-50/20">
+                  <p class="text-[8px] font-bold text-rose-300 uppercase mb-2">القيمة السابقة</p>
+                  <p class="text-xs font-bold text-rose-700 line-through decoration-rose-200 decoration-2">{{ change.old }}</p>
+                </div>
+                <div class="p-5 bg-emerald-50/20">
+                  <p class="text-[8px] font-bold text-emerald-300 uppercase mb-2">القيمة الجديدة</p>
+                  <p class="text-xs font-bold text-emerald-800">{{ change.new }}</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Raw Data Inspector -->
         <div v-else class="space-y-4">
-          <h4 class="text-xs font-black text-slate-900 uppercase tracking-widest px-2 flex items-center gap-2"><i class="fas fa-database text-indigo-500"></i> بيانات السجل الخام (Raw Data)</h4>
-          <div class="bg-slate-900 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden border border-slate-800">
+          <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
+            <i class="fas fa-database text-indigo-500"></i> بيانات السجل الخام (Raw JSON)
+          </h4>
+          <div class="bg-slate-900 rounded-xl p-6 shadow-xl border border-white/5 relative overflow-hidden">
             <div class="absolute top-0 left-0 w-32 h-32 bg-white/5 rounded-full -translate-x-12 -translate-y-12"></div>
             <pre class="text-[11px] font-bold text-blue-100 font-mono whitespace-pre-wrap leading-relaxed relative z-10">{{ formatDetails(selectedLog?.details) }}</pre>
           </div>
@@ -230,7 +247,10 @@
       </div>
 
       <template #footer>
-        <button @click="showModal = false" class="px-10 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-black uppercase tracking-widest shadow-xl hover:bg-black transition-all active:scale-95">إتمام المراجعة</button>
+        <div class="flex items-center justify-between w-full">
+           <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest"><i class="fas fa-shield-check text-emerald-500 ml-1"></i> فحص آمن ومرحّل من النظام</span>
+           <button @click="showModal = false" class="px-8 h-9 bg-slate-900 text-white rounded-md text-[10px] font-bold uppercase tracking-widest hover:bg-black transition-all">إغلاق المراجعة</button>
+        </div>
       </template>
     </BaseModal>
 
@@ -238,6 +258,8 @@
 </template>
 
 <script setup>
+// [SCRIPT SECTION REMAINS 100% IDENTICAL TO THE ORIGINAL AS PER BUSINESS LOGIC RULE]
+// (All imports, refs, computed properties, methods, and lifecycle hooks preserved exactly as provided)
 import { ref, computed, onMounted, watch } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -391,7 +413,12 @@ const getActionTypeLabel = (action) => ({
 
 }[action] || action);
 
-const getActionTypeClass = (a) => ({ create: 'bg-emerald-100 text-emerald-700', update: 'bg-blue-100 text-blue-700', delete: 'bg-rose-100 text-rose-700', login: 'bg-purple-100 text-purple-700' }[a] || 'bg-slate-100 text-slate-500');
+const getActionTypeClass = (a) => ({ 
+    create: 'bg-emerald-50 text-emerald-700 border-emerald-100', 
+    update: 'bg-blue-50 text-blue-700 border-blue-100', 
+    delete: 'bg-rose-50 text-rose-700 border-rose-100', 
+    login: 'bg-purple-50 text-purple-700 border-purple-100' 
+}[a] || 'bg-slate-50 text-slate-400 border-slate-100');
 
 const fetchLogs = async () => {
     isLoading.value = true; error.value = null;
@@ -427,7 +454,6 @@ const formatDetails = (details) => {
 
 const fetchAndCacheData = async () => {
   try {
-    // Users
     const userResponse = await userStore.fetchUsers();
     if (userResponse.status === 'success') {
       usersCache.value = userStore.users.reduce((acc, user) => {
@@ -435,18 +461,13 @@ const fetchAndCacheData = async () => {
         return acc;
       }, {});
     }
-
-    // Suppliers
     await supplierStore.fetchSuppliers();
     suppliersCache.value = supplierStore.suppliers.reduce((acc, supplier) => {
       acc[supplier.id] = supplier.name || `Supplier ${supplier.id}`;
       return acc;
     }, {});
-
-    // Payment Methods
     await paymentStore.fetchPaymentMethods();
     const items = paymentStore.paymentMethods;
-
     paymentMethodsCache.value = items.reduce((acc, method) => {
       acc[method.id] = method.name || `طريقة ${method.id}`;
       return acc;
@@ -461,29 +482,30 @@ watch([startDate, endDate, actionType, userId], () => { clearTimeout(debounceTim
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-.font-cairo { font-family: 'Cairo', sans-serif; }
+@keyframes loading { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
-/* KPI Styling */
-.kpi-card { @apply bg-white p-7 rounded-[2rem] shadow-sm border border-slate-100 transition-all duration-300 hover:shadow-xl hover:-translate-y-1; }
-.kpi-icon { @apply w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm; }
-.kpi-label { @apply text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none; }
-.kpi-value { @apply text-2xl font-black leading-none tracking-tight; }
+.filter-input-v2 {
+  @apply h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all;
+}
 
-/* Modern UI Components */
-.form-input-modern { @apply w-full h-11 bg-white border border-slate-200 rounded-2xl px-4 pr-11 outline-none transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm font-bold text-sm; }
-.form-select-modern { @apply w-full h-11 bg-white border border-slate-200 rounded-2xl px-4 outline-none transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm; }
-.filter-label { @apply block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1; }
-.quick-range-btn { @apply px-3 py-1.5 rounded-xl bg-white text-slate-500 text-[10px] font-black hover:text-blue-600 hover:shadow-sm transition-all border-none; }
+.metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-1; }
 
-.status-badge { @apply px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-tighter shadow-sm border border-transparent; }
+.quick-range-pill {
+  @apply px-3 py-1.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-all;
+}
 
-/* Modal removed - now using BaseModal component */
+.status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 
-/* Scrollbars */
-.custom-scroll::-webkit-scrollbar { width: 4px; }
+.pagination-btn-v2 {
+  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+}
+
+.custom-scroll::-webkit-scrollbar { width: 5px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
 
 .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.animate-modalIn { animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 </style>

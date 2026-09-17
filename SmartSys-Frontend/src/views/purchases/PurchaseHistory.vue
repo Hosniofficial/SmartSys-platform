@@ -15,6 +15,7 @@
         description="إدارة عمليات التوريد، تتبع الفواتير، وتسجيل الدفعات للموردين."
         :branches="branches"
         :selectedBranch="selectedBranch"
+        :hasExplicitSelection="hasExplicitBranchSelection"
         @branch-changed="onBranchChange"
       >
         <template #controls>
@@ -34,9 +35,9 @@
         <div v-for="kpi in [
           { label: 'عدد الفواتير', val: kpiCount, icon: 'fa-file-invoice', color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'إجمالي المشتريات', val: formatPrice(kpiSum), icon: 'fa-truck-loading', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'إجمالي الضريبة', val: formatPrice(kpiTax || 0), icon: 'fa-receipt', color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'إجمالي الخصومات', val: formatPrice(kpiDiscount || 0), icon: 'fa-tag', color: 'text-rose-600', bg: 'bg-rose-50' }
-        ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
+          { label: 'إجمالي الضريبة', val: formatPrice(kpiTax || 0), icon: 'fa-receipt', color: 'text-blue-600', bg: 'bg-blue-50', show: kpiTax != null },
+          { label: 'إجمالي الخصومات', val: formatPrice(kpiDiscount || 0), icon: 'fa-tag', color: 'text-rose-600', bg: 'bg-rose-50', show: kpiDiscount != null }
+        ].filter(k => k.show !== false)" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
           <div>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{{ kpi.label }}</p>
             <p class="text-xl font-bold text-slate-900">{{ kpi.val }}</p>
@@ -55,13 +56,25 @@
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">بحث سريع</label>
                 <div class="relative">
-                  <input v-model="filters.searchQuery.value" type="text" class="filter-input pr-9" placeholder="رقم الفاتورة أو المورد..." />
-                  <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                  <input v-model="filters.searchQuery.value" type="text" class="filter-input" style="padding-right: 2rem;" placeholder="رقم الفاتورة أو المورد..." />
+                  <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
                 </div>
               </div>
 
-              <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">من تاريخ</label><input ref="dateFromRef" type="date" v-model="filters.dateFrom.value" class="filter-input" /></div>
-              <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">إلى تاريخ</label><input ref="dateToRef" type="date" v-model="filters.dateTo.value" class="filter-input" /></div>
+              <div class="space-y-1.5">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">من تاريخ</label>
+                <div class="relative">
+                  <input ref="dateFromRef" type="date" v-model="filters.dateFrom.value" class="filter-input" style="padding-left: 2rem;" />
+                  <i @click="dateFromRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">إلى تاريخ</label>
+                <div class="relative">
+                  <input ref="dateToRef" type="date" v-model="filters.dateTo.value" class="filter-input" style="padding-left: 2rem;" />
+                  <i @click="dateToRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+                </div>
+              </div>
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">حالة الفاتورة</label>
@@ -79,21 +92,13 @@
               <div class="md:col-span-2 space-y-1.5 relative">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">تصفية حسب المورد</label>
                 <div class="relative">
-                  <input v-model="filters.customerSearch.value" type="text" class="filter-input pr-9" placeholder="ابحث عن مورد..." @focus="filters.showCustomerDropdown.value = true" @blur="hideSupplierDropdown" />
-                  <i class="fas fa-truck absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                  <input v-model="filters.customerSearch.value" type="text" class="filter-input" style="padding-right: 2rem;" placeholder="ابحث عن مورد..." @focus="filters.showCustomerDropdown.value = true" @blur="hideSupplierDropdown" />
+                  <i class="fas fa-truck absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
                   <div v-if="filters.showCustomerDropdown.value" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto">
                     <button @mousedown.prevent="filters.clearCustomerFilter()" class="w-full text-right px-4 py-2 text-[11px] hover:bg-slate-50 border-b border-slate-50 text-indigo-600 font-bold">جميع الموردين</button>
                     <button v-for="s in filteredSuppliers" :key="s.id" @mousedown.prevent="selectSupplier(s)" class="w-full text-right px-4 py-2 text-[11px] hover:bg-slate-50 border-b border-slate-50 last:border-0 font-medium">{{ s.name || s.supplier_name }}</button>
                   </div>
                 </div>
-              </div>
-
-              <div v-if="isExempt" class="space-y-1.5">
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">الفرع / المستودع</label>
-                <select v-model="selectedBranch" class="filter-input">
-                  <option :value="null">كل المخازن</option>
-                  <option v-for="w in branches" :key="w.id" :value="w.id">{{ w.name || w.branch_name }}</option>
-                </select>
               </div>
 
               <button @click="resetFilters" class="h-9 w-full rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-200 transition-all">إعادة تعيين الفلاتر</button>
@@ -103,12 +108,14 @@
       </transition>
 
       <!-- Active Filter Chips -->
-      <div v-if="filters.hasActiveFilters.value || filters.customerFilter.value || (isExempt && selectedBranch)" class="flex flex-wrap gap-2">
+      <div v-if="filters.hasActiveFilters.value || filters.customerFilter.value || (isExempt.value && hasExplicitBranchSelection)" class="flex flex-wrap gap-2">
         <div v-for="chip in [
           { show: filters.searchQuery.value, label: filters.searchQuery.value, clear: () => filters.searchQuery.value = '' },
-          { show: filters.dateFrom.value, label: filters.dateFrom.value, clear: () => filters.dateFrom.value = '' },
+          { show: filters.dateFrom.value, label: 'من: ' + filters.dateFrom.value, clear: () => filters.dateFrom.value = '' },
+          { show: filters.dateTo.value, label: 'إلى: ' + filters.dateTo.value, clear: () => filters.dateTo.value = '' },
           { show: filters.statusFilter.value, label: getStatusLabel(filters.statusFilter.value), clear: () => filters.statusFilter.value = '' },
-          { show: filters.customerFilter.value, label: filters.customerSearch.value, clear: () => filters.clearCustomerFilter() }
+          { show: filters.customerFilter.value, label: filters.customerSearch.value, clear: () => filters.clearCustomerFilter() },
+          { show: isExempt.value && hasExplicitBranchSelection, label: 'الفرع: ' + (branches?.find(b => b.id == selectedBranch)?.name || selectedBranch), clear: () => onBranchChange(null) }
         ].filter(c => c.show)" :key="chip.label" class="inline-flex items-center gap-2 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-md text-[10px] font-bold text-indigo-700">
           {{ chip.label }} <i @click="chip.clear" class="fas fa-times cursor-pointer hover:text-indigo-900 opacity-60"></i>
         </div>
@@ -247,7 +254,7 @@
           <input type="number" v-model.number="paymentData.amount" class="w-full h-14 text-3xl font-bold text-center text-emerald-600 border-b-2 border-slate-100 focus:border-emerald-500 outline-none transition-all" />
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-400 uppercase">التاريخ</label><input ref="paymentDateRef" type="date" v-model="paymentData.payment_date" class="filter-input" /></div>
+          <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-400 uppercase">التاريخ</label><div class="relative"><input ref="paymentDateRef" type="date" v-model="paymentData.payment_date" class="filter-input" style="padding-left: 2rem;" /><i @click="paymentDateRef?.showPicker?.()" class="fas fa-calendar-days absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500"></i></div></div>
           <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-400 uppercase">طريقة الدفع</label><select v-model.number="paymentData.payment_method_id" class="filter-input"><option v-for="m in paymentMethods" :key="m.id" :value="m.id">{{ m.name }}</option></select></div>
         </div>
         <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-400 uppercase">رقم المرجع</label><input type="text" v-model="paymentData.reference_number" class="filter-input" placeholder="شيك، رقم تحويل..." /></div>
@@ -312,16 +319,28 @@ const rows = ref([]);
 const isLoadingPurchases = ref(false);
 const isLoadingDetails = ref(false);
 
+// ✅ Date picker refs
+const dateFromRef = ref(null);
+const dateToRef = ref(null);
+
 const branches = computed(() => branchStore.branches);
 const selectedBranch = computed({
   get: () => branchStore.selectedBranchId,
   set: (val) => branchStore.setSelectedBranch(val)
 });
 
+// ✅ يتتبع الاختيار اليدوي للفرع
+const userChoseBranch = ref(
+  localStorage.getItem('selectedBranchId') !== null
+  && localStorage.getItem('selectedBranchId') !== 'all'
+);
+const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null);
+
 const onBranchChange = (newBranchId) => {
   branchStore.setSelectedBranch(newBranchId);
+  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId !== 'all');
   filters.page.value = 1;
-  fetchPurchases();
+  fetchPurchases(true);  // ✅ force=true
 };
 
 const suppliers = computed(() => supplierStore.suppliers);
@@ -373,7 +392,7 @@ const getStatusLabel = (status) => {
 };
 
 let purchasesAbortCtrl = null;
-const fetchPurchases = async () => {
+const fetchPurchases = async (forceRefresh = false) => {
   if (purchasesAbortCtrl) purchasesAbortCtrl.abort();
   purchasesAbortCtrl = new AbortController();
   const currentCtrl = purchasesAbortCtrl;
@@ -384,7 +403,7 @@ const fetchPurchases = async () => {
       try { branchId = branchIsolation.getRequiredBranchId(); }
       catch (e) { rows.value = []; filters.total.value = 0; showToast(e.message || 'لم يتم تعيين مخزن.', 'error'); return; }
     }
-    const params = { ...filters.getApiParams({ supplierId: filters.customerFilter.value || undefined }), branchId: branchId };
+    const params = { ...filters.getApiParams({ supplierId: filters.customerFilter.value || undefined, force: forceRefresh }), branchId: branchId };
     const response = await purchaseStore.fetchPurchasesList(params);
     if (currentCtrl !== purchasesAbortCtrl) return;
     if (response?.status === 'success') {
@@ -393,7 +412,9 @@ const fetchPurchases = async () => {
       rows.value = list; filters.total.value = resData?.total || list.length;
     } else { rows.value = []; filters.total.value = 0; }
   } catch (e) {
-    if (e?.name !== 'AbortError') { showToast('فشل في تحميل سجل المشتريات', 'error'); rows.value = []; filters.total.value = 0; }
+    if (e?.name !== 'AbortError' && e?.name !== 'CanceledError' && e?.code !== 'ERR_CANCELED') {
+      showToast('فشل في تحميل سجل المشتريات', 'error'); rows.value = []; filters.total.value = 0;
+    }
   } finally { if (currentCtrl === purchasesAbortCtrl) isLoadingPurchases.value = false; hideLoader(); }
 };
 
@@ -409,8 +430,11 @@ const viewPurchaseDetails = async (purchaseId) => {
     if (currentCtrl !== detailsAbortCtrl.value) return;
     if (response) { selectedPurchase.value = response; showDetailsModal.value = true; }
     else showToast('فشل في تحميل تفاصيل المشترية', 'error');
-  } catch (e) { if (e?.name !== 'AbortError') showToast('فشل في تحميل تفاصيل المشترية', 'error'); }
-  finally { if (currentCtrl === detailsAbortCtrl.value) isLoadingDetails.value = false; hideLoader(); }
+  } catch (e) {
+    if (e?.name !== 'AbortError' && e?.name !== 'CanceledError' && e?.code !== 'ERR_CANCELED') {
+      showToast('فشل في تحميل تفاصيل المشترية', 'error');
+    }
+  } finally { if (currentCtrl === detailsAbortCtrl.value) isLoadingDetails.value = false; hideLoader(); }
 };
 
 const showPaymentModal = ref(false);
@@ -449,9 +473,19 @@ const printPurchaseDetails = async () => {
 };
 
 let searchDebounceTimer = null;
-watch(filters.searchQuery, () => { clearTimeout(searchDebounceTimer); filters.page.value = 1; searchDebounceTimer = setTimeout(fetchPurchases, 400); });
-watch([filters.customerFilter, filters.dateFrom, filters.dateTo, selectedBranch], () => { filters.page.value = 1; fetchPurchases(); });
-watch(filters.page, fetchPurchases);
+// isMounting flag: يمنع الـ watches من إطلاق fetchPurchases() أثناء onMounted
+let isMounting = true;
+
+watch(filters.searchQuery, () => { 
+  if (isMounting) return;
+  clearTimeout(searchDebounceTimer); filters.page.value = 1; searchDebounceTimer = setTimeout(fetchPurchases, 400); 
+});
+// selectedBranch مُزال من watch — تغيير الفرع يُعالج عبر onBranchChange() مباشرة
+watch([filters.customerFilter, filters.dateFrom, filters.dateTo], () => { 
+  if (isMounting) return;
+  filters.page.value = 1; fetchPurchases(); 
+});
+watch(filters.page, () => { if (isMounting) return; fetchPurchases(); });
 watch([filters.customerFilter, suppliers], () => {
   const found = suppliers.value.find(x => String(x.id) === String(filters.customerFilter.value));
   filters.customerSearch.value = found ? (found.name || found.supplier_name || '') : '';
@@ -470,6 +504,42 @@ onMounted(async () => {
     await paymentStore.fetchPaymentMethods().catch(() => {});
     await supplierStore.fetchSuppliers().catch(() => {});
   }
+  
+  // ✅ FIX: تهيئة/استعادة branch context قبل أول API call
+  const hadPriorBranchChoice = localStorage.getItem('selectedBranchId') !== null
+                                && localStorage.getItem('selectedBranchId') !== 'all';
+  try {
+    branchStore.loadFromStorage();
+    if (!branchStore.branches || branchStore.branches.length === 0) {
+      await branchStore.fetchBranches();
+    }
+  } catch (err) {
+    console.error('[PurchaseHistory] Failed to initialize branches:', err);
+    showToast('فشل في تحميل قائمة الفروع', 'error');
+    return;
+  }
+  userChoseBranch.value = hadPriorBranchChoice;
+  
+  let resolvedBranchId = branchStore.selectedBranchId;
+  if (!isExempt.value) {
+    try {
+      resolvedBranchId = branchIsolation.getRequiredBranchId();
+    } catch (err) {
+      console.error('[PurchaseHistory] Failed to resolve branch ID:', err);
+      showToast(err.message || 'لم يتم تعيين الفرع', 'error');
+      return;
+    }
+  }
+  
+  console.log('[PurchaseHistory] Before first API call:', {
+    selectedBranchId: branchStore.selectedBranchId,
+    selectedBranch: branchStore.selectedBranch?.name || null,
+    isExempt: isExempt.value,
+    resolvedBranchId,
+    branchesCount: branchStore.branches.length
+  });
+  
+  isMounting = false;
   await new Promise(resolve => setTimeout(resolve, 100));
   fetchPurchases();
   const qid = Number(route.query.id || 0);

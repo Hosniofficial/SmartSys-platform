@@ -8,6 +8,20 @@
 
     <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
       
+      <!-- Data Stale Warning Banner -->
+      <transition name="slide-down">
+        <div v-if="isDataStale" class="p-4 rounded-lg border-l-4 border-amber-400 bg-amber-50 flex items-start gap-3">
+          <i class="fas fa-exclamation-triangle text-amber-600 text-lg mt-0.5"></i>
+          <div class="flex-1">
+            <p class="text-sm font-bold text-amber-900">⚠️ تحذير: البيانات قد تكون قديمة</p>
+            <p class="text-xs text-amber-700 mt-1">فشل تحديث البيانات. البيانات المعروضة أسفله قد لا تعكس أحدث التغييرات. <span v-if="lastSuccessfulUpdate" class="text-amber-600 font-bold">آخر تحديث ناجح: {{ formatDateTime(lastSuccessfulUpdate) }}</span></p>
+            <button @click="fetchSalesHistory" class="mt-2 px-3 py-1 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700 transition-colors">
+              <i class="fas fa-redo ml-1"></i> إعادة محاولة
+            </button>
+          </div>
+        </div>
+      </transition>
+      
       <!-- Page Header -->
       <PageHeader
         :breadcrumb="breadcrumb"
@@ -15,6 +29,7 @@
         description="تتبع، فلترة، وإدارة جميع الفواتير الصادرة من النظام."
         :branches="branches"
         :selectedBranch="selectedBranch"
+        :hasExplicitSelection="hasExplicitBranchSelection"
         @branch-changed="onBranchChange"
       >
         <template #controls>
@@ -32,11 +47,11 @@
       <!-- KPI Summary: Supabase-inspired Data Cards -->
       <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <div v-for="kpi in [
-          { label: 'عدد الفواتير', val: filters.total.value, icon: 'fa-clipboard-list', color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'إجمالي المبيعات', val: formatPrice(filters.kpiSum.value), icon: 'fa-file-invoice-dollar', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'إجمالي الضريبة', val: formatPrice(filters.kpiTax.value || 0), icon: 'fa-percent', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'إجمالي الخصومات', val: formatPrice(filters.kpiDiscount.value || 0), icon: 'fa-tags', color: 'text-rose-600', bg: 'bg-rose-50' }
-        ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all">
+          { label: 'عدد الفواتير', val: filters.total.value, icon: 'fa-clipboard-list', color: 'text-blue-600', bg: 'bg-blue-50', show: true },
+          { label: 'إجمالي المبيعات', val: formatPrice(filters.kpiSum.value), icon: 'fa-file-invoice-dollar', color: 'text-emerald-600', bg: 'bg-emerald-50', show: true },
+          { label: 'إجمالي الضريبة', val: formatPrice(filters.kpiTax.value), icon: 'fa-percent', color: 'text-indigo-600', bg: 'bg-indigo-50', show: filters.kpiTax.value != null },
+          { label: 'إجمالي الخصومات', val: formatPrice(filters.kpiDiscount.value), icon: 'fa-tags', color: 'text-rose-600', bg: 'bg-rose-50', show: filters.kpiDiscount.value != null }
+        ].filter(k => k.show)" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all">
           <div>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{{ kpi.label }}</p>
             <p class="text-xl font-bold text-slate-900">{{ kpi.val }}</p>
@@ -55,19 +70,25 @@
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">بحث سريع</label>
                 <div class="relative">
-                  <input v-model="filters.searchQuery.value" type="text" class="filter-input pr-9" placeholder="رقم الفاتورة أو العميل..." />
-                  <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                  <input v-model="filters.searchQuery.value" type="text" class="filter-input" style="padding-right: 2rem;" placeholder="رقم الفاتورة أو العميل..." />
+                  <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
                 </div>
               </div>
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">من تاريخ</label>
-                <input ref="dateFromRefLocal" type="date" v-model="filters.dateFrom.value" class="filter-input" />
+                <div class="relative">
+                  <input ref="dateFromRefLocal" type="date" v-model="filters.dateFrom.value" class="filter-input" style="padding-left: 2rem;" />
+                  <i @click="dateFromRefLocal?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-300 hover:text-slate-500 transition-colors text-[10px]"></i>
+                </div>
               </div>
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">إلى تاريخ</label>
-                <input ref="dateToRefLocal" type="date" v-model="filters.dateTo.value" class="filter-input" />
+                <div class="relative">
+                  <input ref="dateToRefLocal" type="date" v-model="filters.dateTo.value" class="filter-input" style="padding-left: 2rem;" />
+                  <i @click="dateToRefLocal?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-300 hover:text-slate-500 transition-colors text-[10px]"></i>
+                </div>
               </div>
 
               <div class="space-y-1.5">
@@ -82,8 +103,8 @@
               <div class="md:col-span-2 space-y-1.5 relative">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">تصفية حسب العميل</label>
                 <div class="relative">
-                  <input v-model="filters.customerSearch.value" type="text" class="filter-input pr-9" placeholder="ابحث عن عميل..." @focus="filters.showCustomerDropdown.value = true" @blur="filters.hideCustomerDropdown()" />
-                  <i class="fas fa-user-circle absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                  <input v-model="filters.customerSearch.value" type="text" class="filter-input" style="padding-right: 2rem;" placeholder="ابحث عن عميل..." @focus="filters.showCustomerDropdown.value = true" @blur="filters.hideCustomerDropdown()" />
+                  <i class="fas fa-user-circle absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
                   
                   <div v-if="filters.showCustomerDropdown.value" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto">
                     <button @mousedown.prevent="filters.clearCustomerFilter()" class="w-full text-right px-4 py-2 text-[11px] hover:bg-slate-50 border-b border-slate-50 text-blue-600 font-bold">جميع العملاء</button>
@@ -103,12 +124,14 @@
       </transition>
 
       <!-- Active Filter Chips -->
-      <div v-if="filters.hasActiveFilters.value || filters.customerFilter.value || (isExempt && selectedBranch)" class="flex flex-wrap gap-2 animate-fadeIn">
+      <div v-if="filters.hasActiveFilters.value || filters.customerFilter.value || (isExempt.value && hasExplicitBranchSelection)" class="flex flex-wrap gap-2 animate-fadeIn">
         <div v-for="chip in [
           { show: filters.searchQuery.value, label: filters.searchQuery.value, clear: () => filters.searchQuery.value = '' },
-          { show: filters.dateFrom.value, label: filters.dateFrom.value, clear: () => filters.dateFrom.value = '' },
+          { show: filters.dateFrom.value, label: `من: ${filters.dateFrom.value}`, clear: () => filters.dateFrom.value = '' },
+          { show: filters.dateTo.value, label: `إلى: ${filters.dateTo.value}`, clear: () => filters.dateTo.value = '' },
           { show: filters.statusFilter.value, label: getStatusLabel(filters.statusFilter.value), clear: () => filters.statusFilter.value = '' },
-          { show: filters.customerFilter.value, label: filters.customerSearch.value, clear: () => filters.clearCustomerFilter() }
+          { show: filters.customerFilter.value, label: filters.customerSearch.value, clear: () => filters.clearCustomerFilter() },
+          { show: (isExempt.value && hasExplicitBranchSelection), label: `الفرع: ${branches.find(b => b.id == selectedBranch)?.name || selectedBranch}`, clear: () => onBranchChange(null) }
         ].filter(c => c.show)" :key="chip.label" class="inline-flex items-center gap-2 px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-md text-[10px] font-bold text-blue-700">
           {{ chip.label }}
           <i @click="chip.clear" class="fas fa-times cursor-pointer hover:text-blue-900 opacity-60"></i>
@@ -116,7 +139,9 @@
       </div>
 
       <!-- Main Data Table -->
-      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
+      <div class="bg-white rounded-xl overflow-hidden shadow-sm relative" :class="[
+        isDataStale ? 'border-2 border-amber-300' : 'border border-slate-200'
+      ]">
         
         <!-- Bulk Actions: Dark SaaS overlay -->
         <transition name="slide-up">
@@ -128,6 +153,9 @@
             <div class="flex items-center gap-4">
               <button @click="markSelectedAsPaid" :disabled="isMarkingPaid" class="text-xs font-bold text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors">
                 <i class="fas fa-money-check-alt ml-1.5"></i> تسديد المحدد
+              </button>
+              <button @click="exportSelectedCsv" class="text-xs font-bold text-blue-300 hover:text-blue-200 transition-colors">
+                <i class="fas fa-download ml-1.5"></i> تصدير CSV
               </button>
               <button @click="printSelected" class="text-xs font-bold text-slate-300 hover:text-white transition-colors">
                 <i class="fas fa-print ml-1.5"></i> طباعة
@@ -191,7 +219,7 @@
                   </div>
                 </td>
                 <td class="px-4 py-4 text-center">
-                  <button @click="viewSaleDetails(sale.id)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center mx-auto">
+                  <button @click="viewSaleDetails(sale.id)" :disabled="isLoadingDetails" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center mx-auto disabled:opacity-50">
                     <i class="fas fa-eye text-[10px]"></i>
                   </button>
                 </td>
@@ -240,11 +268,17 @@
             { l: 'العميل', v: selectedSale?.customer_name || 'عميل نقدي' },
             { l: 'طريقة الدفع', v: getPaymentMethodName(selectedSalePaymentMethodId) },
             { l: 'الفرع', v: selectedSale?.branch_name || '-' },
+            { l: 'حالة الفاتورة', v: getStatusLabel(selectedSale?.dynamic_status) },
             { l: 'التاريخ', v: formatDateTime(selectedSale?.created_at) }
           ]" :key="info.l" class="space-y-1">
             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ info.l }}</p>
             <p class="text-xs font-bold text-slate-800">{{ info.v }}</p>
           </div>
+        </div>
+
+        <!-- Status Message if Available -->
+        <div v-if="getStatusMessage(selectedSale?.dynamic_status)" class="p-4 rounded-lg border-l-4 border-blue-400 bg-blue-50">
+          <p class="text-xs font-bold text-blue-700">{{ getStatusMessage(selectedSale?.dynamic_status) }}</p>
         </div>
 
         <div class="border border-slate-100 rounded-xl overflow-hidden">
@@ -254,7 +288,10 @@
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">المنتج</th>
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">الكمية</th>
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">سعر الوحدة</th>
+                <th class="px-4 py-3 text[10px] font-bold text-slate-400 uppercase">الإجمالي الأصلي</th>
+                <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الخصم</th>
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الضريبة</th>
+                <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الصافي للوحدة</th>
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الإجمالي</th>
               </tr>
             </thead>
@@ -262,11 +299,13 @@
               <tr v-for="item in selectedSale?.items" :key="item.id">
                 <td class="px-4 py-3">
                   <p class="font-bold text-slate-800">{{ item.product_name }}</p>
-                  <p v-if="item.discount_value > 0" class="text-[9px] text-rose-500 font-bold">خصم: {{ formatPrice(item.discount_value) }}</p>
                 </td>
                 <td class="px-4 py-3 text-center font-bold text-slate-500">{{ item.quantity }}</td>
                 <td class="px-4 py-3 font-bold text-slate-700">{{ formatPrice(item.sale_price) }}</td>
-                <td class="px-4 py-3 font-bold text-indigo-500">{{ formatPrice(item.net_price * (taxRate / 100)) }}</td>
+                <td class="px-4 py-3 font-bold text-slate-700">{{ formatPrice((item.sale_price || 0) * (item.quantity || 0)) }}</td>
+                <td class="px-4 py-3 font-bold text-rose-500">{{ formatPrice(item.discount_value || 0) }}</td>
+                <td class="px-4 py-3 font-bold text-indigo-500">{{ formatPrice((item.net_price || 0) * (taxRate / 100)) }}</td>
+                <td class="px-4 py-3 font-bold text-slate-700">{{ formatPrice(item.net_price || 0) }}</td>
                 <td class="px-4 py-3 font-bold text-slate-900">{{ formatPrice(item.net_total * (1 + taxRate / 100)) }}</td>
               </tr>
             </tbody>
@@ -306,8 +345,6 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
 import { useRoute } from 'vue-router';
-import BaseSpinner from '@/components/ui/BaseSpinner.vue';
-import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import { useHistoryFilters } from '@/composables/useHistoryFilters';
 import { useSessionExemption } from '@/composables/useCashierSessionGuard';
 import { useBranchIsolation } from '@/composables/useBranchIsolation';
@@ -354,10 +391,19 @@ const branches = computed(() => branchStore.branches);
 
 const selectedBranch = computed(() => branchStore.selectedBranchId);
 
+// ✅ يتتبع الاختيار اليدوي للفرع — لا يعتمد على localStorage مباشرة
+// لأن fetchBranches() يكتب default branch في localStorage تلقائياً عند أول دخول
+const userChoseBranch = ref(
+  localStorage.getItem('selectedBranchId') !== null
+  && localStorage.getItem('selectedBranchId') !== 'all'
+);
+const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null);
+
 const onBranchChange = (newBranchId) => {
   branchStore.setSelectedBranch(newBranchId);
+  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId !== 'all');
   filters.page.value = 1;
-  fetchSalesHistory();
+  fetchSalesHistory(true);  // ✅ force=true لإعادة جلب البيانات عند تغيير الفرع
 };
 
 const cashMethodId = computed(() => {
@@ -387,18 +433,14 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filters.total.value / fi
 const isLoadingList = ref(false);
 const isLoadingDetails = ref(false);
 const isMarkingPaid = ref(false);
+const isDataStale = ref(false);
+const lastSuccessfulUpdate = ref(null);
 let listAbortCtrl = null;
 let detailsAbortCtrl = null;
 let searchTimer = null;
 
 const dateFromRefLocal = ref(null);
 const dateToRefLocal = ref(null);
-
-const defaultVisibleCols = { id: true, created_at: true, customer: true, items: true, total: true, status: true, actions: true };
-let persistedCols = {};
-try { persistedCols = JSON.parse(localStorage.getItem('sales_hist_cols') || '{}') || {}; } catch {}
-const visibleColumns = ref({ ...defaultVisibleCols, ...persistedCols });
-watch(visibleColumns, (val) => { try { localStorage.setItem('sales_hist_cols', JSON.stringify(val)); } catch {} }, { deep: true });
 
 const allSelected = computed(() => sales.value.length > 0 && filters.selectedIds.value.length === sales.value.length);
 const toggleSelectAll = (e) => { 
@@ -437,7 +479,8 @@ watch(showDetailsModal, (val) => {
 
 const formatDateTime = (dateTimeString) => {
   if (!dateTimeString) return '';
-  return new Date(dateTimeString).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const date = dateTimeString instanceof Date ? dateTimeString : new Date(dateTimeString);
+  return date.toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
 const getStatusLabel = (status) => {
@@ -505,24 +548,34 @@ const getAgeBadge = (sale) => {
   return { cls: 'bg-rose-50 text-rose-600 border-rose-100', label: `${days} يوم` };
 };
 
-const fetchSalesHistory = async () => {
+const fetchSalesHistory = async (forceRefresh = false) => {
   if (listAbortCtrl) listAbortCtrl.abort();
   listAbortCtrl = new AbortController();
   isLoadingList.value = true;
   showLoader();
   try {
-    const params = filters.getApiParams({ includeTotals: true });
+    const params = filters.getApiParams({ includeTotals: true, force: forceRefresh });
     if (!isExempt.value) {
       try {
         const wid = branchIsolation.getRequiredBranchId();
         params.branchId = String(wid);
       } catch (e) {
         sales.value = []; filters.total.value = 0; filters.kpiSum.value = 0; filters.kpiTax.value = null; filters.kpiDiscount.value = null;
+        isDataStale.value = false;
         showToast(e.message || 'لم يتم تعيين مخزن لحسابك.', 'error'); return;
       }
     } else if (branchStore.selectedBranchId) {
       params.branchId = String(branchStore.selectedBranchId);
     }
+    
+    // ✅ Log: تحقق من القيم قبل الإرسال
+    console.log('[fetchSalesHistory] API Call params:', {
+      branchId: params.branchId,
+      selectedBranchId: branchStore.selectedBranchId,
+      isExempt: isExempt.value,
+      paramsPayload: params
+    });
+    
     const response = await salesStore.fetchSalesList(params);
     const resData = response?.data || response;
     if (resData) {
@@ -531,11 +584,19 @@ const fetchSalesHistory = async () => {
       filters.kpiSum.value = resData.kpiSum || 0;
       filters.kpiTax.value = resData.kpiTax ?? null;
       filters.kpiDiscount.value = resData.kpiDiscount ?? null;
+      isDataStale.value = false;
+      lastSuccessfulUpdate.value = new Date();
     } else {
       sales.value = []; filters.total.value = 0; filters.kpiSum.value = 0; filters.kpiTax.value = null; filters.kpiDiscount.value = null;
+      isDataStale.value = false;
     }
   } catch (e) {
-    if (e?.name !== 'AbortError') { showToast('Failed to load sales history', 'error'); }
+    const isAborted = e?.name === 'CanceledError' || e?.name === 'AbortError' || e?.message === 'canceled';
+    if (!isAborted) {
+      // احتفظ بالبيانات القديمة مع تنبيه واضح
+      isDataStale.value = true;
+      showToast('⚠️ فشل تحديث البيانات. البيانات المعروضة قد تكون قديمة. حاول مرة أخرى.', 'warning');
+    }
   } finally { isLoadingList.value = false; hideLoader(); }
 };
 
@@ -550,7 +611,8 @@ const viewSaleDetails = async (saleId) => {
     selectedSale.value = (saleData && saleData.sale) ? saleData.sale : saleData;
     showDetailsModal.value = true;
   } catch (e) {
-    if (e?.name !== 'AbortError') showToast('فشل في تحميل تفاصيل الفاتورة', 'error');
+    const isAborted = e?.name === 'CanceledError' || e?.name === 'AbortError' || e?.message === 'canceled';
+    if (!isAborted) showToast('فشل في تحميل تفاصيل الفاتورة', 'error');
   } finally { isLoadingDetails.value = false; hideLoader(); }
 };
 
@@ -586,6 +648,38 @@ const markSelectedAsPaid = async () => {
   filters.clearSelection(); fetchSalesHistory();
 };
 
+const exportSelectedCsv = () => {
+  const rows = (sales.value || []).filter(s => new Set(filters.selectedIds.value).has(s.id));
+  if (!rows.length) { showToast('لا توجد فواتير محددة للتصدير', 'info'); return; }
+  
+  const headers = ['رقم الفاتورة', 'التاريخ', 'العميل', 'عدد الأصناف', 'الإجمالي', 'الحالة', 'طريقة الدفع'];
+  const data = rows.map(s => [
+    s.invoice_number || `#${s.id}`,
+    formatDateTime(s.created_at),
+    s.customer_name || 'عميل نقدي',
+    s.total_items,
+    formatPrice(getSaleGross(s)),
+    getStatusLabel(s.dynamic_status),
+    getPaymentMethodName(s.payment_method_id)
+  ]);
+  
+  const csvContent = [
+    headers.join(','),
+    ...data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+  ].join('\n');
+  
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `sales-export-${new Date().getTime()}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast(`تم تصدير ${rows.length} فاتورة بنجاح`, 'success');
+};
+
 const printSelected = () => {
   const rows = (sales.value || []).filter(s => new Set(filters.selectedIds.value).has(s.id));
   if (!rows.length) return;
@@ -609,7 +703,11 @@ const printSaleDetails = async () => {
   await printDocument(html);
 };
 
+// isMounting flag: يمنع الـ watches من إطلاق fetchSalesHistory() أثناء onMounted
+let isMounting = true;
+
 watch([() => filters.dateFrom.value, () => filters.dateTo.value, () => filters.statusFilter.value, () => filters.customerFilter.value, () => filters.perPage.value], () => {
+  if (isMounting) return;
   try {
     localStorage.setItem('sales_hist_dateFrom', filters.dateFrom.value || '');
     localStorage.setItem('sales_hist_dateTo', filters.dateTo.value || '');
@@ -621,13 +719,16 @@ watch([() => filters.dateFrom.value, () => filters.dateTo.value, () => filters.s
 });
 
 watch(() => filters.page.value, () => {
+  if (isMounting) return;
   try { localStorage.setItem('sales_hist_page', filters.page.value.toString()); } catch {}
   fetchSalesHistory();
 });
 
-watch(() => branchStore.selectedBranchId, () => { filters.page.value = 1; fetchSalesHistory(); });
+// selectedBranch مُزال من watch — تغيير الفرع يُعالج عبر onBranchChange() مباشرة
+// إبقاؤه يُسبب race condition: fetchBranches() تُغيّر selectedBranchId أثناء onMounted فيُطلق watch مبكراً
 
 watch(() => filters.searchQuery.value, () => {
+  if (isMounting) return;
   if (searchTimer) clearTimeout(searchTimer);
   filters.page.value = 1; searchTimer = setTimeout(() => fetchSalesHistory(), 400);
 });
@@ -651,11 +752,49 @@ onMounted(async () => {
     await Promise.all([fetchSettings(), settingsStore.fetchTaxSettings().catch(() => {}), ensureExemptionLoaded().catch(() => {}), customerStore.fetchCustomers().catch(() => {}), paymentStore.fetchPaymentMethods().catch(() => {})]);
   }
   try { taxRate.value = settingsStore.isTaxEnabled.value ? settingsStore.getTaxRate.value : 0; } catch {}
-  if (isExempt.value) { try { await branchStore.fetchBranches(); } catch {} }
+  
+  // ✅ FIX: تهيئة/استعادة branch context قبل أول API call
+  // سجّل ما إذا كان المستخدم اختار فرعاً في جلسة سابقة (قبل fetchBranches يكتب default)
+  const hadPriorBranchChoice = localStorage.getItem('selectedBranchId') !== null
+                                && localStorage.getItem('selectedBranchId') !== 'all';
+  try {
+    branchStore.loadFromStorage();
+    if (!branchStore.branches || branchStore.branches.length === 0) {
+      await branchStore.fetchBranches();
+    }
+  } catch (err) {
+    console.error('[SalesHistory] Failed to initialize branches:', err);
+    showToast('فشل في تحميل قائمة الفروع', 'error');
+    return;
+  }
+  // بعد fetchBranches: أعد تعيين الـ flag بما كان موجوداً قبل الكتابة
+  userChoseBranch.value = hadPriorBranchChoice;
+  
+  // التحقق من أن selectedBranchId جاهز فعلياً
+  let resolvedBranchId = branchStore.selectedBranchId;
+  if (!isExempt.value) {
+    try {
+      resolvedBranchId = branchIsolation.getRequiredBranchId();
+    } catch (err) {
+      console.error('[SalesHistory] Failed to resolve branch ID:', err);
+      showToast(err.message || 'لم يتم تعيين الفرع', 'error');
+      return;
+    }
+  }
+  
+  console.log('[SalesHistory] Before first API call:', {
+    selectedBranchId: branchStore.selectedBranchId,
+    selectedBranch: branchStore.selectedBranch?.name || null,
+    isExempt: isExempt.value,
+    resolvedBranchId,
+    branchesCount: branchStore.branches.length
+  });
+  
   const selected = customers.value.find(c => String(c.id) === String(filters.customerFilter.value));
   filters.customerSearch.value = selected ? (selected.name || selected.customer_name || '') : '';
-  visibleColumns.value.id = true; visibleColumns.value.created_at = true;
-  filters.page.value = 1; fetchSalesHistory();
+  filters.page.value = 1;
+  isMounting = false;
+  fetchSalesHistory();
   if (Number(route.query.id || 0) > 0) { try { await viewSaleDetails(Number(route.query.id)); } catch {} }
 });
 

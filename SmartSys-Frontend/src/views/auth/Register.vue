@@ -193,6 +193,27 @@ function validate() {
     error.value = 'يرجى تعبئة الحقول المطلوبة'
     return false
   }
+  
+  // Validate password length
+  if (form.value.password.length < 8) {
+    error.value = 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'
+    return false
+  }
+  
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(form.value.email)) {
+    error.value = 'صيغة البريد الإلكتروني غير صحيحة'
+    return false
+  }
+  
+  // Validate username format (3-20 characters, alphanumeric and underscore only)
+  const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
+  if (!usernameRegex.test(form.value.username)) {
+    error.value = 'اسم المستخدم يجب أن يكون 3-20 حرف، أحرف وأرقام وشرطة سفلية فقط'
+    return false
+  }
+  
   error.value = ''
   return true
 }

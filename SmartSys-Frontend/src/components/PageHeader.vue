@@ -24,11 +24,21 @@
       <!-- Branch Selector — يظهر فقط للـ exempt users (branches غير فارغة) -->
       <div v-if="branches && branches.length > 0" class="relative">
         <select 
-          :value="selectedBranch" 
-          @change="$emit('branch-changed', $event.target.value)"
-          class="h-9 pr-9 pl-4 rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-slate-300 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all appearance-none cursor-pointer min-w-[180px]"
+          :value="selectedBranch === null ? '' : String(selectedBranch)"
+          @change="onSelectChange"
+          class="h-9 pr-9 pl-4 rounded-md border border-slate-200 bg-white text-xs font-bold hover:border-slate-300 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all appearance-none cursor-pointer min-w-[180px]"
+          :class="isUnselected ? 'text-slate-400' : 'text-slate-700'"
         >
-          <option :value="null">جميع الفروع</option>
+          <!--
+            الحالتان:
+            1. لم يُختر فرع بعد (selectedBranch=null AND hasExplicitSelection=false):
+               → يُعرض الـ placeholder "اختر فرعاً..." بلون رمادي
+               → غير قابل للاختيار من القائمة (disabled)
+            2. المستخدم اختار فرعاً أو "جميع الفروع":
+               → يُعرض اسم الفرع أو "جميع الفروع"
+          -->
+          <option value="" disabled :class="isUnselected ? '' : 'hidden'">اختر فرعاً...</option>
+          <option value="">جميع الفروع</option>
           <option v-for="branch in branches" :key="branch.id" :value="String(branch.id)">
             {{ branch.name }}
           </option>
@@ -45,15 +55,14 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
-defineProps({
+const props = defineProps({
   breadcrumb: {
     type: Object,
     required: true,
-    validator: (value) => {
-      return 'parent' in value && 'current' in value
-    }
+    validator: (value) => 'parent' in value && 'current' in value
   },
   title: {
     type: String,
@@ -70,10 +79,25 @@ defineProps({
   selectedBranch: {
     type: [String, Number, null],
     default: null
+  },
+  // true = المستخدم اختار فرعاً أو "جميع الفروع" صراحةً
+  // false (default) = لم يُختر بعد → يُعرض placeholder
+  hasExplicitSelection: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['branch-changed'])
+const emit = defineEmits(['branch-changed'])
+
+// placeholder يظهر فقط عندما لم يُختر فرع صراحةً بعد
+const isUnselected = computed(() => props.selectedBranch === null && !props.hasExplicitSelection)
+
+const onSelectChange = (e) => {
+  const val = e.target.value
+  // '' = "جميع الفروع" → يُرسل null
+  emit('branch-changed', val === '' ? null : val)
+}
 </script>
 
 <style scoped>

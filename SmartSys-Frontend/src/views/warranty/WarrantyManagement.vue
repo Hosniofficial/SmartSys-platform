@@ -15,7 +15,8 @@
         description="معالجة مطالبات الصيانة، الدعم الفني، وتتبع سجلات الضمان."
         :branches="branches"
         :selectedBranch="selectedBranch"
-        @branch-changed="(id) => branchStore.setSelectedBranch(id)"
+        :hasExplicitSelection="hasExplicitBranchSelection"
+        @branch-changed="onBranchChange"
       >
         <template #controls>
           <button @click="showCreate = true" class="h-9 px-6 rounded-md bg-blue-600 text-white text-xs font-bold shadow-sm hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2">
@@ -24,6 +25,14 @@
           </button>
         </template>
       </PageHeader>
+
+      <!-- Active Branch Filter Chip -->
+      <div v-if="hasExplicitBranchSelection" class="flex flex-wrap gap-2">
+        <div class="inline-flex items-center gap-2 px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-md text-[10px] font-bold text-blue-700">
+          {{ `الفرع: ${branches.find(b => b.id == selectedBranch)?.name || selectedBranch}` }}
+          <i @click="onBranchChange(null)" class="fas fa-times cursor-pointer hover:text-blue-900 opacity-60"></i>
+        </div>
+      </div>
 
       <!-- Status Filter Tabs: Segmented Control Style -->
       <section class="flex items-center justify-center">
@@ -47,8 +56,8 @@
           <div class="lg:col-span-4 space-y-1.5 group">
             <label class="metadata-label">بحث سريع</label>
             <div class="relative">
-              <input v-model="search" type="text" class="filter-input-v3 pr-9" placeholder="رقم الطلب، العميل، الرقم التسلسلي..." />
-              <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+              <input v-model="search" type="text" class="filter-input-v3" style="padding-right: 2rem;" placeholder="رقم الطلب، العميل، الرقم التسلسلي..." />
+              <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
             </div>
           </div>
 
@@ -61,12 +70,18 @@
 
           <div class="lg:col-span-2 space-y-1.5">
             <label class="metadata-label">من تاريخ</label>
-            <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v3 font-mono" />
+            <div class="relative">
+              <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v3 font-mono" style="padding-left: 2rem;" />
+              <i @click="dateFromRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+            </div>
           </div>
 
           <div class="lg:col-span-2 space-y-1.5">
             <label class="metadata-label">إلى تاريخ</label>
-            <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v3 font-mono" />
+            <div class="relative">
+              <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v3 font-mono" style="padding-left: 2rem;" />
+              <i @click="dateToRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+            </div>
           </div>
 
           <div class="lg:col-span-1">
@@ -182,10 +197,10 @@
                     <i class="fas fa-user-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
                     
                     <div v-if="showCustomerDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto py-2">
-                      <div v-if="customerSearchResults.length === 0" class="px-4 py-2 text-[10px] text-slate-400 font-bold">لا توجد نتائج...</div>
+                      <div v-if="customerSearchResults.length === 0" class="px-4 py-2 text-[10px] text-slate-400 font-bold">{{ customerQuery.length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
                       <li v-for="c in customerSearchResults" :key="c.id" @mousedown.prevent="selectCustomer(c)" class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 list-none transition-colors">
                         <p class="text-xs font-bold text-slate-800">{{ c.name }}</p>
-                        <p class="text-[9px] text-slate-400 font-mono">{{ c.phone || c.id }}</p>
+                        <p class="text-[9px] text-slate-400 font-mono">{{ c.phone || c.email || c.id }}</p>
                       </li>
                     </div>
                   </div>
@@ -199,7 +214,7 @@
               </div>
 
               <div class="space-y-6">
-                <div class="space-y-1.5"><label class="metadata-label">أولوية المعالجة <span class="text-rose-500">*</span></label><select v-model="form.priority" class="filter-input-v2 h-10 font-bold"><option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="urgent">عاجل</option></select></div>
+                <div class="space-y-1.5"><label class="metadata-label">أولوية المعالجة <span class="text-rose-500">*</span></label><select v-model="form.priority" class="filter-input-v2 h-10 font-bold"><option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="urgent">عاجل</option></select><p v-if="errors.priority" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.priority }}</p></div>
                 <div class="space-y-1.5"><label class="metadata-label">الفاتورة المرجعية</label><input v-model="form.invoice_id" type="text" class="filter-input-v2 h-10 font-mono" placeholder="INV-0000" /></div>
               </div>
             </div>
@@ -223,13 +238,16 @@
                   <button v-if="form.items.length > 1" @click="removeItem(idx)" class="absolute -left-2 -top-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg"><i class="fas fa-times text-[8px]"></i></button>
                   <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-6 relative">
-                      <input v-model="it._productQuery" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold" placeholder="بحث عن الصنف..." @input="debouncedProductSearch(idx, it._productQuery)" @focus="it._showProductDropdown = true" @blur="scheduleHideProductDropdown(it)" />
+                      <input v-model="it._productQuery" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold" :class="{'border-rose-300': itemErrors[idx]?.product_id}" placeholder="بحث عن الصنف..." @input="debouncedProductSearch(idx, it._productQuery)" @focus="it._showProductDropdown = true; if (it._productQuery) debouncedProductSearch(idx, it._productQuery)" @blur="scheduleHideProductDropdown(it)" />
                       <div v-if="it._showProductDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-auto py-1">
+                        <div v-if="(it._productResults || []).length === 0" class="px-3 py-2 text-[10px] text-slate-400 font-bold">{{ (it._productQuery || '').length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
                         <li v-for="p in it._productResults" :key="p.id" @mousedown.prevent="selectProduct(idx, p)" class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-[10px] font-bold border-b border-slate-50 last:border-0 list-none">{{ p.name }}</li>
                       </div>
+                      <p v-if="itemErrors[idx]?.product_id" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].product_id }}</p>
                     </div>
                     <div class="md:col-span-2">
-                      <input v-model.number="it.quantity" type="number" class="h-9 w-full bg-white border border-slate-200 rounded-md text-center font-bold text-[11px]" min="1" />
+                      <input v-model.number="it.quantity" type="number" class="h-9 w-full bg-white border border-slate-200 rounded-md text-center font-bold text-[11px]" :class="{'border-rose-300': itemErrors[idx]?.quantity}" min="1" @change="validateItem(idx)" />
+                      <p v-if="itemErrors[idx]?.quantity" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].quantity }}</p>
                     </div>
                     <div class="md:col-span-4">
                       <input v-model="it.issue_notes" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-medium italic" placeholder="ملاحظات الصنف..." />
@@ -237,6 +255,7 @@
                   </div>
                 </div>
               </div>
+              <p v-if="errors.items" class="text-[9px] text-rose-500 font-bold px-1 mt-2">{{ errors.items }}</p>
             </div>
           </div>
 
@@ -423,12 +442,26 @@ const { validateDateRange } = useDateValidation();
 const branches = computed(() => branchStore.branches);
 const selectedBranch = computed(() => branchStore.selectedBranchId);
 
+// ✅ يتتبع الاختيار اليدوي للفرع (النمط A — متطابق مع SalesHistory/PurchaseHistory/ReturnsHistory)
+const userChoseBranch = ref(
+  localStorage.getItem('selectedBranchId') !== null
+  && localStorage.getItem('selectedBranchId') !== 'all'
+);
+const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null);
+
 // Filters & pagination
 const search = ref('');
 const statusFilter = ref('');
 const priorityFilter = ref('');
 const currentPage = ref(1);
 const perPage = ref(10);
+
+const onBranchChange = (newBranchId) => {
+  branchStore.setSelectedBranch(newBranchId);
+  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId !== 'all');
+  currentPage.value = 1;
+  fetchList(true);  // ✅ force=true
+};
 const dateFrom = ref('');
 const dateTo = ref('');
 const dateFromRef = ref(null);
@@ -697,7 +730,7 @@ const priorityOptions = [
 
 // ─── Fetch list ───────────────────────────────────────────────────────────────
 
-async function fetchList() {
+async function fetchList(forceRefresh = false) {
   // Validate date range if both dates are provided
   if (dateFrom.value && dateTo.value) {
     if (!validateDateRange(dateFrom.value, dateTo.value)) {
@@ -713,9 +746,11 @@ async function fetchList() {
     date_from: dateFrom.value || undefined,
     date_to: dateTo.value || undefined,
     page: currentPage.value,
-    per_page: perPage.value
+    per_page: perPage.value,
+    branch_id: selectedBranch.value || undefined
   };
-  const result = await warrantyStore.fetchWarranties(params);
+  // ✅ forceRefresh كـ argument ثانٍ مستقل — لأن warrantyStore.fetchWarranties(params, force)
+  const result = await warrantyStore.fetchWarranties(params, forceRefresh);
   if (result.status !== 'success') {
     showToast(result.message || 'فشل تحميل طلبات الضمان', 'error');
   }
@@ -967,7 +1002,16 @@ function goToPage(p) {
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  await branchStore.fetchBranches(); // ✅ Fetch branches
+  // ✅ FIX: تهيئة branch context قبل أول API call (النمط A)
+  const hadPriorBranchChoice = localStorage.getItem('selectedBranchId') !== null
+                                && localStorage.getItem('selectedBranchId') !== 'all';
+  branchStore.loadFromStorage();
+  if (!branchStore.branches || branchStore.branches.length === 0) {
+    await branchStore.fetchBranches();
+  }
+  // بعد fetchBranches: أعد تعيين الـ flag بما كان موجوداً قبل الكتابة
+  userChoseBranch.value = hadPriorBranchChoice;
+
   await fetchList();
   const id = route.query?.id;
   if (id) openDetails(id);

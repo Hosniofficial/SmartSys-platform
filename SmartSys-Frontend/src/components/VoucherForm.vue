@@ -9,7 +9,7 @@
         <div>
           <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">{{ editMode ? 'تعديل سند مالي' : 'إصدار سند جديد' }}</h3>
 
-            <p class="text-[10px] text-slate-400 font-mono mt-1">{{ localForm.reference || 'سند مالي معتمد' }}</p>
+            <p class="text-[10px] text-slate-400 font-mono mt-1">{{ localForm.reference_number || 'سند مالي معتمد' }}</p>
 
           </div>
 
@@ -55,7 +55,13 @@
 
             <label class="metadata-label">تاريخ السند</label>
 
-            <input type="date" v-model="localForm.date" class="form-input-v3 font-mono" required />
+            <div class="relative">
+
+              <input ref="voucherDateRef" type="date" v-model="localForm.date" class="form-input-v3 font-mono" style="padding-left: 2rem;" required />
+
+              <i @click="voucherDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+
+            </div>
 
           </div>
 

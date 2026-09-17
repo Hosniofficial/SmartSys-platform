@@ -230,7 +230,13 @@
         <h3 class="text-sm font-bold text-slate-900 uppercase">بطاقة تفاصيل الصنف</h3>
       </template>
 
-      <div v-if="productDetails" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <!-- مؤشر التحميل أثناء جلب التفاصيل الكاملة من API -->
+      <div v-if="isLoadingDetails" class="py-12 flex flex-col items-center justify-center gap-4 text-slate-400">
+        <BaseSpinner size="32" color="#3b82f6" />
+        <p class="text-xs font-bold uppercase tracking-widest">جاري تحميل التفاصيل...</p>
+      </div>
+
+      <div v-else-if="productDetails" class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div class="bg-slate-900 p-8 rounded-2xl text-white shadow-xl relative overflow-hidden">
           <div class="absolute top-0 left-0 w-32 h-32 bg-white/5 rounded-full -translate-x-12 -translate-y-12"></div>
           <p class="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-3">البيانات الأساسية</p>
@@ -255,7 +261,7 @@
         </div>
       </div>
 
-      <div class="space-y-4 mt-8">
+      <div v-if="!isLoadingDetails" class="space-y-4 mt-8">
         <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">سجل الحركات الأخيرة</h4>
         <div class="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
           <table class="w-full text-right text-xs">

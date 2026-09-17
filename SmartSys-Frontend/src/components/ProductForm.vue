@@ -18,16 +18,16 @@
           <div v-if="isEditMode" class="space-y-1.5 group">
             <label class="metadata-label">كود التتبع الداخلي (SKU)</label>
             <div class="relative">
-              <input type="text" v-model="form.product_code" class="form-input-v3 pr-10 font-mono text-indigo-600" placeholder="PRD-000" />
-              <i class="fas fa-hashtag absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+              <input type="text" v-model="form.product_code" class="form-input-v3 font-mono text-indigo-600" style="padding-right: 2rem;" placeholder="PRD-000" />
+              <i class="fas fa-hashtag absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
             </div>
           </div>
 
           <div class="space-y-1.5 group">
             <label class="metadata-label">الباركود العالمي (Barcode)</label>
             <div class="relative">
-              <input type="text" v-model="form.barcode" class="form-input-v3 pr-10 font-mono" placeholder="0000000000" />
-              <i class="fas fa-barcode absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+              <input type="text" v-model="form.barcode" class="form-input-v3 font-mono" style="padding-right: 2rem;" placeholder="0000000000" />
+              <i class="fas fa-barcode absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
             </div>
           </div>
 
@@ -101,8 +101,8 @@
           <div class="space-y-1.5 group">
             <label class="metadata-label">حد إعادة الطلب (Min Stock)</label>
             <div class="relative">
-              <input type="number" v-model="form.min_quantity" class="form-input-v3 pr-10 font-bold" placeholder="مثال: 5" />
-              <i class="fas fa-bell absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors text-[10px]"></i>
+              <input type="number" v-model="form.min_quantity" class="form-input-v3 font-bold" style="padding-right: 2rem;" placeholder="مثال: 5" />
+              <i class="fas fa-bell absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors text-[10px] pointer-events-none"></i>
             </div>
           </div>
         </div>

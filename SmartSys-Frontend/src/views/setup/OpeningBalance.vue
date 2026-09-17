@@ -100,12 +100,13 @@
                 <th class="px-4 py-4 text-center">الكمية</th>
                 <th class="px-4 py-4 text-center">التكلفة (الوحدة)</th>
                 <th class="px-4 py-4 text-left">الإجمالي</th>
+                <th class="px-4 py-4 w-48">ملاحظات</th>
                 <th class="px-6 py-4 w-12"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
               <tr v-if="items.length === 0">
-                <td colspan="7" class="py-20 text-center text-slate-300">
+                <td colspan="8" class="py-20 text-center text-slate-300">
                   <i class="fas fa-boxes-stacked text-3xl mb-4 opacity-20"></i>
                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد صفوف مدخلة حالياً</p>
                 </td>
@@ -161,6 +162,11 @@
                 <td class="px-4 py-3 text-left text-xs font-bold font-mono text-slate-900 tracking-tighter">
                   {{ formatMoney(row.quantity * row.cost) }}
                 </td>
+                <!-- Notes -->
+                <td class="px-4 py-3">
+                  <input type="text" v-model="row.notes" @change="autoSave" placeholder="ملاحظة اختيارية..."
+                         class="h-8 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 italic" />
+                </td>
                 <!-- Remove -->
                 <td class="px-6 py-3 text-center">
                   <button @click="removeRow(idx)" class="w-6 h-6 text-slate-300 hover:text-rose-500 transition-colors">
@@ -185,21 +191,44 @@
           </div>
 
           <div class="p-8 space-y-8">
+            <!-- Summary Stats -->
+            <div v-if="previewResult.data?.summary" class="grid grid-cols-3 gap-4">
+              <div class="p-4 bg-blue-50 border border-blue-100 rounded-lg text-center">
+                <p class="text-[9px] font-bold text-blue-600 uppercase mb-1">الأصناف</p>
+                <p class="text-2xl font-bold text-blue-900">{{ previewResult.data.summary.total_quantity || 0 }}</p>
+              </div>
+              <div class="p-4 bg-emerald-50 border border-emerald-100 rounded-lg text-center">
+                <p class="text-[9px] font-bold text-emerald-600 uppercase mb-1">التكلفة الإجمالية</p>
+                <p class="text-2xl font-bold text-emerald-900 font-mono">{{ formatMoney(previewResult.data.summary.total_cost || 0) }}</p>
+              </div>
+              <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-center">
+                <p class="text-[9px] font-bold text-indigo-600 uppercase mb-1">عدد الصفوف</p>
+                <p class="text-2xl font-bold text-indigo-900">{{ previewItems.length }}</p>
+              </div>
+            </div>
+
             <div v-if="previewResult.errors?.length" class="p-4 bg-rose-50 border border-rose-100 rounded-lg">
               <p class="text-[10px] font-bold text-rose-700 uppercase mb-2">الأخطاء المكتشفة:</p>
               <ul class="text-[11px] font-medium text-rose-600 space-y-1"><li v-for="(err, i) in previewResult.errors" :key="i">• {{ err }}</li></ul>
             </div>
 
+            <div v-if="previewWarnings?.length" class="p-4 bg-amber-50 border border-amber-100 rounded-lg">
+              <p class="text-[10px] font-bold text-amber-700 uppercase mb-2 flex items-center gap-2"><i class="fas fa-triangle-exclamation"></i> تنبيهات هامة:</p>
+              <ul class="text-[11px] font-medium text-amber-700 space-y-1"><li v-for="(warn, i) in previewWarnings" :key="i">⚠ {{ warn }}</li></ul>
+            </div>
+
             <div v-if="previewItems.length" class="border border-slate-200 rounded-lg overflow-hidden">
                <table class="w-full text-right text-xs">
-                 <thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-400 font-bold uppercase text-[9px]"><th class="px-4 py-2">المخزن</th><th class="px-4 py-2">المنتج</th><th class="px-4 py-2 text-center">الكمية</th><th class="px-4 py-2 text-center">التكلفة</th><th class="px-4 py-2 text-left">الإجمالي</th></tr></thead>
+                 <thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-400 font-bold uppercase text-[9px]"><th class="px-4 py-2">المخزن</th><th class="px-4 py-2">المنتج</th><th class="px-4 py-2 text-center">الوحدة</th><th class="px-4 py-2 text-center">الكمية</th><th class="px-4 py-2 text-center">التكلفة</th><th class="px-4 py-2 text-left">الإجمالي</th><th class="px-4 py-2">الملاحظات</th></tr></thead>
                  <tbody class="divide-y divide-slate-100 font-bold">
                    <tr v-for="(r, i) in previewItems" :key="i" class="text-slate-600">
                      <td class="px-4 py-2">{{ r.branch_code || r.branch_id }}</td>
                      <td class="px-4 py-2">{{ r.product_code || r.barcode || r.product_id }}</td>
+                     <td class="px-4 py-2 text-center font-mono text-slate-500">{{ r.unit_code || '—' }}</td>
                      <td class="px-4 py-2 text-center font-mono">{{ formatNumber(r.quantity) }}</td>
                      <td class="px-4 py-2 text-center font-mono">{{ formatMoney(r.cost) }}</td>
                      <td class="px-4 py-2 text-left font-mono text-emerald-600">{{ formatMoney(r.subtotal) }}</td>
+                     <td class="px-4 py-2 text-slate-500 italic">{{ r.notes || '—' }}</td>
                    </tr>
                  </tbody>
                </table>
@@ -235,13 +264,30 @@
 
         <!-- Tab: Paste -->
         <div v-if="activeTab === 'paste'" class="space-y-6 animate-fadeIn">
+          <!-- Instructions Box -->
+          <div class="p-4 bg-blue-50 border border-blue-100 rounded-lg">
+            <p class="text-[10px] font-bold text-blue-700 uppercase mb-3 flex items-center gap-2"><i class="fas fa-lightbulb"></i> خطوات الاستخدام:</p>
+            <ol class="text-[11px] text-blue-700 space-y-2 ml-4">
+              <li><strong>الخطوة 1:</strong> انسخ البيانات من Excel أو أي جدول (Ctrl+C)</li>
+              <li><strong>الخطوة 2:</strong> الصق البيانات أدناه (Ctrl+V) بصيغة الفروع والمنتجات والكميات والأسعار</li>
+              <li><strong>الخطوة 3:</strong> اضغط "تحويل إلى صفوف الجدول" لإضافة البيانات للجدول</li>
+            </ol>
+            <div class="mt-4 p-3 bg-white border border-blue-200 rounded text-[10px] font-mono text-slate-600">
+              <p class="font-bold mb-1">مثال:</p>
+              <code>MAIN,SKU-001,PCS,10,25.50,ملاحظة اختيارية<br/>MAIN,SKU-002,PCS,5,40.00,</code>
+            </div>
+          </div>
+
           <textarea v-model="bulkText" @input="validateBulkText" rows="5"
                     class="w-full rounded-xl border border-slate-200 p-6 text-xs font-bold font-mono bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all outline-none"
                     placeholder="MAIN,SKU-001,PCS,10,25.50,Initial..."></textarea>
           
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center gap-4">
              <div v-if="bulkValidation.message" :class="[bulkValidation.valid ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100']" class="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase">{{ bulkValidation.message }}</div>
-             <button @click="convertBulkToRows" :disabled="!bulkValidation.valid || !bulkText.trim()" class="h-10 px-8 bg-slate-900 text-white rounded-lg text-xs font-bold shadow-lg hover:bg-black transition-all disabled:opacity-40">تحويل إلى صفوف الجدول</button>
+             <div class="flex items-center gap-2">
+               <button v-if="bulkText.trim()" @click="clearBulk" class="h-10 px-6 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all hover:bg-slate-300">مسح</button>
+               <button @click="convertBulkToRows" :disabled="!bulkValidation.valid || !bulkText.trim()" class="h-10 px-8 bg-slate-900 text-white rounded-lg text-xs font-bold shadow-lg hover:bg-black transition-all disabled:opacity-40">تحويل إلى صفوف الجدول</button>
+             </div>
           </div>
         </div>
 
@@ -256,24 +302,67 @@
             <input type="file" @change="onFileSelected" accept=".xlsx,.xls,.csv" class="hidden" id="file-input-main" />
           </label>
           
-          <div v-if="filePreview" class="bg-slate-900 rounded-xl p-6 text-white flex items-center justify-between shadow-xl">
-             <div class="flex items-center gap-4">
-                <div class="w-9 h-9 bg-white/10 rounded flex items-center justify-center text-emerald-400"><i class="fas fa-table-list"></i></div>
-                <div><p class="text-xs font-bold">{{ filePreview.name }}</p><p class="text-[9px] opacity-40 uppercase">{{ filePreview.rows }} صف مكتشف</p></div>
-             </div>
-             <button @click="importFile" :disabled="loading" class="h-9 px-6 bg-blue-600 text-white rounded-md text-[10px] font-bold uppercase shadow-lg shadow-blue-900/20 transition-all">استيراد الآن</button>
+          <div v-if="filePreview" class="space-y-4">
+            <div class="bg-slate-900 rounded-xl p-6 text-white flex items-center justify-between shadow-xl">
+               <div class="flex items-center gap-4">
+                  <div class="w-9 h-9 bg-white/10 rounded flex items-center justify-center text-emerald-400"><i class="fas fa-table-list"></i></div>
+                  <div>
+                    <p class="text-xs font-bold">{{ filePreview.name }}</p>
+                    <p class="text-[9px] opacity-40 uppercase">{{ filePreview.rows }} صف مكتشف • {{ formatFileSize(filePreview.size) }}</p>
+                  </div>
+               </div>
+               <div class="flex items-center gap-2">
+                  <button @click="clearFile" class="h-9 px-4 bg-slate-700 text-white rounded-md text-[10px] font-bold uppercase hover:bg-slate-600 transition-all">إلغاء</button>
+                  <button @click="importFile" :disabled="loading" class="h-9 px-6 bg-blue-600 text-white rounded-md text-[10px] font-bold uppercase shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-700">استيراد الآن</button>
+               </div>
+            </div>
+
+            <!-- Sample Preview Table -->
+            <div v-if="filePreview.sample?.data?.length" class="border border-slate-200 rounded-lg overflow-hidden bg-white">
+              <div class="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                <p class="text-[10px] font-bold text-slate-600 uppercase">معاينة من محتوى الملف (أول 5 صفوف)</p>
+              </div>
+              <div class="overflow-x-auto max-h-64 custom-scroll">
+                <table class="w-full text-right text-xs">
+                  <thead class="sticky top-0 bg-slate-50 border-b border-slate-100">
+                    <tr class="text-slate-600 font-bold uppercase text-[9px]">
+                      <th v-for="(h, i) in filePreview.sample.headers" :key="i" class="px-4 py-2 text-left">{{ h }}</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-50">
+                    <tr v-for="(row, ri) in filePreview.sample.data" :key="ri" class="text-slate-600 hover:bg-slate-50">
+                      <td v-for="(h, ci) in filePreview.sample.headers" :key="ci" class="px-4 py-2 text-left text-[10px]">
+                        {{ row[ci] || '—' }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Tab: Templates -->
-        <div v-if="activeTab === 'templates'" class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-          <div v-for="t in [
-              { id: 'basic', name: 'القالب الأساسي', icon: 'file-lines' },
-              { id: 'advanced', name: 'القالب المتقدم', icon: 'file-shield' },
-              { id: 'samples', name: 'قالب أمثلة', icon: 'file-signature' }
-            ]" :key="t.id" @click="downloadTemplate(t.id)" class="p-6 bg-slate-50 border border-slate-100 rounded-xl text-center hover:bg-white hover:border-blue-300 transition-all group cursor-pointer">
-            <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-slate-300 group-hover:text-blue-600 shadow-sm mx-auto mb-4 transition-transform group-hover:scale-110"><i :class="['fas fa-' + t.icon, 'text-xl']"></i></div>
-            <p class="text-xs font-bold text-slate-700 uppercase tracking-wide">{{ t.name }}</p>
+        <div v-if="activeTab === 'templates'" class="space-y-6 animate-fadeIn">
+          <!-- Tip Box -->
+          <div class="p-4 bg-amber-50 border border-amber-100 rounded-lg">
+            <p class="text-[10px] font-bold text-amber-700 uppercase mb-2 flex items-center gap-2"><i class="fas fa-lightbulb"></i> نصيحة:</p>
+            <p class="text-[11px] text-amber-700">استخدم القالب الأساسي للبدء السريع. استخدم القالب المتقدم إذا كنت تملك معرّفات محددة من النظام. قالب الأمثلة يحتوي على 8 صفوف جاهزة للاختبار.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div v-for="t in [
+                { id: 'basic', name: 'القالب الأساسي', icon: 'file-lines', desc: 'استخدم أكواد الفروع والمنتجات والوحدات. الطريقة الأسهل للبدء.' },
+                { id: 'advanced', name: 'القالب المتقدم', icon: 'file-shield', desc: 'يتضمن معرّفات (IDs) مباشرة من النظام للفروع والمنتجات والوحدات.' },
+                { id: 'samples', name: 'قالب أمثلة', icon: 'file-signature', desc: '8 صفوف جاهزة للاختبار عبر فروع مختلفة. مثالي للتجربة.' }
+              ]" :key="t.id" @click="downloadTemplate(t.id)" class="p-6 bg-slate-50 border border-slate-100 rounded-xl text-center hover:bg-white hover:border-blue-300 transition-all group cursor-pointer space-y-3">
+              <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-slate-300 group-hover:text-blue-600 shadow-sm mx-auto transition-transform group-hover:scale-110"><i :class="['fas fa-' + t.icon, 'text-xl']"></i></div>
+              <div class="space-y-2">
+                <p class="text-xs font-bold text-slate-700 uppercase tracking-wide">{{ t.name }}</p>
+                <p class="text-[10px] text-slate-600 leading-relaxed">{{ t.desc }}</p>
+              </div>
+              <button @click.stop="downloadTemplate(t.id)" class="w-full h-8 mt-2 bg-blue-600 text-white rounded-md text-[10px] font-bold uppercase transition-all hover:bg-blue-700">تحميل</button>
+            </div>
           </div>
         </div>
       </section>

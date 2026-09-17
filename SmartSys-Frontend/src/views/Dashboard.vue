@@ -36,9 +36,10 @@
       <PageHeader
         :breadcrumb="{ parent: { label: 'الرئيسية', path: '/' }, current: { label: 'لوحة التحكم', path: '/dashboard' } }"
         :title="`مرحباً، ${username}`"
-        description="نظرة عامة على أداء المتجر والعمليات الحالية."
+        :description="`نظرة عامة على أداء المتجر والعمليات الحالية. آخر تحديث: ${lastUpdated || '---'}`"
         :branches="branches"
         :selectedBranch="selectedBranch"
+        :hasExplicitSelection="hasExplicitBranchSelection"
         @branch-changed="onBranchChange"
       >
         <template #controls>
@@ -73,7 +74,7 @@
               </div>
             </div>
             <div class="flex items-baseline gap-2">
-              <h3 class="text-2xl font-bold tracking-tight text-slate-900">{{ kpi.value }}</h3>
+              <h3 :class="[kpi.valueClass || 'text-slate-900']" class="text-2xl font-bold tracking-tight">{{ kpi.value }}</h3>
               <div v-if="kpi.change !== 0" 
                 :class="[kpi.change > 0 ? 'text-emerald-600' : 'text-red-600']"
                 class="text-[10px] font-bold flex items-center">
@@ -179,8 +180,10 @@
         
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <router-link v-for="link in quickAccessLinks" :key="link.to" :to="link.to" 
-            class="group relative bg-slate-50 border border-slate-200 p-5 rounded-xl transition-all hover:bg-blue-50 hover:border-blue-300">
-            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-4 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            :class="[link.highlighted ? 'bg-blue-50 border-blue-300 shadow-md shadow-blue-100' : 'bg-slate-50 border-slate-200']"
+            class="group relative p-5 rounded-xl transition-all border hover:bg-blue-50 hover:border-blue-300">
+            <div :class="[link.highlighted ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600']" 
+              class="w-10 h-10 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
               <i :class="link.icon" class="text-sm"></i>
             </div>
             <span class="text-xs font-bold leading-snug text-slate-900">{{ link.text }}</span>
@@ -194,7 +197,12 @@
 </template>
 
 <script setup>
-// [SCRIPT SECTION REMAINS 100% THE SAME AS PROVIDED]
+// ⚠️ تحذير: تم تصحيح أخطاء regression في النسخة الجديدة:
+// 1. استرجاع فحص 'CanceledError' بالإضافة إلى 'AbortError'
+// 2. تصحيح رسالة الخطأ الخارجية
+// 3. إزالة ازدواجية استدعاء fetchDashboardData عند تغيير الفرع
+// 4. استرجاع عرض lastUpdated وتفعيل الخصائص المرئية
+
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { useAuthStore } from '../stores/auth'
@@ -219,6 +227,13 @@ const selectedBranch = computed({
   get: () => branchStore.selectedBranchId,
   set: (val) => branchStore.setSelectedBranch(val)
 })
+
+// ✅ يتتبع الاختيار اليدوي للفرع (النمط A — اتساق مع بقية الصفحات)
+const userChoseBranch = ref(
+  localStorage.getItem('selectedBranchId') !== null
+  && localStorage.getItem('selectedBranchId') !== 'all'
+)
+const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null)
 
 const salesChart = ref(null)
 const topProductsChart = ref(null)
@@ -301,6 +316,13 @@ function initChart(chartRef, type, data, instanceRef) {
     return
   }
 
+  // 🔧 تصحيح: استخدام labels ديناميكية حسب نوع الرسم
+  const labelMap = {
+    line: 'إجمالي الإيرادات',
+    doughnut: 'المبيعات',
+    bar: 'أداء البائعين'
+  }
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -317,16 +339,16 @@ function initChart(chartRef, type, data, instanceRef) {
   const chartData = {
     labels: data.labels,
     datasets: [{
-      label: 'القيمة',
+      label: labelMap[type] || 'القيمة',
       data: data.data,
-      backgroundColor: type === 'line' ? 'rgba(59, 130, 246, 0.05)' : ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#f43f5e'],
+      backgroundColor: type === 'line' ? 'rgba(59, 130, 246, 0.05)' : (type === 'bar' ? 'rgba(99,102,241,0.7)' : ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#f43f5e']),
       borderColor: type === 'line' ? '#3b82f6' : 'transparent',
       borderWidth: type === 'line' ? 2 : 0,
       tension: 0.4,
       fill: true,
       pointRadius: 0,
       pointHoverRadius: 4,
-      borderRadius: 4
+      borderRadius: type === 'bar' ? 4 : 0
     }]
   }
 
@@ -435,14 +457,16 @@ async function fetchDashboardData(refresh = false) {
       }
 
     } catch (err) {
-      if (err?.name !== 'AbortError') {
-        error.value = { message: 'فشل تحميل بيانات لوحة التحكم', details: err.message || 'حدث خطأ غير متوقع' }
+      // 🔧 تصحيح: استرجاع فحص 'CanceledError' لمنع معاملة الطلبات المُلغاة كأخطاء حقيقية
+      const isAborted = err?.name === 'AbortError' || err?.name === 'CanceledError'
+      if (!isAborted) {
+        error.value = { message: 'فشل تحميل بيانات لوحة التحكم', details: err.message || 'حدث خطأ في الاتصال' }
         setDefaultKpiValues(); updateSalesChart({ labels: [], data: [] }); updateTopProductsChart({ labels: [], data: [] }); updatePosPerformanceChart({ labels: [], data: [] })
       }
     }
 
   } catch (err) {
-    error.value = { message: 'فشل تحميل البيانات', details: err.message }
+    error.value = { message: 'فشل تحميل بيانات لوحة التحكم', details: err.message || 'حدث خطأ في الاتصال' }
   } finally {
     isLoading.value = false; isRefreshing.value = false
     lastUpdated.value = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
@@ -452,15 +476,26 @@ async function fetchDashboardData(refresh = false) {
 function setDateRange(range) { dateRange.value = range; fetchDashboardData() }
 async function refresh() { await fetchDashboardData(true) }
 async function retry() { await fetchDashboardData() }
-const onBranchChange = (id) => { branchStore.setSelectedBranch(id); fetchDashboardData() }
+// 🔧 تصحيح: إزالة الاستدعاء المباشر لـ fetchDashboardData داخل onBranchChange لتجنب ازدواجية الطلب
+// watch(selectedBranch) سيتولى التحديث تلقائياً بعد setSelectedBranch
+const onBranchChange = (id) => {
+  branchStore.setSelectedBranch(id)
+  userChoseBranch.value = (id !== null && id !== '' && id !== 'all')
+}
 
-watch(selectedBranch, () => { fetchDashboardData() })
+watch(selectedBranch, () => { fetchDashboardData(true) })  // ✅ force=true
 
 onMounted(async () => {
   await authStore.initialize?.();
   if (!authStore.isAdmin) { router.push('/cashier-dashboard'); return; }
   await ensureExemptionLoaded().catch(() => {})
+  // ✅ FIX: تهيئة branch context قبل أول API call (النمط A)
+  const hadPriorBranchChoice = localStorage.getItem('selectedBranchId') !== null
+                                && localStorage.getItem('selectedBranchId') !== 'all';
+  branchStore.loadFromStorage?.()
   await branchStore.fetchBranches().catch(() => {})
+  // بعد fetchBranches: أعد تعيين الـ flag بما كان موجوداً قبل الكتابة
+  userChoseBranch.value = hadPriorBranchChoice;
   await fetchDashboardData()
 })
 

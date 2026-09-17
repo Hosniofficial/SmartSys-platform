@@ -44,7 +44,8 @@
             <select 
               id="destination-branch" 
               v-model="destinationbranchId" 
-              class="form-select-modern pr-11 font-bold" 
+              class="form-select-modern font-bold" 
+              style="padding-right: 2rem;"
               required
             >
               <option :value="null" disabled>-- اختر مستودع الوجهة --</option>

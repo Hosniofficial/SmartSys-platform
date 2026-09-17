@@ -98,12 +98,18 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end pt-4 border-t border-slate-50">
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">من تاريخ</label>
-                <input ref="fromDateRef" type="date" v-model="dateFrom" class="filter-input" />
+                <div class="relative">
+                  <input ref="fromDateRef" type="date" v-model="dateFrom" class="filter-input" style="padding-left: 2rem;" />
+                  <i @click="fromDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 cursor-pointer hover:text-slate-500 transition-colors text-[10px]"></i>
+                </div>
               </div>
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">إلى تاريخ</label>
-                <input ref="toDateRef" type="date" v-model="dateTo" class="filter-input" />
+                <div class="relative">
+                  <input ref="toDateRef" type="date" v-model="dateTo" class="filter-input" style="padding-left: 2rem;" />
+                  <i @click="toDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 cursor-pointer hover:text-slate-500 transition-colors text-[10px]"></i>
+                </div>
               </div>
 
               <button @click="resetFilters" class="h-9 w-full rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-200 transition-all">
@@ -120,7 +126,8 @@
           { show: deviceFilter, label: deviceFilter, clear: () => deviceFilter = '' },
           { show: sessionType, label: sessionType, clear: () => sessionType = '' },
           { show: filters.statusFilter.value, label: statusLabel(filters.statusFilter.value), clear: () => filters.statusFilter.value = '' },
-          { show: dateFrom, label: dateFrom, clear: () => dateFrom = '' }
+          { show: dateFrom, label: 'من: ' + dateFrom, clear: () => dateFrom = '' },
+          { show: dateTo, label: 'إلى: ' + dateTo, clear: () => dateTo = '' }
         ].filter(c => c.show)" :key="chip.label" class="inline-flex items-center gap-2 px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-md text-[10px] font-bold text-blue-700">
           {{ chip.label }}
           <i @click="chip.clear" class="fas fa-times cursor-pointer opacity-60 hover:opacity-100 transition-opacity"></i>
@@ -235,14 +242,39 @@
           <div class="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white text-xs font-bold">{{ detailsSession.id }}</div>
-              <h2 class="text-sm font-bold text-slate-900 uppercase">تفاصيل الجلسة المالية</h2>
+              <div>
+                <h2 class="text-sm font-bold text-slate-900 uppercase">تفاصيل الجلسة المالية</h2>
+                <p class="text-[10px] text-slate-400 font-medium mt-0.5">
+                  {{ getbranchName(detailsSession.branch_id) }}
+                  <span class="mx-1 text-slate-200">|</span>
+                  محطة: {{ deviceLabel(detailsSession) }}
+                </p>
+              </div>
             </div>
             <button @click="detailsSession = null" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times"></i></button>
           </div>
 
           <!-- Drawer Body -->
           <div class="flex-grow overflow-y-auto custom-scroll p-8 space-y-10">
-            <!-- Summary Grid -->
+
+            <!-- Session Status Header -->
+            <div class="bg-slate-900 rounded-xl p-5 space-y-3">
+              <div class="flex items-center justify-between">
+                <span :class="[detailsSession.status === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/40 text-slate-300 border-slate-600/50', 'px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-widest']">
+                  {{ statusLabel(detailsSession.status) }}
+                </span>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ formatDate(detailsSession.start_time) }}</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
+                <i class="fas fa-clock text-slate-500"></i>
+                <span>{{ formatTime(detailsSession.start_time) }}</span>
+                <span class="text-slate-600 mx-1">→</span>
+                <span v-if="detailsSession.end_time">{{ formatTime(detailsSession.end_time) }}</span>
+                <span v-else class="text-emerald-400 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> الآن
+                </span>
+              </div>
+            </div>
             <div class="grid grid-cols-2 gap-4">
               <div v-for="info in [
                 { l: 'الرصيد الافتتاحي', v: summaries[detailsSession.id]?.calculated?.opening_balance, c: 'text-slate-600' },
@@ -334,17 +366,7 @@ const branchStore = useBranchStore();
 const authStore   = useAuthStore();
 const branchIsolation = useBranchIsolation();
 const bootstrapStore = useBootstrapStore();
-const { ensureLoaded: ensureExemptionLoaded } = useSessionExemption();
-
-// ✅ isExempt: computed sync من authStore — يعطي القيمة الصحيحة فوراً بدون انتظار async
-const isExempt = computed(() => {
-  const role = String(authStore.user?.role || '').toLowerCase();
-  const rid  = Number(authStore.user?.role_id || 0);
-  return (
-    ['admin', 'administrator', 'manager', 'owner', 'superadmin', 'super_admin'].includes(role) ||
-    rid === 1
-  );
-});
+const { isExempt, ensureLoaded: ensureExemptionLoaded } = useSessionExemption();
 const { showToast } = useToast();
 const { formatCurrencyLocale, fetchSettings } = useCompanyCurrency();
 const { validateDateRange } = useDateValidation();

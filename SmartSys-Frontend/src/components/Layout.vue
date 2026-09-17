@@ -206,15 +206,15 @@
       </Transition>
 
       <!-- Main Content -->
-      <main
+      <main 
         class="flex-1 overflow-x-hidden overflow-y-auto custom-scroll relative bg-slate-50"
-        :style="{ marginRight: sidebarCollapsed ? '72px' : '256px' }"
+        :class="{ 'md:mr-[72px]': sidebarCollapsed, 'md:mr-[256px]': !sidebarCollapsed }"
       >
         <slot></slot>
       </main>
     </div>
 
-    <!-- Mobile Navigation Drawer -->
+    <!-- Mobile Navigation Drawer (Only on Mobile) -->
     <Transition name="fade">
        <div v-if="mobileMenuOpen" class="fixed inset-0 z-50 md:hidden" @click.self="mobileMenuOpen = false">
           <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
@@ -347,6 +347,7 @@ const unreadCount = ref(0)
 const showNotifications = ref(false)
 const showProfileMenu = ref(false)
 const loadingNotifications = ref(false)
+const previousUnreadCount = ref(-1)
 
 const notificationsRef = ref(null)
 const profileRef = ref(null)
@@ -454,7 +455,14 @@ async function loadNotifications() {
       const responseData = response.data.data || {}
       const apiNotifications = Array.isArray(responseData.notifications) ? responseData.notifications : []
       notifications.value = apiNotifications
-      unreadCount.value = notifications.value.filter(isUnread).length
+      const currentUnread = notifications.value.filter(isUnread).length
+      // Toast when new unread notifications arrive during polling
+      if (currentUnread > previousUnreadCount.value && previousUnreadCount.value >= 0) {
+        const newCount = currentUnread - previousUnreadCount.value
+        showToast(`لديك ${newCount} إشعار جديد`, 'info')
+      }
+      previousUnreadCount.value = currentUnread
+      unreadCount.value = currentUnread
     }
   } catch (error) {
     if (import.meta.env.DEV) console.error('Error loading notifications', error)
@@ -516,9 +524,16 @@ onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleEscKey)
 
-  if (route.path !== '/setup') {
+  // Request browser notification permission once
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission()
+  }
+
+  if (route.path !== '/setup' && route.path !== '/upgrade') {
     loadNotifications()
-    const notificationIntervalId = setInterval(loadNotifications, 60000)
+    const notificationIntervalId = setInterval(() => {
+      if (route.path !== '/setup' && route.path !== '/upgrade') loadNotifications()
+    }, 60000)
     onUnmounted(() => clearInterval(notificationIntervalId))
   }
 })

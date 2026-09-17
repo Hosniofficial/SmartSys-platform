@@ -15,9 +15,18 @@
         description="استعرض ووافق على الفواتير المعلقة في الانتظار"
         :branches="branches"
         :selectedBranch="selectedBranch"
+        :hasExplicitSelection="hasExplicitBranchSelection"
         @branch-changed="onBranchChange"
       >
         <template #controls>
+          <!-- Polling Indicator -->
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+            <div v-if="isPolling" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <div v-else class="w-2 h-2 rounded-full bg-slate-300"></div>
+            <span>{{ isPolling ? 'مزامنة مستمرة' : 'متوقفة' }}</span>
+            <span v-if="lastUpdatedLabel" class="text-slate-300 ml-1">• {{ lastUpdatedLabel }}</span>
+          </div>
+
           <!-- New Invoice Alert -->
           <transition name="fade-scale">
             <div v-if="newInvoicesAlert" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-white text-xs font-bold shadow-lg shadow-amber-900/20 animate-bounce">
@@ -38,6 +47,14 @@
         </template>
       </PageHeader>
 
+      <!-- Active Branch Filter Chip -->
+      <div v-if="hasExplicitBranchSelection" class="flex flex-wrap gap-2">
+        <div class="inline-flex items-center gap-2 px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-md text-[10px] font-bold text-amber-700">
+          {{ `الفرع: ${branches.find(b => b.id == selectedBranch)?.name || selectedBranch}` }}
+          <i @click="onBranchChange(null)" class="fas fa-times cursor-pointer hover:text-amber-900 opacity-60"></i>
+        </div>
+      </div>
+
       <!-- Main Content Card -->
       <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
         
@@ -52,6 +69,22 @@
             </select>
           </div>
           <p class="text-[10px] font-medium text-slate-400 italic">يتم التحديث تلقائياً كل {{ POLL_INTERVAL / 1000 }} ثانية</p>
+        </div>
+
+        <!-- Summary Cards (Total/Paid/Balance) -->
+        <div v-if="rows.length > 0" class="grid grid-cols-3 gap-4 p-4 bg-white border-b border-slate-100">
+          <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-center">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">إجمالي المعلق</p>
+            <p class="text-base font-bold font-mono text-slate-900">{{ formatPrice(rows.reduce((sum, r) => sum + Number(r.net_total_amount ?? r.total_amount ?? 0), 0)) }}</p>
+          </div>
+          <div class="p-3 rounded-lg bg-blue-50 border border-blue-200 text-center">
+            <p class="text-[9px] font-bold text-blue-600 uppercase tracking-widest mb-1">عدد الطلبات</p>
+            <p class="text-base font-bold font-mono text-blue-900">{{ rows.length }}</p>
+          </div>
+          <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
+            <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-1">متوسط الفاتورة</p>
+            <p class="text-base font-bold font-mono text-emerald-900">{{ formatPrice(rows.length > 0 ? rows.reduce((sum, r) => sum + Number(r.net_total_amount ?? r.total_amount ?? 0), 0) / rows.length : 0) }}</p>
+          </div>
         </div>
 
         <!-- High-Density Approvals Table -->
@@ -145,17 +178,41 @@
                <div><p class="text-[9px] font-bold text-slate-400 uppercase mb-1">صافي الفاتورة</p><p class="text-xl font-bold font-mono tracking-tighter text-blue-400">{{ formatPrice(actionModal.invoiceTotal) }}</p></div>
                <div class="text-left"><p class="text-[9px] font-bold text-slate-400 uppercase mb-1">رقم الطلب</p><p class="text-xs font-bold font-mono text-white">#{{ actionModal.id }}</p></div>
             </div>
-
-            <!-- Approve Logic -->
             <div v-if="actionModal.mode === 'approve'" class="space-y-6 animate-fadeIn">
+               <!-- Alert Box: Payment Type Info -->
+               <div v-if="actionModal.isCredit" class="p-4 rounded-xl border border-amber-200 bg-amber-50 text-right space-y-2">
+                  <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">⚠️ فاتورة آجلة</p>
+                  <p class="text-xs text-amber-700 leading-relaxed">هذه فاتورة بنظام الآجل (الاقتراض)، لا تتطلب تحصيل نقدي الآن. يمكن تحديث التاريخ المستحق لاحقاً.</p>
+               </div>
+               <div v-else class="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-right space-y-2">
+                  <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">✓ فاتورة نقدية</p>
+                  <p class="text-xs text-emerald-700 leading-relaxed">هذه فاتورة بدفع فوري (نقدي). يجب تحديد طريقة الدفع والمبلغ المستلم فعلياً.</p>
+               </div>
+
                <div class="grid grid-cols-2 gap-4">
-                 <div class="space-y-1.5"><label class="metadata-label">طريقة الدفع</label><select v-model="actionModal.paymentMethodId" class="filter-input-v2 h-10 font-bold"><option value="">-- اختر --</option><option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">{{ pm.name }}</option></select></div>
+                 <div class="space-y-1.5">
+                   <label class="metadata-label">
+                     طريقة الدفع
+                     <span v-if="actionModal.paidAmount > 0" class="text-red-400">*</span>
+                   </label>
+                   <select v-model="actionModal.paymentMethodId" class="filter-input-v2 h-10 font-bold"><option value="">-- اختر --</option><option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">{{ pm.name }}</option></select>
+                 </div>
                  <div class="space-y-1.5"><label class="metadata-label">المبلغ المستلم</label><input v-model.number="actionModal.paidAmount" type="number" class="h-10 w-full bg-white border border-slate-200 rounded-md px-3 text-sm font-black text-left text-emerald-600 outline-none focus:border-emerald-500 transition-all" /></div>
                </div>
 
-               <div v-if="actionModal.paidAmount > 0" class="p-4 rounded-xl border border-slate-100 bg-slate-50 flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{{ changeAmount >= 0 ? 'المتبقي للعميل' : 'المبلغ الناقص' }}</span>
-                  <span :class="[changeAmount >= 0 ? 'text-emerald-600' : 'text-rose-600']" class="text-base font-bold font-mono tracking-tighter">{{ formatPrice(Math.abs(changeAmount)) }}</span>
+               <div v-if="actionModal.paidAmount > 0" class="grid grid-cols-3 gap-3">
+                  <div class="p-3 rounded-lg bg-white border border-slate-200 text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">صافي الفاتورة</p>
+                    <p class="text-sm font-bold font-mono text-slate-900">{{ formatPrice(actionModal.invoiceTotal) }}</p>
+                  </div>
+                  <div class="p-3 rounded-lg bg-white border border-slate-200 text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">المستلم</p>
+                    <p class="text-sm font-bold font-mono text-emerald-600">{{ formatPrice(actionModal.paidAmount) }}</p>
+                  </div>
+                  <div :class="[changeAmount >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200']" class="p-3 rounded-lg border text-center">
+                    <p class="text-[9px] font-bold uppercase tracking-widest mb-1" :class="[changeAmount >= 0 ? 'text-emerald-600' : 'text-rose-600']">{{ changeAmount >= 0 ? 'الباقي' : 'الناقص' }}</p>
+                    <p class="text-sm font-bold font-mono" :class="[changeAmount >= 0 ? 'text-emerald-600' : 'text-rose-600']">{{ formatPrice(Math.abs(changeAmount)) }}</p>
+                  </div>
                </div>
             </div>
 
@@ -164,7 +221,7 @@
 
           <div class="px-8 py-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 shrink-0">
              <button @click="closeAction" class="px-6 h-10 text-xs font-bold text-slate-500">إلغاء</button>
-             <button @click="submitAction" :disabled="isSubmitting" :class="[actionModal.mode === 'approve' ? 'bg-emerald-600 shadow-emerald-900/20' : 'bg-rose-600 shadow-rose-900/20']" class="px-10 h-10 text-white rounded-md text-xs font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+             <button @click="submitAction" :disabled="isSubmitting || (actionModal.mode === 'approve' && actionModal.paidAmount > 0 && !actionModal.paymentMethodId)" :class="[actionModal.mode === 'approve' ? 'bg-emerald-600 shadow-emerald-900/20' : 'bg-rose-600 shadow-rose-900/20']" class="px-10 h-10 text-white rounded-md text-xs font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <BaseSpinner v-if="isSubmitting" size="16" color="#fff" />
                 <span v-else>{{ actionModal.mode === 'approve' ? 'تأكيد الاعتماد' : 'تأكيد الرفض' }}</span>
              </button>
@@ -277,10 +334,18 @@ const paymentMethods = computed(() => paymentStore.paymentMethods || [])
 const branches = computed(() => branchStore.branches);
 const selectedBranch = computed(() => branchStore.selectedBranchId);
 
+// ✅ يتتبع الاختيار اليدوي للفرع (النمط A — متطابق مع SalesHistory/PurchaseHistory/ReturnsHistory)
+const userChoseBranch = ref(
+  localStorage.getItem('selectedBranchId') !== null
+  && localStorage.getItem('selectedBranchId') !== 'all'
+);
+const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null);
+
 const onBranchChange = (newBranchId) => {
   branchStore.setSelectedBranch(newBranchId);
+  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId !== 'all');
   page.value = 1;
-  manualRefresh();
+  manualRefresh(true);  // ✅ force=true
 };
 
 const rows = ref([])
@@ -362,7 +427,9 @@ const fetchPending = async ({ silent = false } = {}) => {
   try {
     const approvalsStore = useApprovalsStore();
     approvalsStore.clearCache()
-    const res = await approvalsStore.listPending({ page: page.value, limit: limit.value })
+    const params = { page: page.value, limit: limit.value };
+    if (selectedBranch.value) params.branch_id = selectedBranch.value;
+    const res = await approvalsStore.listPending(params)
     const newRows = res.data || []
     const newTotal = Number(res.pagination?.total || newRows.length)
 
@@ -388,9 +455,9 @@ const fetchPending = async ({ silent = false } = {}) => {
   }
 }
 
-const manualRefresh = () => {
+const manualRefresh = (forceRefresh = false) => {
   newInvoicesAlert.value = false
-  fetchPending({ silent: false })
+  fetchPending({ silent: false, force: forceRefresh })
 }
 
 const playAlertSound = () => {
@@ -504,12 +571,26 @@ const viewDetails = async (id) => {
   finally { isLoadingDetails.value = false; hideLoader(); }
 }
 
-onMounted(() => {
+// isMounting flag: يمنع watch(selectedBranch) من إطلاق fetch أثناء onMounted
+let isMounting = true;
+
+onMounted(async () => {
+  // ✅ FIX: تهيئة branch context قبل أول API call (النمط A)
+  const hadPriorBranchChoice = localStorage.getItem('selectedBranchId') !== null
+                                && localStorage.getItem('selectedBranchId') !== 'all';
+  branchStore.loadFromStorage();
+  if (!branchStore.branches || branchStore.branches.length === 0) {
+    await branchStore.fetchBranches().catch(() => {})
+  }
+  // بعد fetchBranches: أعد تعيين الـ flag بما كان موجوداً قبل الكتابة
+  userChoseBranch.value = hadPriorBranchChoice;
+
   fetchSettings()
   fetchPending()
   paymentStore.fetchPaymentMethods()
   startPolling()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  isMounting = false;
 })
 onUnmounted(() => {
   stopPolling()
@@ -519,6 +600,8 @@ onUnmounted(() => {
 })
 watch(page, () => fetchPending())
 watch(limit, () => { page.value = 1; fetchPending() })
+// selectedBranch مُزال من watch — تغيير الفرع يُعالج عبر onBranchChange() مباشرة
+// إبقاؤه يُسبب race condition: fetchBranches() تُغيّر selectedBranchId أثناء onMounted فيُطلق watch مبكراً
 </script>
 
 <style scoped>

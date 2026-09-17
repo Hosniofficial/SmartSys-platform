@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="fixed top-14 md:top-16 right-0 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] z-30 bg-white text-slate-900 flex flex-col transition-all duration-200 border-l border-slate-200 shadow-sm"
+    class="fixed top-14 md:top-16 right-0 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] z-30 bg-white text-slate-900 flex flex-col transition-all duration-200 border-l border-slate-200 shadow-sm hidden md:flex"
     :style="{ width: collapsed ? '72px' : '256px' }"
     :aria-label="'التنقل الرئيسي'"
   >

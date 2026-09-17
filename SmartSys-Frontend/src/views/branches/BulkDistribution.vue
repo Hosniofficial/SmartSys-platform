@@ -66,6 +66,11 @@
               <div class="relative flex-grow">
                 <input 
                   type="text" 
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-controls="product-dropdown"
+                  :aria-expanded="showDropdown.toString()"
+                  aria-label="البحث عن منتج"
                   class="w-full h-12 bg-white border border-slate-200 rounded-lg pr-12 pl-4 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all shadow-inner" 
                   v-model="productSearch" 
                   @input="debouncedSearch" 
@@ -82,14 +87,15 @@
 
             <!-- Search Dropdown: Professional Elevation -->
             <transition name="dropdown">
-              <div v-if="showDropdown && products.length" class="absolute z-50 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-2xl max-h-72 overflow-auto py-2 animate-fadeIn">
-                <div v-for="p in products" :key="p.id" @mousedown.prevent="selectProduct(p)" class="px-6 py-3 cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-between border-b border-slate-50 last:border-0">
+              <div v-if="showDropdown && products.length" id="product-dropdown" role="listbox" class="absolute z-50 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-2xl max-h-72 overflow-auto py-2 animate-fadeIn">
+                <div v-for="(p, index) in products" :key="p.id" :data-dropdown-item="index" role="option" @mousedown.prevent="selectProduct(p)" class="px-6 py-3 cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-between border-b border-slate-50 last:border-0">
                   <div class="min-w-0 flex-1">
                     <span class="font-bold text-slate-800 text-sm block truncate">{{ p.name }}</span>
                     <span class="text-[10px] text-slate-400 font-mono mt-1 uppercase tracking-tighter">{{ p.barcode || 'NO BARCODE' }}</span>
                   </div>
                   <div class="text-left shrink-0">
                      <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">المخزون: {{ p.stock || 0 }}</span>
+                     <span v-if="selectedProduct && selectedProduct.id === p.id" class="text-[9px] font-bold text-emerald-600 block mt-1">المتبقي: {{ (selectedProduct.stock || 0) - totalQuantity }}</span>
                   </div>
                 </div>
               </div>

@@ -32,9 +32,11 @@ return function (App $app, Container $container): void {
     ini_set('log_errors', '1');
     ini_set('error_log', __DIR__ . '/../logs/error.log');
 
-    // Body parsing must be FIRST to handle JSON before any other middleware
-    $app->addBodyParsingMiddleware();
+    // CORS Middleware MUST be first (added last in Slim order)
+    $app->add(new CorsMiddleware($corsConfig ?? []));
     
+    // Body parsing must be early to handle JSON before other middleware
+    $app->addBodyParsingMiddleware();
     
     $app->add(new SecurityHeadersMiddleware());
 
@@ -122,6 +124,4 @@ return function (App $app, Container $container): void {
 
         return $response->withStatus($statusCode);
     });
-
-    $app->add(new CorsMiddleware($corsConfig ?? []));
 };

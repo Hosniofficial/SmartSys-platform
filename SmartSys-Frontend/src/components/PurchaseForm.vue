@@ -63,7 +63,13 @@
 
             <label class="metadata-label">تاريخ الشراء</label>
 
-            <input type="date" v-model="localForm.purchase_date" class="form-input-v3 font-mono" />
+            <div class="relative">
+
+              <input ref="purchaseDateRef" type="date" v-model="localForm.purchase_date" class="form-input-v3 font-mono" style="padding-left: 2rem;" />
+
+              <i @click="purchaseDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+
+            </div>
 
           </div>
 
@@ -299,8 +305,6 @@ const props = defineProps({
 
   isSaving: Boolean,
 
-  isExempt: Boolean,
-
   pendingSupplierId: { type: [Number, String, null], default: null },
 
   pendingProductAdd: { type: Object, default: null } // { index, product }
@@ -314,6 +318,9 @@ const { showToast } = useToast();
 const { formatCurrencyLocale } = useCompanyCurrency();
 
 const formatCurrency = (v) => formatCurrencyLocale(v, 2);
+
+// refs لمنتقيات التاريخ
+const purchaseDateRef = ref(null);
 
 const safeInitial = () => {
   const base = props.initialData ? JSON.parse(JSON.stringify(props.initialData)) : {};

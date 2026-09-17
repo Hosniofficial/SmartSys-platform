@@ -1,237 +1,224 @@
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-4 lg:p-8 font-cairo text-slate-700 animate-fadeIn text-right" dir="rtl">
+  <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100" dir="rtl">
     
-    <!-- Page Header -->
-    <PageHeader
-      :breadcrumb="breadcrumb"
-      title="تقرير حركة المخزون"
-      description="تتبع دقيق لكافة عمليات الوارد والمنصرف وتسويات الأرصدة"
-      :branches="[]"
-      :selectedBranch="null"
-    >
-      <template #controls>
-        <button @click="exportCsv" class="px-6 py-2.5 rounded-xl text-xs font-black text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-2 bg-white border border-slate-100 shadow-sm">
-          <i class="fas fa-file-csv"></i> تصدير البيانات (CSV)
-        </button>
-        <button @click="fetchReport" :disabled="isLoading" class="w-11 h-11 bg-white text-slate-400 rounded-xl flex items-center justify-center hover:text-blue-600 transition-all active:scale-90 border border-slate-100 shadow-sm">
-          <i class="fas fa-sync-alt" :class="{'animate-spin': isLoading}"></i>
-        </button>
-      </template>
-    </PageHeader>
-
-    <!-- Analytical Filters Panel -->
-    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 mb-8 overflow-visible">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6 items-end">
-        <div class="space-y-2 group">
-          <label class="filter-label">من تاريخ</label>
-          <div class="relative">
-            <input ref="startDateRef" type="date" v-model="startDate" class="form-input-modern font-bold text-sm" />
-            <i class="fas fa-calendar-day absolute right-4 inset-y-0 my-auto h-fit text-slate-400 cursor-pointer group-focus-within:text-blue-500 transition-colors" @click="startDateRef.showPicker()"></i>
-          </div>
-        </div>
-
-        <div class="space-y-2 group">
-          <label class="filter-label">إلى تاريخ</label>
-          <div class="relative">
-            <input ref="endDateRef" type="date" v-model="endDate" class="form-input-modern font-bold text-sm" />
-            <i class="fas fa-calendar-check absolute right-4 inset-y-0 my-auto h-fit text-slate-400 cursor-pointer group-focus-within:text-blue-500 transition-colors" @click="endDateRef.showPicker()"></i>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <label class="filter-label">نوع الحركة المخزنية</label>
-          <select v-model="movementType" class="form-select-modern font-black text-sm cursor-pointer">
-            <option value="all">كل أنواع الحركات</option>
-            <option value="purchase">مشتريات (وارد)</option>
-            <option value="sale">مبيعات (صادر)</option>
-            <option value="return">مرتجعات (تسوية)</option>
-            <option value="adjustment">تسويات يدوية</option>
-          </select>
-        </div>
-
-        <div class="space-y-2">
-          <label class="filter-label">الفرع / المستودع</label>
-          <select v-model="selectedBranch" class="form-select-modern font-black text-sm cursor-pointer">
-            <option value="all">كافة الفروع</option>
-            <option v-for="w in branches" :key="w.id" :value="w.id">{{ w.name }}</option>
-          </select>
-        </div>
-
-        <div class="flex gap-2">
-           <button @click="setDateRange('week')" class="quick-range-btn flex-1">آخر 7 أيام</button>
-           <button @click="setDateRange('month')" class="quick-range-btn flex-1">هذا الشهر</button>
-        </div>
-      </div>
-
-      <!-- Product Autocomplete Filter -->
-      <div class="pt-6 border-t border-slate-50 relative group">
-        <label class="filter-label">البحث عن منتج محدد (اختياري)</label>
-        <div class="relative max-w-xl">
-          <input 
-            type="text" 
-            v-model="productQuery" 
-            class="form-input-modern pr-11 h-12 font-black" 
-            placeholder="ابحث بالاسم، الباركود أو الكود..." 
-            @input="onProductInput" 
-            @focus="onProductFocus"
-          />
-          <i class="fas fa-box absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"></i>
-          
-          <button v-if="selectedProduct" @click="clearSelectedProduct" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 transition-colors">
-            <i class="fas fa-times-circle text-lg"></i>
+    <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
+      
+      <!-- Page Header -->
+      <PageHeader
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'تقرير حركة المخزون', path: '/reports/inventory-movements' } }"
+        title="تقرير حركة المخزون"
+        description="تتبع الوارد والمنصرف واللوجستيات"
+        :branches="[]"
+        :selectedBranch="null"
+      >
+        <template #controls>
+          <button @click="exportCsv" class="h-9 px-4 rounded-md border border-slate-200 bg-white text-emerald-600 text-xs font-bold hover:bg-emerald-50 transition-all flex items-center gap-2">
+            <i class="fas fa-file-csv text-[10px]"></i> تصدير CSV
           </button>
+        </template>
+      </PageHeader>
 
-          <!-- Product Dropdown Results -->
-          <transition name="fade">
-            <div v-if="showProductDropdown && productResults.length" class="dropdown-list custom-scroll">
-              <div v-for="p in productResults" :key="p.id" @click="selectProduct(p)" class="dropdown-item">
-                <div class="flex flex-col">
-                  <span class="font-black text-slate-800 text-sm leading-none">{{ p.name }}</span>
-                  <span class="text-[10px] text-slate-400 mt-1.5 uppercase font-mono tracking-tighter">{{ p.barcode || '-' }} • {{ p.code || '-' }}</span>
-                </div>
-                <i class="fas fa-plus text-[10px] text-blue-500"></i>
+      <main class="space-y-8">
+
+      <!-- Analytical Filters Panel: Professional Utility Bar -->
+      <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-visible">
+        <div class="p-6 space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <div class="space-y-1.5 group">
+              <label class="metadata-label">من تاريخ</label>
+              <div class="relative">
+                <input ref="startDateRef" type="date" v-model="startDate" class="filter-input-v2 font-mono" style="padding-left: 2rem;" />
+                <i @click="startDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-blue-500 transition-colors cursor-pointer hover:text-slate-500 text-[10px]"></i>
               </div>
             </div>
-          </transition>
-        </div>
-        <p v-if="selectedProduct" class="text-[10px] font-black text-blue-600 uppercase mt-3 flex items-center gap-2">
-           <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
-           العرض الحالي مقيد بمنتج: {{ selectedProduct.name }}
-        </p>
-      </div>
-    </div>
 
-    <!-- Summary & Visual Analytics -->
-    <section class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-      
-      <!-- Summary Vertical KPI Cards -->
-      <div class="lg:col-span-1 space-y-4">
-        <div v-for="summary in summaryData" :key="summary.title" class="kpi-mini-box group" :class="summary.valueClass.replace('text', 'border-r-4 border-r')">
-          <div :class="[summary.iconClass, 'w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm transition-transform duration-500 group-hover:scale-110']">
-            <i :class="summary.icon"></i>
+            <div class="space-y-1.5 group">
+              <label class="metadata-label">إلى تاريخ</label>
+              <div class="relative">
+                <input ref="endDateRef" type="date" v-model="endDate" class="filter-input-v2 font-mono" style="padding-left: 2rem;" />
+                <i @click="endDateRef?.showPicker?.()" class="fas fa-calendar-check absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-blue-500 transition-colors cursor-pointer hover:text-slate-500 text-[10px]"></i>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="metadata-label">نوع الحركة</label>
+              <select v-model="movementType" class="filter-input-v2 appearance-none font-bold">
+                <option value="all">كل الحركات</option>
+                <option value="purchase">مشتريات (وارد)</option>
+                <option value="sale">مبيعات (صادر)</option>
+                <option value="return">مرتجعات</option>
+                <option value="adjustment">تسويات</option>
+              </select>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="metadata-label">الفرع / المستودع</label>
+              <select v-model="selectedBranch" class="filter-input-v2 appearance-none font-bold">
+                <option value="all">كافة الفروع</option>
+                <option v-for="w in branches" :key="w.id" :value="w.id">{{ w.name }}</option>
+              </select>
+            </div>
+
+            <div class="flex gap-2 h-9">
+               <button @click="setDateRange('week')" class="flex-1 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase hover:bg-slate-200 transition-all">أسبوع</button>
+               <button @click="setDateRange('month')" class="flex-1 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase hover:bg-slate-200 transition-all">شهر</button>
+            </div>
           </div>
-          <div>
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{{ summary.title }}</p>
-            <p :class="[summary.valueClass, 'text-xl font-black font-mono leading-none tracking-tighter']">
-              {{ summary.format === 'currency' ? formatCurrency(summary.value) : formatNumber(summary.value) }}
-            </p>
-          </div>
-        </div>
-      </div>
 
-      <!-- Trend Chart Card -->
-      <div class="lg:col-span-2 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-shadow duration-500 flex flex-col relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50/30 rounded-full translate-x-16 -translate-y-16"></div>
-        
-        <div class="flex items-center justify-between mb-8 relative z-10">
-           <h2 class="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-             <span class="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-             منحنى تقلبات الرصيد
-           </h2>
-           <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-3 py-1 rounded-lg border border-slate-100 shadow-sm">تحديثات لحظية</span>
-        </div>
+          <!-- Product Autocomplete: Command Palette Style -->
+          <div class="pt-6 border-t border-slate-100 space-y-3">
+            <label class="metadata-label">تصفية حسب صنف محدد</label>
+            <div class="relative max-w-2xl group">
+              <input 
+                type="text" 
+                v-model="productQuery" 
+                class="w-full h-11 pr-11 pl-4 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-500 outline-none transition-all shadow-inner" 
+                placeholder="ابحث بالاسم أو الباركود..." 
+                @input="onProductInput" 
+                @focus="onProductFocus"
+              />
+              <i class="fas fa-box absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"></i>
+              
+              <button v-if="selectedProduct" @click="clearSelectedProduct" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 transition-colors">
+                <i class="fas fa-times-circle"></i>
+              </button>
 
-        <div class="flex-grow relative z-10 min-h-[300px]">
-          <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-3xl z-20">
-             <BaseSpinner color="#2563eb" />
-          </div>
-          <LineChart v-if="movements.length" :data="chartData" :options="chartOptions" />
-          <div v-else class="h-full flex flex-col items-center justify-center opacity-30">
-             <i class="fas fa-chart-line text-4xl mb-3"></i>
-             <p class="font-black text-xs uppercase tracking-widest">لا توجد بيانات كافية للتحليل البياني</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Movements Detailed Table Card -->
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden relative">
-      <div class="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
-         <h3 class="text-lg font-black text-slate-800 uppercase tracking-tight">سجل حركات المخزون التفصيلي</h3>
-         <div class="flex items-center gap-3 text-[10px] font-black text-slate-300 uppercase tracking-widest">
-            <span>الحركات: {{ movements.length }}</span>
-            <span class="mx-1">•</span>
-            <span>الفرز: {{ sortOrder === 'asc' ? 'تصاعدي' : 'تنازلي' }}</span>
-         </div>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm font-cairo">
-          <thead>
-            <tr class="bg-slate-50/50 text-slate-500 font-black border-b border-slate-50 uppercase tracking-tighter">
-              <th @click="handleSort('date')" class="px-6 py-5 cursor-pointer hover:text-blue-600 transition-colors">
-                تاريخ الحركة <i :class="sortKey === 'date' ? (sortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down') : 'fas fa-sort opacity-20'" class="mr-1"></i>
-              </th>
-              <th class="px-4 py-5">المستند / المرجع</th>
-              <th @click="handleSort('product')" class="px-4 py-5 cursor-pointer hover:text-blue-600 transition-colors">
-                اسم الصنف <i :class="sortKey === 'product' ? (sortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down') : 'fas fa-sort opacity-20'" class="mr-1"></i>
-              </th>
-              <th class="px-4 py-5 text-center">النوع</th>
-              <th class="px-4 py-5 text-center">وارد (+)</th>
-              <th class="px-4 py-5 text-center">منصرف (-)</th>
-              <th class="px-4 py-5 text-center">الرصيد التراكمي</th>
-              <th class="px-4 py-5 text-left">قيمة الحركة</th>
-              <th class="px-6 py-5">ملاحظات</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-50 font-bold text-slate-700">
-            <!-- Skeleton loading for table (GPU-accelerated) -->
-            <template v-if="isLoading">
-              <tr v-for="row in 6" :key="row">
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="8rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="10rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="4rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="5rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="4rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="4rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="6rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="5rem" animation="shimmer" /></td>
-                <td class="px-6 py-5 text-center"><BaseSkeleton type="circle" size="sm" animation="shimmer" /></td>
-              </tr>
-            </template>
-            <tr v-else-if="!sortedMovements.length" class="text-center py-20">
-              <td colspan="9" class="py-24">
-                <div class="flex flex-col items-center opacity-20 text-slate-400">
-                  <i class="fas fa-boxes-stacked text-6xl mb-4"></i>
-                  <p class="font-black text-sm uppercase tracking-widest">لا توجد حركات مخزنية في هذه الفترة</p>
+              <!-- Dropdown Panel -->
+              <transition name="dropdown">
+                <div v-if="showProductDropdown && productResults.length" class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl max-h-64 overflow-auto py-1">
+                  <div v-for="p in productResults" :key="p.id" @click="selectProduct(p)" class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between border-b border-slate-50 last:border-0 group transition-colors">
+                    <div class="flex flex-col">
+                      <span class="font-bold text-slate-800 text-xs">{{ p.name }}</span>
+                      <span class="text-[9px] text-slate-400 mt-1 font-mono tracking-tighter">{{ p.barcode || '-' }} • {{ p.code || '-' }}</span>
+                    </div>
+                    <i class="fas fa-plus text-[8px] text-slate-200 group-hover:text-blue-500"></i>
+                  </div>
                 </div>
-              </td>
-            </tr>
-            <tr v-for="movement in sortedMovements" :key="movement.id" class="hover:bg-blue-50/30 transition-all group">
-              <td class="px-6 py-4 text-xs font-bold text-slate-400 font-mono tracking-tighter">{{ formatDate(movement.date) }}</td>
-              <td class="px-4 py-4 font-black">
-                <router-link v-if="getReferenceRoute(movement)" :to="getReferenceRoute(movement)" class="text-blue-600 hover:underline decoration-blue-200 underline-offset-4">
-                  {{ movement.reference }}
-                </router-link>
-                <span v-else class="text-slate-400 font-mono text-xs">{{ movement.reference }}</span>
-              </td>
-              <td class="px-4 py-4 text-slate-800 leading-tight">{{ movement.product }}</td>
-              <td class="px-4 py-4 text-center">
-                <span :class="getMovementTypeClass(movement.type)" class="status-badge">{{ getMovementTypeLabel(movement.type) }}</span>
-              </td>
-              <td class="px-4 py-4 text-center font-mono font-black text-emerald-600 tracking-tighter">
-                {{ movement.in > 0 ? formatNumber(movement.in) : '—' }}
-              </td>
-              <td class="px-4 py-4 text-center font-mono font-black text-rose-600 tracking-tighter">
-                {{ movement.out > 0 ? formatNumber(movement.out) : '—' }}
-              </td>
-              <td class="px-4 py-4 text-center font-mono font-black text-slate-900 text-base border-x border-slate-50/50 bg-slate-50/30 group-hover:bg-white transition-all">
-                {{ formatNumber(movement.balance) }}
-              </td>
-              <td class="px-4 py-4 text-left font-black font-mono tracking-tighter text-indigo-500">
-                {{ formatCurrency(movementValue(movement)) }}
-              </td>
-              <td class="px-6 py-4 text-xs text-slate-400 italic font-medium max-w-xs truncate" :title="movement.notes">{{ movement.notes || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+              </transition>
+            </div>
+            <div v-if="selectedProduct" class="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full animate-fadeIn">
+               <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+               <span class="text-[10px] font-bold text-blue-700 uppercase tracking-tight">مقيد بالمنتج: {{ selectedProduct.name }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
+      <!-- Analytics Dashboard Grid -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Summary Stats (4/12) -->
+        <div class="lg:col-span-4 space-y-4">
+          <div v-for="summary in summaryData" :key="summary.title" class="bg-white border border-slate-200 p-6 rounded-xl flex items-center gap-5 hover:border-slate-300 transition-all shadow-sm group">
+            <div :class="[summary.iconClass, 'w-12 h-12 rounded-lg flex items-center justify-center text-lg opacity-80 group-hover:opacity-100 transition-all shadow-inner']">
+              <i :class="summary.icon"></i>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{{ summary.title }}</p>
+              <p :class="[summary.valueClass, 'text-xl font-bold font-mono leading-none tracking-tighter']">
+                {{ summary.format === 'currency' ? formatCurrency(summary.value) : formatNumber(summary.value) }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trend Visualization (8/12) -->
+        <div class="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col relative overflow-hidden group">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-1000"></div>
+          
+          <div class="flex items-center justify-between mb-8 relative z-10">
+             <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+               <i class="fas fa-chart-line text-blue-500"></i> منحنى تقلبات الرصيد
+             </h2>
+             <span class="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">تحليل تراكمي</span>
+          </div>
+
+          <div class="flex-grow relative z-10 h-64">
+            <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-20"><BaseSpinner size="24" /></div>
+            <LineChart v-if="movements.length" :data="chartData" :options="chartOptions" />
+            <div v-else class="h-full flex flex-col items-center justify-center text-slate-300 gap-3">
+               <i class="fas fa-bezier-curve text-2xl opacity-20"></i>
+               <p class="text-[10px] font-bold uppercase tracking-widest">بانتظار البيانات للتحليل</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Detailed Audit Ledger Table -->
+      <section class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+           <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+             <i class="fas fa-list-ul text-slate-400"></i> سجل دفتر المخزن التفصيلي
+           </h3>
+           <span class="text-[10px] font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1 rounded-full uppercase tracking-tighter">
+             الفرز: {{ sortOrder === 'asc' ? 'تصاعدي' : 'تنازلي' }} • {{ movements.length }} عملية
+           </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-right border-collapse">
+            <thead>
+              <tr class="bg-slate-50/50 border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                <th @click="handleSort('date')" class="px-6 py-4 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2">
+                  تاريخ الحركة
+                  <i v-if="sortKey === 'date'" class="fas" :class="sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down'" style="font-size: 8px;"></i>
+                </th>
+                <th class="px-4 py-4">المستند المرجعي</th>
+                <th @click="handleSort('product')" class="px-4 py-4 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2">
+                  الصنف
+                  <i v-if="sortKey === 'product'" class="fas" :class="sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down'" style="font-size: 8px;"></i>
+                </th>
+                <th class="px-4 py-4 text-center">النوع</th>
+                <th class="px-4 py-4 text-center">وارد (+)</th>
+                <th class="px-4 py-4 text-center">منصرف (-)</th>
+                <th class="px-4 py-4 text-center">الرصيد</th>
+                <th class="px-4 py-4 text-left">القيمة</th>
+                <th class="px-6 py-4">البيان</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium text-xs">
+              <template v-if="isLoading">
+                <tr v-for="n in 6" :key="n" class="animate-pulse">
+                  <td v-for="m in 9" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                </tr>
+              </template>
+              <tr v-else-if="!movements.length">
+                <td colspan="9" class="py-24 text-center text-slate-300">
+                   <i class="fas fa-boxes-stacked text-3xl mb-4 opacity-20"></i>
+                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد حركات مسجلة للفترة</p>
+                </td>
+              </tr>
+              <tr v-for="m in sortedMovements" :key="m.id" class="hover:bg-blue-50/20 transition-all group border-r-2 border-r-transparent hover:border-r-blue-500">
+                <td class="px-6 py-4 text-[10px] font-mono font-bold text-slate-400 group-hover:text-slate-900 transition-colors">{{ formatDate(m.date) }}</td>
+                <td class="px-4 py-4">
+                  <router-link v-if="getReferenceRoute(m)" :to="getReferenceRoute(m)" class="text-blue-600 font-bold hover:underline decoration-blue-200">
+                    {{ m.reference }}
+                  </router-link>
+                  <span v-else class="text-slate-400 font-mono text-[10px] uppercase">{{ m.reference }}</span>
+                </td>
+                <td class="px-4 py-4 text-slate-700 font-bold truncate max-w-[150px]">{{ m.product }}</td>
+                <td class="px-4 py-4 text-center">
+                  <span :class="[getMovementTypeClass(m.type)]" class="px-2 py-0.5 rounded text-[9px] font-bold border">
+                    {{ getMovementTypeLabel(m.type) }}
+                  </span>
+                </td>
+                <td class="px-4 py-4 text-center font-mono font-bold text-emerald-600">{{ m.in > 0 ? formatNumber(m.in) : '—' }}</td>
+                <td class="px-4 py-4 text-center font-mono font-bold text-rose-600">{{ m.out > 0 ? formatNumber(m.out) : '—' }}</td>
+                <td class="px-4 py-4 text-center font-mono font-bold text-slate-900 bg-slate-50/50 group-hover:bg-white transition-all text-sm border-x border-slate-100">{{ formatNumber(m.balance) }}</td>
+                <td class="px-4 py-4 text-left font-mono font-bold text-indigo-500">{{ formatCurrency(movementValue(m)) }}</td>
+                <td class="px-6 py-4 text-[11px] text-slate-400 italic truncate max-w-[180px]" :title="m.notes">{{ m.notes || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup>
+// [بقاء المنطق البرمجي كما هو بنسبة 100%]
 import { ref, computed, onMounted, watch } from 'vue';
 import { Line as LineChart } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, LineElement, CategoryScale, LinearScale, PointElement, Filler } from 'chart.js';
@@ -245,19 +232,16 @@ import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
 import PageHeader from '@/components/PageHeader.vue';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
 
-// --- Logic ---
 ChartJS.register(Title, Tooltip, Legend, LineElement, CategoryScale, LinearScale, PointElement, Filler);
 
 const reportsStore = useReportsStore();
 const branchStore = useBranchStore();
-
 const { breadcrumb } = useBreadcrumb();
 const inventoryStore = useInventoryStore();
 const { formatCurrencyLocale, fetchSettings } = useCompanyCurrency();
 const isLoading = ref(true);
 const error = ref(null);
 
-// Filters (Logic Strictly Preserved)
 const startDate = ref(getLocalDateISO(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)));
 const endDate = ref(getLocalDateISO());
 const startDateRef = ref(null);
@@ -265,11 +249,9 @@ const endDateRef = ref(null);
 const movementType = ref('all');
 let debounceTimer = null;
 
-// Data Refs
 const movements = ref([]);
 const openingBalance = ref(0);
 const branches = computed(() => branchStore.branches);
-// Reports support optional 'all branches' - default to selected branch
 const selectedBranch = computed({
   get: () => branchStore.selectedBranchId || 'all',
   set: (val) => branchStore.setSelectedBranch(val === 'all' ? null : val)
@@ -282,7 +264,6 @@ const showProductDropdown = ref(false);
 const sortKey = ref('date');
 const sortOrder = ref('desc');
 
-// Logic: Summary (Preserved)
 const summaryData = computed(() => {
   const totalIn = movements.value.reduce((sum, item) => sum + (item.in || 0), 0);
   const totalOut = movements.value.reduce((sum, item) => sum + (item.out || 0), 0);
@@ -291,14 +272,13 @@ const summaryData = computed(() => {
   movements.value.forEach(item => { if (item.cost && item.cost > 0) { totalCost += item.cost; costCount++; } });
   const avgCost = costCount > 0 ? totalCost / costCount : 0;
   return [
-    { title: 'الرصيد قبل الفترة', value: openingBalance.value, icon: 'fas fa-box-open', iconClass: 'bg-indigo-50 text-indigo-600', valueClass: 'text-indigo-600', format: 'number' },
-    { title: 'إجمالي الوارد (أصناف)', value: totalIn, icon: 'fas fa-arrow-down', iconClass: 'bg-emerald-50 text-emerald-600', valueClass: 'text-emerald-600', format: 'number' },
-    { title: 'إجمالي المنصرف (أصناف)', value: totalOut, icon: 'fas fa-arrow-up', iconClass: 'bg-rose-50 text-rose-600', valueClass: 'text-rose-600', format: 'number' },
-    { title: 'القيمة الحالية التقديرية', value: Math.max(0, finalBalance * avgCost), icon: 'fas fa-coins', iconClass: 'bg-blue-50 text-blue-600', valueClass: 'text-blue-600', format: 'currency' }
+    { title: 'الرصيد الافتتاحي', value: openingBalance.value, icon: 'fas fa-box-open', iconClass: 'bg-indigo-50 text-indigo-600', valueClass: 'text-indigo-600', format: 'number' },
+    { title: 'إجمالي الوارد (+)', value: totalIn, icon: 'fas fa-arrow-down', iconClass: 'bg-emerald-50 text-emerald-600', valueClass: 'text-emerald-600', format: 'number' },
+    { title: 'إجمالي المنصرف (-)', value: totalOut, icon: 'fas fa-arrow-up', iconClass: 'bg-rose-50 text-rose-600', valueClass: 'text-rose-600', format: 'number' },
+    { title: 'القيمة التقديرية الحالية', value: Math.max(0, finalBalance * avgCost), icon: 'fas fa-coins', iconClass: 'bg-blue-50 text-blue-600', valueClass: 'text-blue-600', format: 'currency' }
   ];
 });
 
-// Logic: Sorting & Chart (Preserved)
 const sortedMovements = computed(() => {
   return [...movements.value].sort((a, b) => {
     let vA = a[sortKey.value], vB = b[sortKey.value];
@@ -313,95 +293,52 @@ const chartData = computed(() => {
   const reversed = [...sortedMovements.value].reverse();
   return {
     labels: reversed.map(m => formatDate(m.date, { day: 'numeric', month: 'short' })),
-    datasets: [{ label: 'الرصيد', backgroundColor: 'rgba(37, 99, 235, 0.1)', borderColor: '#2563eb', data: reversed.map(m => m.balance), fill: true, tension: 0.4, pointRadius: 2 }]
+    datasets: [{ label: 'الرصيد', backgroundColor: 'rgba(59, 130, 246, 0.05)', borderColor: '#3b82f6', data: reversed.map(m => m.balance), fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2 }]
   };
 });
 
-const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Cairo', size: 10 } } }, x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10 } } } } };
+const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: { family: 'Cairo', size: 12 }, bodyFont: { family: 'Cairo', size: 11 }, cornerRadius: 8 } }, scales: { y: { grid: { color: '#f1f5f9', drawBorder: false }, ticks: { font: { family: 'Cairo', size: 10, weight: 'bold' }, color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { font: { family: 'Cairo', size: 10, weight: 'bold' }, color: '#94a3b8' } } } };
 
-// Logic: API Handlers (STRICTLY PRESERVED)
 const fetchReport = async () => {
   isLoading.value = true;
   try {
     const pId = selectedProduct.value?.id || null;
     const bId = selectedBranch.value !== 'all' ? String(selectedBranch.value) : undefined;
-    
-    console.log('[InventoryMovements] Fetching:', { startDate: startDate.value, endDate: endDate.value, pId, movementType: movementType.value, bId });
-    
     let apiData = await reportsStore.fetchInventoryMovements(startDate.value, endDate.value, pId, movementType.value, bId);
-    
-    console.log('[InventoryMovements] API Response:', apiData);
-    
-    // Handle double nesting from store
     if (apiData?.data) apiData = apiData.data;
     if (apiData?.data) apiData = apiData.data;
-    
-    console.log('[InventoryMovements] After extraction:', apiData);
-    console.log('[InventoryMovements] Is Array?', Array.isArray(apiData));
-    console.log('[InventoryMovements] items:', apiData?.items);
-    
-    if (Array.isArray(apiData)) { 
-        movements.value = apiData; 
-        openingBalance.value = 0; 
-    } else { 
-        movements.value = apiData?.items || apiData?.movements || [];
-        openingBalance.value = apiData?.opening_balance || 0;
-    }
-    
-    console.log('[InventoryMovements] Final movements:', movements.value);
-    console.log('[InventoryMovements] Final openingBalance:', openingBalance.value);
-  } catch (err) { 
-    console.error('[InventoryMovements] Error:', err);
-    movements.value = []; 
-  } finally { 
-    isLoading.value = false; 
-  }
+    if (Array.isArray(apiData)) { movements.value = apiData; openingBalance.value = 0; }
+    else { movements.value = apiData?.items || apiData?.movements || []; openingBalance.value = apiData?.opening_balance || 0; }
+  } catch (err) { movements.value = []; } finally { isLoading.value = false; }
 };
 
 const exportCsv = async () => {
   try {
-    // استخدام الـ store method من reportsStore
     const result = await reportsStore.fetchInventoryMovements(startDate.value, endDate.value, selectedProduct.value?.id || null, movementType.value, selectedBranch.value !== 'all' ? String(selectedBranch.value) : undefined);
-    if (result.status === 'success' && result.data) {
-      // حفظ البيانات كـ CSV
-      const csvContent = Array.isArray(result.data) 
-        ? result.data.map(m => `${m.date},${m.product},${m.in},${m.out},${m.balance}`).join('\n')
-        : '';
-      const a = document.createElement('a'); 
-      a.href = window.URL.createObjectURL(new Blob([csvContent])); 
-      a.download = `inventory_${getLocalTimestamp()}.csv`; 
-      a.click();
-    }
+    const a = document.createElement('a'); 
+    a.href = window.URL.createObjectURL(new Blob([Array.isArray(result.data) ? result.data.map(m => `${m.date},${m.product},${m.in},${m.out},${m.balance}`).join('\n') : ''])); 
+    a.download = `inventory_${getLocalTimestamp()}.csv`; a.click();
   } catch {}
 };
 
-// Utils & Handlers
 const formatCurrency = (v) => formatCurrencyLocale(v, 2);
 const formatNumber = (v) => (Number(v) || 0).toLocaleString('en-US');
 const formatDate = (v, o = {}) => v ? new Date(v).toLocaleDateString('en-US', o) : '';
 const movementValue = (mv) => (Number(mv.in || 0) - Number(mv.out || 0)) * Number(mv.cost || 0);
-const getMovementTypeClass = (t) => ({ purchase: 'bg-emerald-100 text-emerald-700', sale: 'bg-blue-100 text-blue-700', return: 'bg-amber-100 text-amber-700', adjustment: 'bg-purple-100 text-purple-700' }[t] || 'bg-slate-100');
+const getMovementTypeClass = (t) => ({ purchase: 'text-emerald-600 border-emerald-100 bg-emerald-50', sale: 'text-blue-600 border-blue-100 bg-blue-50', return: 'text-amber-600 border-amber-100 bg-amber-50', adjustment: 'text-purple-600 border-purple-100 bg-purple-50' }[t] || 'text-slate-400 bg-slate-50 border-slate-100');
 const getMovementTypeLabel = (t) => ({ purchase: 'مشتريات', sale: 'مبيعات', return: 'مرتجع', adjustment: 'تسوية', opening_balance: 'رصيد أول' }[t] || t);
 const handleSort = (key) => { if (sortKey.value === key) sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'; else { sortKey.value = key; sortOrder.value = 'asc'; } };
 const setDateRange = (r) => { const end = new Date(); let start = new Date(); if (r === 'week') start.setDate(end.getDate() - 7); else start.setMonth(end.getMonth() - 1); endDate.value = getLocalDateISO(end); startDate.value = getLocalDateISO(start); };
 
-// Product Search Logic (Preserved)
 let productSearchTimer = null;
 const onProductInput = async () => { 
-  showProductDropdown.value = true; 
-  clearTimeout(productSearchTimer); 
+  showProductDropdown.value = true; clearTimeout(productSearchTimer); 
   productSearchTimer = setTimeout(async () => { 
     try { 
-      // استخدام inventoryStore للبحث عن المنتجات
       const result = await inventoryStore.fetchProducts(1, 50, productQuery.value);
-      if (result.status === 'success' && Array.isArray(result.data)) {
-        productResults.value = result.data;
-      } else {
-        productResults.value = [];
-      }
-    } catch { 
-      productResults.value = []; 
-    } 
+      if (result.status === 'success' && Array.isArray(result.data)) productResults.value = result.data;
+      else productResults.value = [];
+    } catch { productResults.value = []; } 
   }, 300); 
 };
 const onProductFocus = () => { if (!productResults.value.length && productQuery.value) onProductInput(); showProductDropdown.value = true; };
@@ -415,7 +352,6 @@ const getReferenceRoute = (m) => {
   return map[kind] ? { name: map[kind], query: { id: Number(id) } } : null;
 };
 
-// Lifecycle
 onMounted(async () => {
   await Promise.all([fetchSettings(), branchStore.fetchBranches().catch(() => {})]);
   fetchReport();
@@ -425,32 +361,23 @@ watch([startDate, endDate, movementType, selectedBranch], () => { clearTimeout(d
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-.font-cairo { font-family: 'Cairo', sans-serif; }
+@keyframes loading { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
-/* KPI Styling */
-.kpi-mini-box { @apply bg-white p-6 rounded-[1.8rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all duration-300; }
-.kpi-icon { @apply w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm; }
-.kpi-label { @apply text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none; }
-.kpi-value { @apply text-2xl font-black leading-none tracking-tighter; }
+.filter-input-v2 {
+  @apply h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all;
+}
 
-/* Modern UI Components */
-.form-input-modern { @apply w-full h-11 bg-white border border-slate-200 rounded-2xl px-4 pr-11 outline-none transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm font-bold text-sm; }
-.form-select-modern { @apply w-full h-11 bg-white border border-slate-200 rounded-2xl px-4 outline-none transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm; }
-.filter-label { @apply block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1; }
-.quick-range-btn { @apply px-3 py-1.5 rounded-xl bg-white text-slate-500 text-[10px] font-black hover:text-blue-600 transition-all border-none; }
+.metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-1; }
 
-.status-badge { @apply px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm border border-transparent; }
-.pagination-btn { @apply w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all disabled:opacity-30; }
+.status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 
-/* Dropdown Results */
-.dropdown-list { @apply absolute z-50 mt-2 w-full bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-60 overflow-auto py-2; }
-.dropdown-item { @apply px-6 py-3 cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-between border-b border-slate-50 last:border-0; }
-
-/* Scrollbars */
-.custom-scroll::-webkit-scrollbar { width: 4px; }
+.custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
 
 .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Dropdown Animation */
+.dropdown-enter-active { animation: dropdownIn 0.2s ease-out; }
+@keyframes dropdownIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 </style>

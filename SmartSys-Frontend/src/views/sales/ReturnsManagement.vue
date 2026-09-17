@@ -83,21 +83,33 @@
             <div class="lg:col-span-4 space-y-1.5 relative group">
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">بحث سريع</label>
               <div class="relative">
-                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2 pr-9" placeholder="رقم المرتجع أو الفاتورة..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
-                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2" style="padding-right: 2rem;" placeholder="رقم المرتجع أو الفاتورة..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
+                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
                 
-                <!-- Teleported Dropdown remains logic-identical but UI-standardized -->
                 <Teleport to="body">
                   <transition name="dropdown">
                     <div v-if="showSearchDropdown && search.length > 0" ref="searchDropdownRef" class="fixed bg-white border border-slate-200 rounded-lg shadow-2xl overflow-hidden z-[99999]" :style="searchDropdownPosition">
                       <div v-if="isLoadingSearch" class="p-6 text-center"><BaseSpinner size="20" /></div>
                       <template v-else>
-                        <div v-for="result in searchResults.slice(0, 10)" :key="result.id" @click="selectSearchResult(result)" class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 flex items-center justify-between group">
+                        <!-- رأس عداد النتائج -->
+                        <div v-if="searchResults.length" class="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ searchResults.length }} نتيجة</p>
+                        </div>
+                        <!-- حالة لا توجد نتائج -->
+                        <div v-if="!searchResults.length" class="px-4 py-8 text-center text-slate-400">
+                          <i class="fas fa-search text-xl mb-2 opacity-30"></i>
+                          <p class="text-[11px] font-bold">لا توجد نتائج مطابقة</p>
+                        </div>
+                        <div v-for="result in searchResults.slice(0, 20)" :key="result.id" @click="selectSearchResult(result)" class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 flex items-center justify-between group">
                           <div>
                             <p class="text-xs font-bold text-slate-900">{{ result.return_number || 'RET-' + result.id }}</p>
                             <p class="text-[10px] text-slate-400">{{ formatDate(result.return_date || result.created_at) }}</p>
                           </div>
                           <p class="text-xs font-bold text-rose-600">{{ formatPrice(result.grand_total || result.total_amount || 0) }}</p>
+                        </div>
+                        <!-- رسالة "المزيد" إذا تجاوزت 20 -->
+                        <div v-if="searchResults.length > 20" class="px-4 py-2 text-center bg-slate-50 border-t border-slate-100">
+                          <p class="text-[10px] text-slate-500">و {{ searchResults.length - 20 }} نتيجة أخرى — حدّد البحث للتضييق</p>
                         </div>
                       </template>
                     </div>
@@ -106,25 +118,35 @@
               </div>
             </div>
 
-            <div v-if="isExempt" class="lg:col-span-3 space-y-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">الفرع</label>
-              <select :value="branchStore.selectedBranchId" @change="onBranchChange($event.target.value)" class="filter-input-v2 appearance-none">
-                <option :value="null">جميع الفروع</option>
-                <option v-for="b in branches" :key="b.id" :value="String(b.id)">{{ b.name || b.branch_name }}</option>
+            <!-- من تاريخ -->
+            <div class="lg:col-span-2 space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">من تاريخ</label>
+              <div class="relative">
+                <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2" style="padding-left: 2rem;" />
+                <i @click="dateFromRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+              </div>
+            </div>
+
+            <!-- إلى تاريخ -->
+            <div class="lg:col-span-2 space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">إلى تاريخ</label>
+              <div class="relative">
+                <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2" style="padding-left: 2rem;" />
+                <i @click="dateToRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
+              </div>
+            </div>
+
+            <!-- النتائج / صفحة -->
+            <div class="lg:col-span-2 space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">النتائج / صفحة</label>
+              <select v-model.number="pageSize" class="filter-input-v2 appearance-none">
+                <option :value="10">10</option>
+                <option :value="20">20</option>
+                <option :value="50">50</option>
               </select>
             </div>
 
-            <div class="lg:col-span-2 space-y-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">من تاريخ</label>
-              <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2" />
-            </div>
-
-            <div class="lg:col-span-2 space-y-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">إلى تاريخ</label>
-              <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2" />
-            </div>
-
-            <div class="lg:col-span-1">
+            <div class="lg:col-span-2">
               <button @click="loadReturns" class="h-9 w-full rounded-md border border-slate-200 bg-white text-slate-400 hover:text-blue-600 transition-colors shadow-sm">
                 <i class="fas fa-sync-alt text-xs"></i>
               </button>
@@ -194,16 +216,22 @@
       <template #header>
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center text-white text-xs"><i class="fas fa-undo"></i></div>
-          <h3 class="text-sm font-bold text-slate-900 uppercase">تفاصيل المرتجع {{ selectedReturn?.return_number || 'RET-' + selectedReturn?.id }}</h3>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">تفاصيل المرتجع {{ selectedReturn?.return_number || 'RET-' + selectedReturn?.id }}</h3>
+            <!-- #7: تاريخ الإنشاء في رأس الـ Modal -->
+            <p class="text-[10px] text-slate-400 font-medium mt-0.5">{{ formatDateTime(selectedReturn?.created_at) }}</p>
+          </div>
         </div>
       </template>
 
       <div class="space-y-8">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <!-- #7: أضيف نوع العملية كـ حقل خامس -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
           <div v-for="info in [
+            { l: 'نوع العملية',    v: selectedReturn?.type === 'purchase' ? 'مرتجع مشتريات' : 'مرتجع مبيعات' },
             { l: 'الفاتورة الأصلية', v: selectedReturn?.invoice_number || 'غير محدد' },
             { l: 'تاريخ المرتجع', v: formatDate(selectedReturn?.return_date || selectedReturn?.created_at) },
-            { l: 'الطرف المعني', v: selectedReturn?.party_name || 'عميل نقدي' },
+            { l: 'الطرف المعني',  v: selectedReturn?.party_name || 'عميل نقدي' },
             { l: 'طريقة التسوية', v: selectedReturn?.is_cash ? 'نقدي' : 'خصم ذمم' }
           ]" :key="info.l" class="space-y-1">
             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ info.l }}</p>
@@ -228,7 +256,32 @@
           </table>
         </div>
 
-        <div v-if="selectedReturn?.notes" class="p-4 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800 italic">{{ selectedReturn?.notes }}</div>
+        <!-- #5: التفصيل المالي الكامل (ضريبة، خصم، مدفوع) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">التفصيل المالي</p>
+            <div class="flex justify-between text-xs font-bold text-slate-500">
+              <span>إجمالي المرتجع</span>
+              <span class="font-mono text-slate-900">{{ formatPrice(selectedReturn?.grand_total || selectedReturn?.total_amount || 0) }}</span>
+            </div>
+            <div v-if="Number(selectedReturn?.tax_amount) > 0" class="flex justify-between text-xs font-bold text-slate-500">
+              <span>الضريبة</span>
+              <span class="font-mono text-indigo-600">{{ formatPrice(selectedReturn?.tax_amount || 0) }}</span>
+            </div>
+            <div v-if="Number(selectedReturn?.discount_value) > 0 || Number(selectedReturn?.discount_amount) > 0" class="flex justify-between text-xs font-bold text-slate-500">
+              <span>الخصم</span>
+              <span class="font-mono text-rose-500">- {{ formatPrice(selectedReturn?.discount_value || selectedReturn?.discount_amount || 0) }}</span>
+            </div>
+            <div class="flex justify-between text-xs font-bold border-t border-slate-200 pt-2">
+              <span class="text-slate-700">المبلغ المدفوع</span>
+              <span class="font-mono text-emerald-600">{{ formatPrice(selectedReturn?.paid_amount || 0) }}</span>
+            </div>
+          </div>
+          <div v-if="selectedReturn?.notes" class="p-4 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800 italic flex items-start gap-2">
+            <i class="fas fa-sticky-note text-amber-400 mt-0.5"></i>
+            <span>{{ selectedReturn?.notes }}</span>
+          </div>
+        </div>
       </div>
 
       <template #footer>
@@ -236,6 +289,8 @@
           <div class="space-y-1">
             <p class="text-[9px] font-bold text-slate-400 uppercase">بواسطة</p>
             <p class="text-[11px] font-bold text-slate-800">{{ selectedReturn?.created_by_name || 'النظام' }}</p>
+            <!-- #8: آخر تحديث -->
+            <p v-if="selectedReturn?.updated_at && selectedReturn?.updated_at !== selectedReturn?.created_at" class="text-[9px] text-slate-400">آخر تحديث: {{ formatDateTime(selectedReturn?.updated_at) }}</p>
           </div>
           <div class="h-6 w-px bg-slate-200"></div>
           <div class="space-y-1">
