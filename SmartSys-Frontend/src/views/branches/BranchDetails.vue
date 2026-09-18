@@ -364,7 +364,16 @@
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" v-model="branch.is_active" class="sr-only peer">
-                                <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
+                                <div 
+                                  @click="branch.is_active = !branch.is_active"
+                                  :class="branch.is_active ? 'bg-blue-600' : 'bg-slate-200'"
+                                  class="w-14 h-7 rounded-full cursor-pointer transition-colors duration-200 relative overflow-hidden"
+                                >
+                                  <span
+                                    :class="branch.is_active ? 'left-1' : 'right-1'"
+                                    class="absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all duration-200"
+                                  ></span>
+                                </div>
                             </label>
                         </div>
 
@@ -374,8 +383,17 @@
                                 <p class="text-xs text-slate-500 mt-2 font-bold leading-relaxed italic">تفعيل الإشعارات التلقائية عند وصول المنتجات للحد الأدنى المسموح به.</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked class="sr-only peer">
-                                <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <input type="checkbox" checked class="sr-only peer" ref="alertToggle" />
+                                <div 
+                                  @click="alertToggle.checked = !alertToggle.checked"
+                                  :class="alertToggle?.checked ? 'bg-indigo-600' : 'bg-slate-200'"
+                                  class="w-14 h-7 rounded-full cursor-pointer transition-colors duration-200 relative overflow-hidden"
+                                >
+                                  <span
+                                    :class="alertToggle?.checked ? 'left-1' : 'right-1'"
+                                    class="absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all duration-200"
+                                  ></span>
+                                </div>
                             </label>
                         </div>
                     </div>

@@ -60,14 +60,6 @@
         
         <!-- Utility Toolbar -->
         <div class="p-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">عرض:</label>
-            <select v-model.number="limit" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none bg-white">
-              <option :value="10">10 طلبات</option>
-              <option :value="20">20 طلب</option>
-              <option :value="50">50 طلب</option>
-            </select>
-          </div>
           <p class="text-[10px] font-medium text-slate-400 italic">يتم التحديث تلقائياً كل {{ POLL_INTERVAL / 1000 }} ثانية</p>
         </div>
 
@@ -151,10 +143,14 @@
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             صفحة <span class="text-slate-900">{{ page }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ total }}</span> طلب معلق
           </div>
-          <div class="flex items-center gap-1">
-            <button @click="page = Math.max(1, page - 1)" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-            <button @click="page = Math.min(totalPages, page + 1)" :disabled="page >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1">
+              <button @click="page = Math.max(1, page - 1)" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+              <button @click="page = Math.min(totalPages, page + 1)" :disabled="page >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+            </div>
           </div>
         </div>
       </div>
@@ -614,7 +610,7 @@ watch(limit, () => { page.value = 1; fetchPending() })
 .metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1; }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }

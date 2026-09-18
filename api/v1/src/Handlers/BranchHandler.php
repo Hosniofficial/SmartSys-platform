@@ -263,7 +263,17 @@ class BranchHandler extends BaseHandler
             }
 
             $this->db->commit();
-            return $this->jsonResponse($response, ['status' => 'success', 'message' => 'Branch updated successfully']);
+
+            // ✅ Fetch and return the updated branch data
+            $stmt = $this->db->prepare(
+                "SELECT id, name, location, phone, email, description, active, account_id, cost_center_id, created_at, updated_at
+                 FROM branches
+                 WHERE id = ? AND tenant_id = ?"
+            );
+            $stmt->execute([$args['id'], $tenantId]);
+            $updatedBranch = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            return $this->successResponse($response, $updatedBranch, 200, 'Branch updated successfully');
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();

@@ -177,9 +177,9 @@
             <i :class="[selectedBranch ? 'fas fa-edit' : 'fas fa-plus', 'text-xs']"></i>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">{{ selectedBranch ? 'تحديث بيانات الموقع' : 'إضافة فرع / مستودع' }}</h3>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">إدارة البنية التحتية للمخازن</p>
-          </div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">{{ selectedBranch ? 'تحديث بيانات الفرع / المستودع' : 'إضافة فرع / مستودع' }}</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">إدارة وتعديل الفروع والمستودعات</p>
+			</div>
         </div>
       </template>
       <BranchForm :branch="selectedBranch" @success="handleFormSuccess" @cancel="showFormModal = false" />
@@ -257,16 +257,16 @@ const handleFormSuccess = () => { showFormModal.value = false; fetchBranches(); 
 const goToPage = (page) => { if (page >= 1 && page <= totalPages.value) currentPage.value = page; };
 
 const handleDelete = async (branchId) => {
-  if (await AlertService.confirm('Are you sure you want to delete this branch? It will be disabled in the system.', 'Delete Branch')) {
+  if (await AlertService.confirm('هل أنت متأكد من حذف هذا الفرع؟ سيتم تعطيله في النظام.', 'حذف الفرع')) {
     try {
       const response = await branchStore.deleteBranch(branchId);
       if (response.status === 'success') {
-        showToast('Branch deleted successfully', 'success');
+        showToast('تم حذف الفرع بنجاح', 'success');
       } else {
-        showToast(response.message || 'Failed to delete branch', 'error');
+        showToast(response.message || 'فشل في حذف الفرع', 'error');
       }
     } catch (error) {
-      showToast(error.response?.data?.message || 'Failed to delete branch', 'error');
+      showToast(error.response?.data?.message || 'فشل في حذف الفرع', 'error');
     }
   }
 };

@@ -136,9 +136,9 @@
             { model: 'has_batch_number', label: 'رقم الدفعة', icon: 'fa-layer-group' },
             { model: 'has_serial_number', label: 'رقم تسلسلي', icon: 'fa-barcode' }
           ]" :key="opt.model" class="cursor-pointer group">
-            <input type="checkbox" v-model="form[opt.model]" class="hidden" />
-            <div class="px-4 py-3 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center gap-3 transition-all group-hover:bg-white" :class="{'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-900/10': form[opt.model]}">
-              <i :class="['fas', opt.icon, 'text-xs opacity-50', {'opacity-100': form[opt.model]}]"></i>
+            <input type="checkbox" v-model="form[opt.model]" class="sr-only peer" />
+            <div class="px-4 py-3 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center gap-3 transition-all peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 peer-checked:shadow-lg peer-checked:shadow-blue-900/10 group-hover:bg-white">
+              <i :class="['fas', opt.icon, 'text-xs opacity-50 peer-checked:opacity-100']"></i>
               <span class="text-[10px] font-bold uppercase tracking-tight">{{ opt.label }}</span>
             </div>
           </label>
@@ -147,9 +147,12 @@
         <!-- Conditional Input Grid -->
         <transition name="slide-down">
           <div v-if="form.has_expiry_date || form.has_batch_number || form.has_serial_number" class="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 bg-slate-50 border border-slate-100 rounded-xl">
-             <div v-if="form.has_expiry_date" class="space-y-1.5 animate-fadeIn">
+             <div v-if="form.has_expiry_date" class="space-y-1.5 animate-fadeIn group">
                <label class="text-[10px] font-bold text-blue-600 uppercase">صلاحية افتراضية</label>
-               <input type="date" v-model="form.expiry_date" class="form-input-v3 h-9 font-mono" />
+               <div class="relative">
+                 <input ref="expiryDateRef" type="date" v-model="form.expiry_date" class="form-input-v3 h-9 font-mono w-full" style="padding-left: 2rem;" />
+                 <i @click="expiryDateRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 cursor-pointer hover:text-blue-500 transition-colors text-[10px]"></i>
+               </div>
              </div>
              <div v-if="form.has_batch_number" class="space-y-1.5 animate-fadeIn">
                <label class="text-[10px] font-bold text-blue-600 uppercase">الدفعة (Batch)</label>

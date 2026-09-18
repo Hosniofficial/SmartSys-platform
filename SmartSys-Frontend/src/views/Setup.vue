@@ -158,12 +158,11 @@
 
               <!-- Inline Quick Add Form -->
               <div class="p-6 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/30 space-y-6">
-                <h3 class="text-xs font-bold text-slate-600 uppercase tracking-widest"><i class="fas fa-plus-circle ml-1"></i> تعريف فرع / مستودع جديد</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <h3 class="text-xs font-bold text-slate-600 uppercase tracking-widest"><i class="fas fa-plus-circle ml-1"></i>إضافة فرع / مستودع</h3>                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div class="space-y-1.5"><label class="metadata-label">اسم الفرع</label><input v-model="formData.branch.name" type="text" class="setup-input h-9" placeholder="مثال: الفرع الرئيسي" /></div>
-                  <div class="space-y-1.5"><label class="metadata-label">الموقع الجغرافي</label><input v-model="formData.branch.location" type="text" class="setup-input h-9" /></div>
-                  <div class="space-y-1.5"><label class="metadata-label">رقم الهاتف</label><input v-model="formData.branch.phone" type="tel" class="setup-input h-9 font-mono" placeholder="05xxxxxxxx" /></div>
-                  <div class="space-y-1.5"><label class="metadata-label">البريد الإلكتروني</label><input v-model="formData.branch.email" type="email" class="setup-input h-9" placeholder="branch@example.com" /></div>
+                  <div class="space-y-1.5"><label class="metadata-label">الموقع الجغرافي / العنوان</label><input v-model="formData.branch.location" type="text" class="setup-input h-9" placeholder="المدينة، الحي، رقم المبنى..." /></div>
+                  <div class="space-y-1.5"><label class="metadata-label">هاتف التواصل</label><input v-model="formData.branch.phone" type="tel" class="setup-input h-9 font-mono" placeholder="010xxxxxxxx" /></div>
+                  <div class="space-y-1.5"><label class="metadata-label">البريد الإلكتروني</label><input v-model="formData.branch.email" type="email" class="setup-input h-9" placeholder="example@company.com" /></div>
                 </div>
               </div>
             </div>

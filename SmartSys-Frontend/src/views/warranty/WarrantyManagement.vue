@@ -173,102 +173,102 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- Create Warranty Modal: Standard SaaS Form -->
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <transition name="fade">
-      <div v-if="showCreate" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        <div class="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn flex flex-col max-h-[90vh]">
-          <div class="px-8 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white"><i class="fas fa-plus text-xs"></i></div>
-              <h3 class="text-sm font-bold text-slate-900 uppercase">فتح تذكرة ضمان جديدة</h3>
-            </div>
-            <button @click="showCreate = false; resetForm()" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times text-lg"></i></button>
-          </div>
-
-          <div class="p-8 overflow-y-auto custom-scroll space-y-10">
-            <!-- Step 1: Customer & Invoice Info -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div class="space-y-6">
-                <div class="space-y-1.5 relative">
-                  <label class="metadata-label">العميل المستهدف <span class="text-rose-500">*</span></label>
-                  <div class="relative group">
-                    <input v-model="customerQuery" type="text" class="filter-input-v2 h-10 font-bold pr-9" placeholder="ابحث بالاسم أو الهاتف..." @input="debouncedCustomerSearch(customerQuery)" @focus="showCustomerDropdown = true; debouncedCustomerSearch(customerQuery)" @blur="scheduleHideCustomerDropdown" />
-                    <i class="fas fa-user-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
-                    
-                    <div v-if="showCustomerDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto py-2">
-                      <div v-if="customerSearchResults.length === 0" class="px-4 py-2 text-[10px] text-slate-400 font-bold">{{ customerQuery.length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
-                      <li v-for="c in customerSearchResults" :key="c.id" @mousedown.prevent="selectCustomer(c)" class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 list-none transition-colors">
-                        <p class="text-xs font-bold text-slate-800">{{ c.name }}</p>
-                        <p class="text-[9px] text-slate-400 font-mono">{{ c.phone || c.email || c.id }}</p>
-                      </li>
-                    </div>
-                  </div>
-                  <p v-if="errors.customer_id" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.customer_id }}</p>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="space-y-1.5"><label class="metadata-label">الرقم التسلسلي (SN)</label><input v-model="form.product_serial" type="text" class="filter-input-v2 h-10 font-mono uppercase" placeholder="SN-00000" /></div>
-                  <div class="space-y-1.5"><label class="metadata-label">تاريخ الشراء</label><input ref="purchaseDateRef" v-model="form.purchase_date" type="date" class="filter-input-v2 h-10 font-mono" /></div>
-                </div>
-              </div>
-
-              <div class="space-y-6">
-                <div class="space-y-1.5"><label class="metadata-label">أولوية المعالجة <span class="text-rose-500">*</span></label><select v-model="form.priority" class="filter-input-v2 h-10 font-bold"><option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="urgent">عاجل</option></select><p v-if="errors.priority" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.priority }}</p></div>
-                <div class="space-y-1.5"><label class="metadata-label">الفاتورة المرجعية</label><input v-model="form.invoice_id" type="text" class="filter-input-v2 h-10 font-mono" placeholder="INV-0000" /></div>
-              </div>
-            </div>
-
-            <!-- Step 2: Description -->
-            <div class="space-y-1.5">
-              <label class="metadata-label">تفاصيل المشكلة والعطل <span class="text-rose-500">*</span></label>
-              <textarea v-model="form.issue_description" rows="3" class="w-full rounded-lg border border-slate-200 p-4 text-xs font-bold bg-slate-50 focus:bg-white transition-all outline-none" placeholder="صف العطل الفني بدقة..."></textarea>
-              <p v-if="errors.issue_description" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.issue_description }}</p>
-            </div>
-
-            <!-- Step 3: Dynamic Items -->
-            <div class="space-y-4 pt-4 border-t border-slate-100">
-              <div class="flex items-center justify-between">
-                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">العناصر المشمولة في الطلب</h4>
-                <button type="button" @click="addItem" class="h-7 px-4 bg-slate-900 text-white rounded text-[10px] font-bold hover:bg-black transition-all">+ إضافة عنصر</button>
-              </div>
-
-              <div class="space-y-3">
-                <div v-for="(it, idx) in form.items" :key="idx" class="p-4 bg-slate-50 rounded-xl border border-slate-200 relative group transition-all hover:bg-white">
-                  <button v-if="form.items.length > 1" @click="removeItem(idx)" class="absolute -left-2 -top-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg"><i class="fas fa-times text-[8px]"></i></button>
-                  <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div class="md:col-span-6 relative">
-                      <input v-model="it._productQuery" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold" :class="{'border-rose-300': itemErrors[idx]?.product_id}" placeholder="بحث عن الصنف..." @input="debouncedProductSearch(idx, it._productQuery)" @focus="it._showProductDropdown = true; if (it._productQuery) debouncedProductSearch(idx, it._productQuery)" @blur="scheduleHideProductDropdown(it)" />
-                      <div v-if="it._showProductDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-auto py-1">
-                        <div v-if="(it._productResults || []).length === 0" class="px-3 py-2 text-[10px] text-slate-400 font-bold">{{ (it._productQuery || '').length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
-                        <li v-for="p in it._productResults" :key="p.id" @mousedown.prevent="selectProduct(idx, p)" class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-[10px] font-bold border-b border-slate-50 last:border-0 list-none">{{ p.name }}</li>
-                      </div>
-                      <p v-if="itemErrors[idx]?.product_id" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].product_id }}</p>
-                    </div>
-                    <div class="md:col-span-2">
-                      <input v-model.number="it.quantity" type="number" class="h-9 w-full bg-white border border-slate-200 rounded-md text-center font-bold text-[11px]" :class="{'border-rose-300': itemErrors[idx]?.quantity}" min="1" @change="validateItem(idx)" />
-                      <p v-if="itemErrors[idx]?.quantity" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].quantity }}</p>
-                    </div>
-                    <div class="md:col-span-4">
-                      <input v-model="it.issue_notes" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-medium italic" placeholder="ملاحظات الصنف..." />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p v-if="errors.items" class="text-[9px] text-rose-500 font-bold px-1 mt-2">{{ errors.items }}</p>
-            </div>
-          </div>
-
-          <div class="px-8 py-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 shrink-0">
-            <button @click="showCreate = false; resetForm()" class="px-6 h-10 text-xs font-bold text-slate-500">إلغاء</button>
-            <button @click="createWarranty" :disabled="creating || !isFormValid" class="px-10 h-10 bg-blue-600 text-white rounded-md text-xs font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center gap-2">
-              <BaseSpinner v-if="creating" size="16" color="#fff" />
-              <span>تسجيل طلب الضمان</span>
-            </button>
+    <!-- Create Warranty Modal: Using BaseModal -->
+    <BaseModal :show="showCreate" @close="showCreate = false; resetForm()" maxWidth="4xl">
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white"><i class="fas fa-plus text-xs"></i></div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">فتح تذكرة ضمان جديدة</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">تسجيل طلب صيانة وضمان جديد</p>
           </div>
         </div>
+      </template>
+
+      <!-- Content -->
+      <div class="space-y-10">
+        <!-- Step 1: Customer & Invoice Info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="space-y-6">
+            <div class="space-y-1.5 relative">
+              <label class="metadata-label">العميل المستهدف <span class="text-rose-500">*</span></label>
+              <div class="relative group">
+                <input v-model="customerQuery" type="text" class="filter-input-v2 h-10 font-bold pr-9" placeholder="ابحث بالاسم أو الهاتف..." @input="debouncedCustomerSearch(customerQuery)" @focus="showCustomerDropdown = true; debouncedCustomerSearch(customerQuery)" @blur="scheduleHideCustomerDropdown" />
+                <i class="fas fa-user-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                
+                <div v-if="showCustomerDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto py-2">
+                  <div v-if="customerSearchResults.length === 0" class="px-4 py-2 text-[10px] text-slate-400 font-bold">{{ customerQuery.length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
+                  <li v-for="c in customerSearchResults" :key="c.id" @mousedown.prevent="selectCustomer(c)" class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 list-none transition-colors">
+                    <p class="text-xs font-bold text-slate-800">{{ c.name }}</p>
+                    <p class="text-[9px] text-slate-400 font-mono">{{ c.phone || c.email || c.id }}</p>
+                  </li>
+                </div>
+              </div>
+              <p v-if="errors.customer_id" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.customer_id }}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1.5"><label class="metadata-label">الرقم التسلسلي (SN)</label><input v-model="form.product_serial" type="text" class="filter-input-v2 h-10 font-mono uppercase" placeholder="SN-00000" /></div>
+              <div class="space-y-1.5"><label class="metadata-label">تاريخ الشراء</label><input ref="purchaseDateRef" v-model="form.purchase_date" type="date" class="filter-input-v2 h-10 font-mono" /></div>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="space-y-1.5"><label class="metadata-label">أولوية المعالجة <span class="text-rose-500">*</span></label><select v-model="form.priority" class="filter-input-v2 h-10 font-bold"><option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="urgent">عاجل</option></select><p v-if="errors.priority" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.priority }}</p></div>
+            <div class="space-y-1.5"><label class="metadata-label">الفاتورة المرجعية</label><input v-model="form.invoice_id" type="text" class="filter-input-v2 h-10 font-mono" placeholder="INV-0000" /></div>
+          </div>
+        </div>
+
+        <!-- Step 2: Description -->
+        <div class="space-y-1.5">
+          <label class="metadata-label">تفاصيل المشكلة والعطل <span class="text-rose-500">*</span></label>
+          <textarea v-model="form.issue_description" rows="3" class="w-full rounded-lg border border-slate-200 p-4 text-xs font-bold bg-slate-50 focus:bg-white transition-all outline-none" placeholder="صف العطل الفني بدقة..."></textarea>
+          <p v-if="errors.issue_description" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.issue_description }}</p>
+        </div>
+
+        <!-- Step 3: Dynamic Items -->
+        <div class="space-y-4 pt-4 border-t border-slate-100">
+          <div class="flex items-center justify-between">
+            <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">العناصر المشمولة في الطلب</h4>
+            <button type="button" @click="addItem" class="h-7 px-4 bg-slate-900 text-white rounded text-[10px] font-bold hover:bg-black transition-all">+ إضافة عنصر</button>
+          </div>
+
+          <div class="space-y-3">
+            <div v-for="(it, idx) in form.items" :key="idx" class="p-4 bg-slate-50 rounded-xl border border-slate-200 relative group transition-all hover:bg-white">
+              <button v-if="form.items.length > 1" @click="removeItem(idx)" class="absolute -left-2 -top-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg"><i class="fas fa-times text-[8px]"></i></button>
+              <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div class="md:col-span-6 relative">
+                  <input v-model="it._productQuery" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold" :class="{'border-rose-300': itemErrors[idx]?.product_id}" placeholder="بحث عن الصنف..." @input="debouncedProductSearch(idx, it._productQuery)" @focus="it._showProductDropdown = true; if (it._productQuery) debouncedProductSearch(idx, it._productQuery)" @blur="scheduleHideProductDropdown(it)" />
+                  <div v-if="it._showProductDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-auto py-1">
+                    <div v-if="(it._productResults || []).length === 0" class="px-3 py-2 text-[10px] text-slate-400 font-bold">{{ (it._productQuery || '').length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
+                    <li v-for="p in it._productResults" :key="p.id" @mousedown.prevent="selectProduct(idx, p)" class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-[10px] font-bold border-b border-slate-50 last:border-0 list-none">{{ p.name }}</li>
+                  </div>
+                  <p v-if="itemErrors[idx]?.product_id" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].product_id }}</p>
+                </div>
+                <div class="md:col-span-2">
+                  <input v-model.number="it.quantity" type="number" class="h-9 w-full bg-white border border-slate-200 rounded-md text-center font-bold text-[11px]" :class="{'border-rose-300': itemErrors[idx]?.quantity}" min="1" @change="validateItem(idx)" />
+                  <p v-if="itemErrors[idx]?.quantity" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].quantity }}</p>
+                </div>
+                <div class="md:col-span-4">
+                  <input v-model="it.issue_notes" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-medium italic" placeholder="ملاحظات الصنف..." />
+                </div>
+              </div>
+            </div>
+          </div>
+          <p v-if="errors.items" class="text-[9px] text-rose-500 font-bold px-1 mt-2">{{ errors.items }}</p>
+        </div>
       </div>
-    </transition>
+
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button @click="showCreate = false; resetForm()" class="px-6 h-10 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إلغاء</button>
+          <button @click="createWarranty" :disabled="creating || !isFormValid" class="px-10 h-10 bg-blue-600 text-white rounded-md text-xs font-bold shadow-lg shadow-blue-900/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2">
+            <BaseSpinner v-if="creating" size="16" color="#fff" />
+            <span>تسجيل طلب الضمان</span>
+          </button>
+        </div>
+      </template>
+    </BaseModal>
 
     <!-- ═══════════════════════════════════════════════════════ -->
     <!-- Details Modal: Activity Feed Architecture -->
@@ -417,6 +417,7 @@ import { useProductStore } from '@/stores/product/productStore';
 import { useToast } from '@/composables/useToast';
 import AlertService from '@/services/AlertService';
 import BaseSpinner from '@/components/ui/BaseSpinner.vue';
+import BaseModal from '@/components/BaseModal.vue';
 // BUG 2 FIX: removed duplicate semicolon
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import { useWarrantyStore } from '@/stores/warranty/warrantyStore';

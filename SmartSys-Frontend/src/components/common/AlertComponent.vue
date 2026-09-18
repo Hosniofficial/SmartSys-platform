@@ -1,83 +1,96 @@
 <template>
   <teleport to="body">
-    <div v-if="isVisible" class="fixed inset-0 z-50 flex items-center justify-center">
-      <!-- Backdrop -->
+    <div v-if="isVisible" class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      
+      <!-- Backdrop Layer -->
       <div 
-        class="absolute inset-0 bg-black transition-opacity duration-300"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200"
         :class="backdropOpacity"
         @click="handleBackdropClick"
       ></div>
       
-      <!-- Alert Modal -->
+      <!-- Alert Modal Card -->
       <div 
-        class="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 transform transition-all duration-300"
+        class="relative bg-white border border-slate-200 rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all duration-200 font-sans antialiased text-slate-900"
         :class="modalScale"
+        dir="rtl"
+        role="dialog"
+        aria-modal="true"
       >
-        <!-- Icon and Title -->
-        <div class="flex items-start p-6">
-          <div class="flex-shrink-0">
-            <!-- Success Icon -->
-            <div v-if="type === 'success'" class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-              </svg>
+        <!-- Modal Content Area -->
+        <div class="p-6">
+          <div class="flex items-start gap-4">
+            
+            <!-- Type Icon Container -->
+            <div class="shrink-0">
+              <!-- Success Icon -->
+              <div v-if="type === 'success'" class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center text-sm shadow-sm">
+                <i class="fas fa-check"></i>
+              </div>
+              
+              <!-- Warning Icon -->
+              <div v-else-if="type === 'warning'" class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center text-sm shadow-sm">
+                <i class="fas fa-triangle-exclamation"></i>
+              </div>
+              
+              <!-- Error Icon -->
+              <div v-else-if="type === 'error'" class="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center text-sm shadow-sm">
+                <i class="fas fa-xmark text-base"></i>
+              </div>
+              
+              <!-- Info Icon -->
+              <div v-else-if="type === 'info'" class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center text-sm shadow-sm">
+                <i class="fas fa-circle-info"></i>
+              </div>
+              
+              <!-- Question / Confirm Icon -->
+              <div v-else-if="type === 'confirm'" class="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center text-sm shadow-sm">
+                <i class="fas fa-circle-question"></i>
+              </div>
             </div>
             
-            <!-- Warning Icon -->
-            <div v-else-if="type === 'warning'" class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-              </svg>
+            <!-- Title & Message -->
+            <div class="flex-1 space-y-1 pt-0.5">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-bold text-slate-900 leading-snug" v-if="title">
+                  {{ title }}
+                </h3>
+                <span :class="badgeTypeClass" class="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono uppercase tracking-wider border">
+                  {{ type }}
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 font-medium leading-relaxed" v-if="message">
+                {{ message }}
+              </p>
             </div>
-            
-            <!-- Error Icon -->
-            <div v-else-if="type === 'error'" class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </div>
-            
-            <!-- Info Icon -->
-            <div v-else-if="type === 'info'" class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            
-            <!-- Question Icon (Confirm) -->
-            <div v-else-if="type === 'confirm'" class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-          </div>
-          
-          <!-- Content -->
-          <div class="mr-4 flex-1">
-            <h3 class="text-lg font-medium text-gray-900" v-if="title">{{ title }}</h3>
-            <p class="mt-2 text-sm text-gray-600" v-if="message">{{ message }}</p>
+
           </div>
         </div>
         
-        <!-- Actions -->
-        <div class="bg-gray-50 px-6 py-3 flex flex-row-reverse gap-3">
+        <!-- Actions Footer -->
+        <div class="px-6 py-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <!-- Cancel Button -->
           <button
-            v-if="type === 'confirm'"
+            type="button"
+            @click="handleCancel"
+            class="h-9 px-4 rounded-md border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 active:scale-95 transition-all shadow-sm flex items-center justify-center"
+            :class="cancelButtonClass"
+          >
+            {{ cancelText || (type === 'confirm' ? 'إلغاء' : 'إغلاق') }}
+          </button>
+
+          <!-- Confirm Button -->
+          <button
+            v-if="type === 'confirm' || confirmText"
+            type="button"
             @click="handleConfirm"
-            class="btn btn-primary"
+            class="h-9 px-4 rounded-md text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1.5"
             :class="confirmButtonClass"
           >
             {{ confirmText || 'تأكيد' }}
           </button>
-          
-          <button
-            @click="handleCancel"
-            class="btn"
-            :class="cancelButtonClass"
-          >
-            {{ cancelText || (type === 'confirm' ? 'إلغاء' : 'موافق') }}
-          </button>
         </div>
+
       </div>
     </div>
   </teleport>
@@ -129,7 +142,7 @@ const animationState = ref('enter')
 
 // Computed classes for animations
 const backdropOpacity = computed(() => {
-  return animationState.value === 'enter' ? 'opacity-0' : 'opacity-50'
+  return animationState.value === 'enter' ? 'opacity-0' : 'opacity-100'
 })
 
 const modalScale = computed(() => {
@@ -145,25 +158,38 @@ const modalScale = computed(() => {
   }
 })
 
+// Design system buttons classes
 const confirmButtonClass = computed(() => {
   switch (props.type) {
     case 'error':
-      return 'btn-danger'
+      return 'bg-rose-600 text-white hover:bg-rose-700'
     case 'warning':
-      return 'btn-warning'
+      return 'bg-amber-500 text-white hover:bg-amber-600'
+    case 'success':
+      return 'bg-emerald-600 text-white hover:bg-emerald-700'
+    case 'confirm':
+      return 'bg-slate-900 text-white hover:bg-black'
     default:
-      return 'btn-primary'
+      return 'bg-blue-600 text-white hover:bg-blue-700'
   }
 })
 
 const cancelButtonClass = computed(() => {
+  return ''
+})
+
+const badgeTypeClass = computed(() => {
   switch (props.type) {
-    case 'success':
-      return 'btn-success'
     case 'error':
-      return 'btn-outline'
+      return 'bg-rose-50 text-rose-600 border-rose-100'
+    case 'warning':
+      return 'bg-amber-50 text-amber-600 border-amber-100'
+    case 'success':
+      return 'bg-emerald-50 text-emerald-600 border-emerald-100'
+    case 'confirm':
+      return 'bg-slate-100 text-slate-700 border-slate-200'
     default:
-      return 'btn-outline'
+      return 'bg-blue-50 text-blue-600 border-blue-100'
   }
 })
 
@@ -173,7 +199,7 @@ watch(() => props.isVisible, (newValue) => {
     animationState.value = 'enter'
     setTimeout(() => {
       animationState.value = 'active'
-    }, 50)
+    }, 30)
   } else {
     animationState.value = 'exit'
   }
@@ -200,7 +226,7 @@ const closeAlert = () => {
   animationState.value = 'exit'
   setTimeout(() => {
     emit('close')
-  }, 300)
+  }, 200)
 }
 
 // Keyboard support
@@ -209,7 +235,7 @@ const handleKeydown = (event) => {
   
   if (event.key === 'Escape') {
     handleCancel()
-  } else if (event.key === 'Enter' && props.type === 'confirm') {
+  } else if (event.key === 'Enter' && (props.type === 'confirm' || props.confirmText)) {
     handleConfirm()
   }
 }
@@ -224,28 +250,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Custom animations */
 .transform {
   transition-property: transform, opacity;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Ensure proper z-index stacking */
-.fixed {
-  z-index: 9999;
-}
-
-/* Button focus styles */
-.btn:focus {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-}
-
-/* RTL support */
-@media (direction: rtl) {
-  .flex-row-reverse {
-    flex-direction: row-reverse;
-  }
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 </style>

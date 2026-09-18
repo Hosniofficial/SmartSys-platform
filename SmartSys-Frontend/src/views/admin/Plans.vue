@@ -153,7 +153,19 @@
                 <td class="px-4 py-4 text-center">
                   <label class="relative inline-flex items-center cursor-pointer" :class="{'opacity-40 cursor-not-allowed': p.code === 'trial'}">
                     <input type="checkbox" v-model="p.is_active" :true-value="1" :false-value="0" class="sr-only peer" :disabled="p.code === 'trial'">
-                    <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    <div 
+                      @click="p.code !== 'trial' && (p.is_active = p.is_active ? 0 : 1)"
+                      :class="[
+                        p.is_active ? 'bg-emerald-500' : 'bg-slate-200',
+                        p.code === 'trial' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                      ]"
+                      class="w-8 h-4 rounded-full transition-colors duration-200 relative overflow-hidden"
+                    >
+                      <span
+                        :class="p.is_active ? 'left-0.5' : 'right-0.5'"
+                        class="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all duration-200"
+                      ></span>
+                    </div>
                   </label>
                 </td>
                 <td class="px-6 py-4 text-center">

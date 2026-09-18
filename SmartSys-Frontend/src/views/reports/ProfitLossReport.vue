@@ -65,7 +65,16 @@
               </div>
               <div class="relative inline-flex items-center">
                 <input type="checkbox" v-model="compareEnabled" class="sr-only peer" />
-                <div class="w-9 h-5 bg-white/10 rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                <div 
+                  @click="compareEnabled = !compareEnabled"
+                  :class="compareEnabled ? 'bg-blue-500' : 'bg-white/10'"
+                  class="w-9 h-5 rounded-full cursor-pointer transition-colors duration-200 relative overflow-hidden"
+                >
+                  <span
+                    :class="compareEnabled ? 'left-0.5' : 'right-0.5'"
+                    class="absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-all duration-200"
+                  ></span>
+                </div>
               </div>
             </label>
           </div>

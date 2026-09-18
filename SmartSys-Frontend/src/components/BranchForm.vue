@@ -3,18 +3,19 @@
       
       <!-- Row 1: Branch Name -->
       <div class="space-y-1.5 group">
-        <label for="branch-name" class="metadata-label">اسم الفرع الرسمي <span class="text-rose-500">*</span></label>
+        <label for="branch-name" class="metadata-label">اسم الفرع<span class="text-rose-500">*</span></label>
         <div class="relative">
           <input 
             type="text" 
             id="branch-name" 
             v-model="form.name" 
-            class="form-input-v3 pr-10 font-bold" 
+            class="form-input-v3 font-bold" 
+            style="padding-right: 2rem;"
             :class="{'border-rose-400 focus:ring-rose-500/10': serverErrors.name}"
-            placeholder="مثال: مستودع المنطقة الوسطى" 
+            placeholder="مثال: الفرع الرئيسي" 
             required
           >
-          <i class="fas fa-store absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
+          <i class="fas fa-store absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
         </div>
         <p v-if="serverErrors.name" class="text-[10px] text-rose-500 font-bold px-1">{{ serverErrors.name[0] }}</p>
       </div>
@@ -27,10 +28,11 @@
             type="text" 
             id="branch-location" 
             v-model="form.location" 
-            class="form-input-v3 pr-10"
+            class="form-input-v3"
+            style="padding-right: 2rem;"
             placeholder="المدينة، الحي، رقم المبنى..."
           >
-          <i class="fas fa-map-marker-alt absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
+          <i class="fas fa-map-marker-alt absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
         </div>
         <p v-if="serverErrors.location" class="text-[10px] text-rose-500 font-bold px-1">{{ serverErrors.location[0] }}</p>
       </div>
@@ -44,10 +46,11 @@
               type="tel"
               id="branch-phone"
               v-model="form.phone"
-              class="form-input-v3 pr-10 font-mono tracking-tighter"
-              placeholder="05xxxxxxxx"
+              class="form-input-v3 font-mono tracking-tighter"
+              style="padding-right: 2rem;"
+              placeholder="01xxxxxxxx"
             >
-            <i class="fas fa-phone absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
+            <i class="fas fa-phone absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
           </div>
         </div>
 
@@ -58,10 +61,11 @@
               type="email"
               id="branch-email"
               v-model="form.email"
-              class="form-input-v3 pr-10"
+              class="form-input-v3"
+              style="padding-right: 2rem;"
               placeholder="example@company.com"
             >
-            <i class="fas fa-envelope absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
+            <i class="fas fa-envelope absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors text-[10px]"></i>
           </div>
         </div>
       </div>
@@ -73,9 +77,15 @@
             <p class="text-xs font-bold text-slate-900 uppercase tracking-tight">حالة التشغيل الحالية</p>
             <p class="text-[10px] text-slate-400 font-medium">تفعيل أو إيقاف استقبال العمليات لهذا الفرع</p>
           </div>
-          <div class="relative inline-flex items-center">
-            <input type="checkbox" id="branch-active" v-model="form.is_active" class="sr-only peer">
-            <div class="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+          <div
+            @click="form.is_active = !form.is_active"
+            :class="form.is_active ? 'bg-blue-600' : 'bg-slate-200'"
+            class="w-10 h-5 rounded-full cursor-pointer transition-colors duration-200 relative overflow-hidden"
+          >
+            <span
+              :class="form.is_active ? 'left-0.5' : 'right-0.5'"
+              class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+            ></span>
           </div>
         </label>
       </div>
@@ -108,7 +118,7 @@ const props = defineProps({
   branch: { type: Object, default: null }
 });
 
-const emit = defineEmits(['close', 'success']);
+const emit = defineEmits(['close', 'cancel', 'success']);
 const { showToast } = useToast();
 const branchStore = useBranchStore();
 
@@ -158,7 +168,7 @@ const handleSubmit = async () => {
   }
 };
 
-const closeModal = () => emit('close');
+const closeModal = () => emit('cancel');
 </script>
 
 <style scoped>

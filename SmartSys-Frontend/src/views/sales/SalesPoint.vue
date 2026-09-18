@@ -75,7 +75,7 @@
 
               <!-- Branch Selector (Admins/Managers) -->
               <div v-if="[1, 2, 3].includes(authStore.user?.role_id)" class="sm:col-span-3 relative">
-                <select v-model="selectedBranch" @change="debouncedSearch" class="filter-input appearance-none font-mono" style="padding-right: 2rem;">
+                <select v-model="selectedBranch" @change="debouncedSearch" class="filter-input appearance-none" style="padding-right: 2rem;">
                   <option disabled :value="null">-- اختر الفرع --</option>
                   <option v-for="wh in branchStore.branches" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
                 </select>
@@ -959,10 +959,6 @@ const dlog = (level, ...args) => {
 
 // --- branches & Terminals ---
 const branches = computed(() => branchStore.branches);
-const selectedBranch = computed({
-  get: () => branchStore.selectedBranchId,
-  set: (val) => branchStore.setSelectedBranch(val)
-});
 const terminals = ref([]);
 const selectedTerminalId = ref('');
 
@@ -1736,25 +1732,38 @@ const handleVoucherRecorded = async () => {
 watch(finalTotal, (v) => { if (!requireApproval.value) { const pm = Number(selectedPaymentMethod.value); const method = (paymentMethods.value || []).find(m => Number(m.id) === pm); if (method?.kind !== 'credit') actualPaidAmount.value = parseFloat(v.toFixed(2)); } });
 watch(selectedPaymentMethod, (newVal) => { if (!newVal) return; const pm = Number(newVal); const method = (paymentMethods.value || []).find(m => Number(m.id) === pm); if (method?.kind === 'credit') actualPaidAmount.value = 0; else if (!requireApproval.value) actualPaidAmount.value = parseFloat(finalTotal.value.toFixed(2)); });
 watch(requireApproval, (v) => { actualPaidAmount.value = v ? 0 : parseFloat(finalTotal.value.toFixed(2)); });
-watch(selectedBranch, async (newVal, oldVal) => {
-  if (!newVal || !settingsLoaded.value) return;
-  // تحديث الـ flag عند تغيير الفرع يدويًا
-  userChoseBranch.value = true;
+// ✅ معالج تغيير الفرع (متطابق مع SalesHistory pattern)
+const handleBranchChange = async (newBranchId) => {
+  if (!settingsLoaded.value || !newBranchId) return;
+  
+  const oldBranchId = branchStore.selectedBranchId;
+  
   // تحذير لو في فاتورة مفتوحة عند تغيير المخزن
-  if (oldVal && invoice.value.length > 0) {
+  if (oldBranchId && newBranchId !== oldBranchId && invoice.value.length > 0) {
     const confirmed = window.confirm(
       `لديك ${invoice.value.length} منتج في الفاتورة الحالية.\nتغيير المخزن سيمسح الفاتورة. هل تريد المتابعة؟`
     );
     if (!confirmed) {
-      branchStore.setSelectedBranch(oldVal);
       return;
     }
     resetInvoiceState();
   }
+  
+  // ✅ حفظ الاختيار بشكل دائم
+  branchStore.setSelectedBranch(newBranchId);
+  // ✅ تحديث flag الاختيار اليدوي
+  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId !== 'all');
+  
   sessionLimitReached.value = false;
-  // Branch persistence handled by unified store
+  // 🔄 إعادة تحميل كل البيانات المرتبطة بالفرع
   await Promise.all([fetchTerminals(), refreshSession(), loadInitial()]);
   debouncedSearch();
+};
+
+// ✅ الـ selector الحسوب يستخدم handleBranchChange عند التغيير
+const selectedBranch = computed({
+  get: () => branchStore.selectedBranchId,
+  set: (val) => handleBranchChange(val)
 });
 watch(selectedPaymentMethod, (v) => { try { localStorage.setItem('pos_selectedPaymentMethod', v || ''); } catch {} });
 watch(discountType, (v) => { try { localStorage.setItem('pos_discountType', v || ''); } catch {} });
