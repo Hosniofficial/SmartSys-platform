@@ -662,7 +662,7 @@ class AdminSubscriptionHandler extends BaseHandler
                     billing_cycle_days,
                     is_active
                 FROM plans
-                ORDER BY FIELD(code, 'trial', 'monthly', 'yearly'), name
+                ORDER BY FIELD(code, 'trial', 'promo_3months', 'monthly', 'yearly'), name
             ");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 

@@ -252,7 +252,13 @@ async function loadPlans() {
     })
     
     if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
-      plans.value = response.data.data
+      // Filter out trial and promotional plans (only paid plans)
+      const filteredPlans = response.data.data.filter(p => 
+        !p.code.toLowerCase().includes('trial') && 
+        !p.code.toLowerCase().includes('promo') &&
+        parseFloat(p.price) > 0
+      )
+      plans.value = filteredPlans.length > 0 ? filteredPlans : response.data.data
       if (import.meta.env.DEV) {
         console.log('[Upgrade Page] Loaded plans from API:', plans.value.length)
       }

@@ -13,8 +13,11 @@
       
       <!-- Page Header -->
       <PageHeader
+        :breadcrumb="breadcrumb"
         title="إدارة خطط الاشتراك"
         description="تخصيص الباقات، الأسعار، ودورات الفوترة للنظام."
+        :branches="[]"
+        :selectedBranch="null"
       >
         <template #controls>
           <div class="flex items-center gap-2">
@@ -53,7 +56,7 @@
         <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
           <div>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">الخطط النشطة</p>
-            <p class="text-2xl font-bold font-mono tracking-tighter text-emerald-600">{{ plans.filter(p => p.is_active).length }}</p>
+            <p class="text-2xl font-bold font-mono tracking-tighter text-emerald-600">{{ Array.isArray(plans) ? plans.filter(p => p.is_active).length : 0 }}</p>
           </div>
           <div class="w-10 h-10 rounded-lg flex items-center justify-center text-sm bg-emerald-50 text-emerald-600 opacity-80 group-hover:opacity-100 transition-opacity">
             <i class="fas fa-check-double"></i>
@@ -69,7 +72,7 @@
             <i class="fas fa-layer-group text-slate-400 text-xs"></i>
             <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">مصفوفة خطط الاشتراك الحالية</h3>
           </div>
-          <div v-if="plans.some(p => p.code === 'trial')" class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-md border border-amber-200 text-[10px] font-bold text-amber-700">
+          <div v-if="Array.isArray(plans) && plans.some(p => p.code === 'trial')" class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-md border border-amber-200 text-[10px] font-bold text-amber-700">
             <i class="fas fa-shield-halved text-[10px] text-amber-500"></i>
             <span>الخطة التجريبية محمية من التعديل</span>
           </div>
@@ -90,7 +93,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               <!-- Skeleton loading for table -->
-              <template v-if="loading && !plans.length">
+              <template v-if="loading && !(Array.isArray(plans) && plans.length)">
                 <tr v-for="row in 5" :key="row" class="animate-pulse">
                   <td class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-20"></div></td>
                   <td class="px-4 py-4"><div class="h-3 bg-slate-100 rounded w-28"></div></td>
@@ -103,7 +106,7 @@
               </template>
 
               <!-- Empty State -->
-              <tr v-else-if="plans.length === 0">
+              <tr v-else-if="!(Array.isArray(plans) && plans.length)">
                 <td colspan="7" class="py-24 text-center text-slate-300">
                   <i class="fas fa-layer-group text-3xl mb-3 opacity-20"></i>
                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد خطط معرفة في النظام</p>
@@ -265,11 +268,13 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import BaseModal from '@/components/BaseModal.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { useAdminStore } from '@/stores/admin/adminStore'
+import { useBreadcrumb } from '@/composables/useBreadcrumb'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue'
 
 // --- State & Stores (Strictly Preserved) ---
 const adminStore = useAdminStore()
+const { breadcrumb } = useBreadcrumb()
 const plans = ref([])
 const loading = computed(() => adminStore.loading)
 const showAddModal = ref(false)
@@ -289,8 +294,9 @@ const newPlan = reactive({
 async function load() {
   const result = await adminStore.fetchPlans()
   if (result.status === 'success') {
-    plans.value = result.data
+    plans.value = Array.isArray(result.data) ? result.data : []
   } else {
+    plans.value = []
     if (typeof window?.showToast === 'function') window.showToast(result.message, 'error')
   }
 }

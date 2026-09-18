@@ -1,368 +1,893 @@
 <template>
   <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100" dir="rtl">
-
-    <!-- Global Loading Progress: High-precision indicator -->
-    <div v-if="isSearchingProducts || isSaving || isPrinting" class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-[100]">
+    
+    <!-- Top Progress Bar (Active on Loading / Searching / Saving) -->
+    <div 
+      v-if="isSearchingProducts || isSaving || isPrinting || loadingSession || refreshingSession" 
+      class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-[110]"
+    >
       <div class="h-full bg-blue-600 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
     </div>
 
-    <!-- Sticky Header: Glassmorphism Navigation -->
-    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-3">
-      <div class="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-
-        <!-- User Identity & Sales Info -->
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-sm shrink-0 transition-transform hover:scale-105">
-            <i class="fas fa-cart-plus text-sm"></i>
+    <div class="max-w-[1700px] mx-auto p-4 lg:p-8 space-y-6 animate-fadeIn">
+      
+      <!-- Page Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center shadow-sm text-sm">
+            <i class="fas fa-cart-plus"></i>
           </div>
           <div>
-            <h1 class="text-sm font-bold text-slate-900 flex items-center gap-2">إضافة عملية بيع
-              <span class="text-[9px] px-2 py-0.5 rounded-md bg-blue-50 border border-blue-100 text-blue-600 font-bold uppercase tracking-wider">New Sale</span>
-            </h1>
-            <div class="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-widest leading-none">نظام نقاط البيع الذكي v2.4</div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-base font-bold text-slate-900 tracking-tight">إضافة عملية بيع جديدة</h1>
+              <span class="px-2 py-0.5 rounded text-[9px] font-bold font-mono tracking-wider bg-blue-50 text-blue-600 border border-blue-100 uppercase">POS TERMINAL</span>
+            </div>
+            <p class="text-xs text-slate-400 font-medium mt-0.5">إدارة سلة المشتريات، اختيار العملاء، والتحصيل المالي السريع.</p>
           </div>
         </div>
 
-        <!-- Global Controls -->
-        <div class="flex items-center gap-3">
-          <!-- Branch Selector Pattern (AdminPatterns) -->
-          <div v-if="[1, 2, 3].includes(authStore.user?.role_id)" class="relative min-w-[160px]">
-            <select
-              v-model="branchStore.selectedBranchId"
-              @change="() => { branchStore.setSelectedBranch(branchStore.selectedBranchId); debouncedSearch(); }"
-              class="h-9 w-full pr-9 pl-4 rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:border-slate-300 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all appearance-none cursor-pointer"
-            >
-              <option :value="null" disabled>-- اختر الفرع --</option>
-              <option v-for="b in branchStore.branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-            </select>
-            <i class="fas fa-warehouse absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
-          </div>
-
-          <button @click="goToCashierDashboard" class="h-9 px-4 bg-white text-slate-600 rounded-md border border-slate-200 text-xs font-bold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
-            <i class="fas fa-chart-line text-[10px]"></i> لوحة التحكم
-          </button>
-
-          <button @click="() => debouncedSearch()" class="h-9 w-9 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 hover:text-blue-600 transition-colors shadow-sm">
-            <i class="fas fa-sync-alt text-xs" :class="{'animate-spin': isSearchingProducts}"></i>
+        <div class="flex items-center gap-2">
+          <button 
+            @click="goToCashierDashboard" 
+            class="h-9 px-4 rounded-md border border-slate-200 bg-white text-slate-700 text-xs font-bold transition-all flex items-center gap-2 shadow-sm hover:bg-slate-50 active:scale-95"
+          >
+            <i class="fas fa-chart-line text-[11px] text-slate-400"></i>
+            <span>لوحة التحكم</span>
           </button>
         </div>
       </div>
-    </header>
 
-    <main class="max-w-[1800px] mx-auto p-4 lg:p-6">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <!-- Main POS Grid -->
+      <div class="flex flex-col lg:flex-row gap-6 w-full items-start">
         
-        <!-- Right Column: Product Catalog & Search (Main Area) -->
-        <div class="lg:col-span-8 space-y-6">
-          <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <!-- Utility Toolbar -->
-            <div class="p-4 bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row items-center gap-4">
-              <div class="relative flex-grow group">
+        <!-- Right Column: Product Search & Catalog Table -->
+        <div class="w-full lg:w-7/12 xl:w-2/3 space-y-4">
+          
+          <!-- Filters & Search Bar Card -->
+          <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              
+              <!-- Search Box -->
+              <div class="sm:col-span-4 relative group">
                 <input
                   v-model="searchQuery"
                   ref="productSearchInputRef"
                   @input="debouncedSearch"
+                  @focus="searchQuery && debouncedSearch()"
                   @keydown.enter.prevent="addFirstResult"
                   type="text"
-                  placeholder="ابحث بالاسم، الكود، أو الباركود (F1)..."
-                  class="w-full h-10 pr-10 pl-12 rounded-lg border border-slate-200 text-sm focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all font-medium"
+                  placeholder="ابحث بالاسم، الكود، أو الباركود..."
+                  class="filter-input"
+                  style="padding-right: 2.5rem; padding-left: 2rem;"
                 />
-                <i class="fas fa-search absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                <div class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <kbd class="hidden md:inline-block px-1.5 py-0.5 border border-slate-200 rounded text-[9px] font-sans text-slate-400 bg-white">F1</kbd>
-                </div>
+                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] group-focus-within:text-blue-500 transition-colors pointer-events-none"></i>
+                <kbd class="absolute left-2.5 top-1/2 -translate-y-1/2 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-400 font-bold">F1</kbd>
               </div>
 
-              <div class="relative min-w-[180px]">
-                <select v-model="selectedCategory" @change="debouncedSearch" class="h-10 w-full pr-9 pl-4 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white appearance-none outline-none focus:border-blue-500">
-                  <option value="">جميع التصنيفات</option>
+              <!-- Categories Select -->
+              <div class="sm:col-span-3 relative">
+                <select v-model="selectedCategory" @change="debouncedSearch" class="filter-input appearance-none" style="padding-right: 2rem;">
+                  <option value="">كل التصنيفات</option>
                   <option v-for="cat in categories || []" :key="cat?.id" :value="cat?.id">{{ cat?.name }}</option>
                 </select>
-                <i class="fas fa-tags absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]"></i>
+                <i class="fas fa-tags absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
               </div>
-            </div>
 
-            <!-- Operational Quick Filters -->
-            <div class="px-4 py-2 border-b border-slate-50 flex flex-wrap gap-2">
-              <button @click="toggleInactive" :class="[showInactive ? 'bg-red-50 text-red-600 border-red-200 shadow-inner' : 'bg-white text-slate-500 border-slate-200']" class="px-3 py-1.5 rounded-md border text-[10px] font-bold transition-all flex items-center gap-2">
-                <i class="fas fa-eye-slash"></i> غير نشط
-              </button>
-              <button @click="toggleExpiring" :class="[showExpiring ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-inner' : 'bg-white text-slate-500 border-slate-200']" class="px-3 py-1.5 rounded-md border text-[10px] font-bold transition-all flex items-center gap-2">
-                <i class="fas fa-hourglass-half"></i> أوشكت على الانتهاء
-              </button>
-            </div>
+              <!-- Branch Selector (Admins/Managers) -->
+              <div v-if="[1, 2, 3].includes(authStore.user?.role_id)" class="sm:col-span-3 relative">
+                <select v-model="selectedBranch" @change="debouncedSearch" class="filter-input appearance-none font-mono" style="padding-right: 2rem;">
+                  <option disabled :value="null">-- اختر الفرع --</option>
+                  <option v-for="wh in branchStore.branches" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
+                </select>
+                <i class="fas fa-building absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+              </div>
 
-            <!-- Product Table: Professional Grid -->
+              <!-- Toggles Icons Only -->
+              <div class="sm:col-span-2 flex items-center gap-2">
+                <button 
+                  type="button"
+                  @click="toggleInactive" 
+                  :class="[showInactive ? 'text-rose-600 bg-rose-50 border-rose-200' : 'text-slate-400 border-slate-200 hover:bg-slate-50']"
+                  class="w-9 h-9 rounded-md border flex items-center justify-center transition-all shadow-sm"
+                  title="عرض المنتجات غير النشطة"
+                >
+                  <i class="fas fa-eye-slash text-[11px]"></i>
+                </button>
+
+                <button 
+                  type="button"
+                  @click="toggleExpiring" 
+                  :class="[showExpiring ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-slate-400 border-slate-200 hover:bg-slate-50']"
+                  class="w-9 h-9 rounded-md border flex items-center justify-center transition-all shadow-sm"
+                  title="عرض المنتجات القريبة من انتهاء الصلاحية"
+                >
+                  <i class="fas fa-hourglass-end text-[11px]"></i>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Product Catalog Table Card -->
+          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[420px]">
             <div class="overflow-x-auto">
               <table class="w-full text-right border-collapse">
                 <thead>
-                  <tr class="bg-slate-50/50 border-b border-slate-100 font-bold text-slate-400 uppercase text-[10px] tracking-widest">
-                    <th class="px-4 py-3 w-12 text-center">#</th>
-                    <th class="px-4 py-3">الصنف / التعريف</th>
-                    <th class="px-4 py-3 text-center">المتوفر</th>
-                    <th class="px-4 py-3">سعر البيع</th>
-                    <th class="px-4 py-3 text-center w-16">إضافة</th>
+                  <tr class="bg-slate-50 border-b border-slate-200">
+                    <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">#</th>
+                    <th class="px-3 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">كود</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">اسم الصنف</th>
+                    <th class="px-3 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الرصيد</th>
+                    <th class="px-3 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوحدة</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">سعر البيع</th>
+                    <th class="px-3 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">أقل سعر</th>
+                    <th class="px-3 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الباركود</th>
+                    <th class="px-3 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التصنيف</th>
+                    <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center w-14">إضافة</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-50">
+                <tbody class="divide-y divide-slate-100">
+                  
+                  <!-- Skeleton Loading -->
                   <template v-if="isSearchingProducts">
-                    <tr v-for="n in 6" :key="n" class="animate-pulse">
-                      <td v-for="m in 5" :key="m" class="px-4 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                    <tr v-for="row in 6" :key="row" class="animate-pulse">
+                      <td class="px-4 py-3 text-center"><div class="h-3 bg-slate-100 rounded w-4 mx-auto"></div></td>
+                      <td class="px-3 py-3"><div class="h-3 bg-slate-100 rounded w-12"></div></td>
+                      <td class="px-4 py-3"><div class="h-3 bg-slate-100 rounded w-32"></div></td>
+                      <td class="px-3 py-3 text-center"><div class="h-4 bg-slate-100 rounded-full w-8 mx-auto"></div></td>
+                      <td class="px-3 py-3"><div class="h-3 bg-slate-100 rounded w-10"></div></td>
+                      <td class="px-4 py-3"><div class="h-3 bg-slate-100 rounded w-16"></div></td>
+                      <td class="px-3 py-3"><div class="h-3 bg-slate-100 rounded w-14"></div></td>
+                      <td class="px-3 py-3"><div class="h-3 bg-slate-100 rounded w-16"></div></td>
+                      <td class="px-3 py-3"><div class="h-3 bg-slate-100 rounded w-16"></div></td>
+                      <td class="px-4 py-3 text-center"><div class="h-7 w-7 bg-slate-100 rounded-lg mx-auto"></div></td>
                     </tr>
                   </template>
-                  <tr v-for="(product, i) in filteredSearchResults" :key="product.id" class="hover:bg-blue-50/20 transition-all group">
-                    <td class="px-4 py-4 text-center text-[10px] font-mono text-slate-300">{{ i + 1 }}</td>
-                    <td class="px-4 py-4">
-                      <p class="text-sm font-bold text-slate-900 leading-none mb-1">{{ product.name }}</p>
-                      <p class="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">{{ product.product_code || 'N/A' }} • {{ product.barcode || '-' }}</p>
-                    </td>
-                    <td class="px-4 py-4 text-center">
-                      <span :class="[product.quantity > 5 ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-600 border-rose-100']" class="px-2 py-0.5 rounded text-[10px] font-bold border font-mono">
-                        {{ product.quantity ?? 0 }} {{ product.unit_name }}
+
+                  <!-- Product Rows -->
+                  <tr 
+                    v-for="(product, i) in filteredSearchResults" 
+                    :key="product.id" 
+                    class="hover:bg-blue-50/20 transition-all group font-medium"
+                  >
+                    <td class="px-4 py-3 text-center text-slate-400 font-mono text-[11px]">{{ i + 1 }}</td>
+                    <td class="px-3 py-3">
+                      <span class="text-[10px] font-bold font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                        {{ product.product_code ?? '-' }}
                       </span>
                     </td>
-                    <td class="px-4 py-4 text-left">
-                      <p class="text-sm font-bold text-blue-600 font-mono tracking-tighter">{{ formatPrice(product.sale_price) }}</p>
-                      <p class="text-[9px] text-slate-400 font-medium">أقل سعر: {{ formatPrice(product.min_sale_price) }}</p>
+                    <td class="px-4 py-3">
+                      <div class="text-xs font-bold text-slate-900 leading-snug">{{ product.name }}</div>
                     </td>
-                    <td class="px-4 py-4 text-center">
-                      <button @click="addToInvoice(product)" :disabled="loadingProductId === product.id" class="add-btn-table mx-auto">
-                        <BaseSpinner v-if="loadingProductId === product.id" size="14" />
+                    <td class="px-3 py-3 text-center">
+                      <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-slate-100 text-slate-700">
+                        {{ product.quantity ?? 0 }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-3 text-[11px] text-slate-500 font-medium">{{ product.unit_name ?? '-' }}</td>
+                    <td class="px-4 py-3 text-left font-mono font-bold text-xs text-blue-600">
+                      {{ formatPrice(product.sale_price) }}
+                    </td>
+                    <td class="px-3 py-3 text-left font-mono text-[11px] text-amber-600 font-bold">
+                      {{ formatPrice(product.min_sale_price) }}
+                    </td>
+                    <td class="px-3 py-3 text-[10px] font-mono text-slate-400">{{ product.barcode ?? '-' }}</td>
+                    <td class="px-3 py-3">
+                      <span class="text-[10px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                        {{ product.category_name ?? '-' }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <button
+                        @click="addToInvoice(product)"
+                        :disabled="loadingProductId === product.id"
+                        class="w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all flex items-center justify-center active:scale-90 mx-auto disabled:opacity-50"
+                        title="إضافة للسلة"
+                      >
+                        <BaseSpinner v-if="loadingProductId === product.id" size="12" inline />
                         <i v-else class="fas fa-plus text-[10px]"></i>
                       </button>
                     </td>
                   </tr>
+
                   <!-- Empty State -->
                   <tr v-if="!filteredSearchResults.length && !isSearchingProducts">
-                    <td colspan="5" class="py-24 text-center text-slate-300">
-                      <i class="fas fa-search text-3xl mb-4 opacity-20"></i>
-                      <p class="text-xs font-bold uppercase tracking-widest">لا توجد نتائج مطابقة</p>
+                    <td colspan="10" class="py-20 text-center text-slate-300">
+                      <i class="fas fa-box-open text-3xl mb-3 opacity-20"></i>
+                      <p class="text-xs font-bold uppercase tracking-widest">لا توجد نتائج بحث مطابقة</p>
                     </td>
                   </tr>
+
                 </tbody>
               </table>
             </div>
-          </section>
+          </div>
+
         </div>
 
-        <!-- Left Column: Checkout Sidebar (4/12) -->
-        <aside class="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+        <!-- Left Column: Checkout Cart & Session Status -->
+        <div class="w-full lg:w-5/12 xl:w-1/3 sticky top-6 space-y-4">
           
-          <!-- Shift/Session Indicator -->
-          <div v-if="sessionsEnabled" class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">مراقبة الجلسة</span>
-              <div class="flex items-center gap-3">
-                <BusyIndicator v-if="loadingSession || refreshingSession" type="dots" size="xs" />
-                <span v-if="currentSession" class="status-badge-green">مفتوحة</span>
-                <span v-else class="status-badge-gray">مغلقة</span>
+          <!-- Shift / Session Status Widget -->
+          <div v-if="sessionsEnabled" class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="text-xs font-bold text-slate-900 flex items-center gap-2">
+                <i class="fas fa-cash-register text-blue-600 text-xs"></i>
+                <span>حالة الوردية</span>
+              </h3>
+              <div class="flex items-center gap-2">
+                <BusyIndicator v-if="loadingSession || refreshingSession" type="dots" size="sm" :delay="300" />
+                <span v-if="currentSession" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold border border-emerald-200 bg-emerald-50 text-emerald-700">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>مفتوحة</span>
+                </span>
+                <span v-else class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold border border-slate-200 bg-slate-50 text-slate-500">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                  <span>مغلقة</span>
+                </span>
               </div>
             </div>
-            <div class="p-5">
+
+            <div class="p-4 space-y-2.5">
               <div v-if="currentSession" class="space-y-2">
-                <div class="flex justify-between text-[11px] font-medium"><span class="text-slate-400 uppercase">النوع / الوردية</span><span class="text-slate-800 font-bold">#{{ currentSession.shift_id || '-' }} • {{ sessionTypeToLabel(currentSession.session_type) }}</span></div>
-                <div class="flex justify-between text-[11px] font-medium border-t border-slate-50 pt-2"><span class="text-slate-400 uppercase">وقت البدء</span><span class="text-slate-800 font-mono tracking-tighter">{{ formatSessionStart(currentSession.start_time) }}</span></div>
-                <button @click="openRenameDevice" class="w-full mt-3 h-8 border border-slate-200 rounded text-[10px] font-bold text-slate-500 hover:bg-slate-50">تسمية المحطة</button>
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-400 font-medium">نوع الجلسة:</span>
+                  <span class="font-bold text-slate-800">{{ currentSession.session_type_label || sessionTypeToLabel(currentSession.session_type || 'manual') }}</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-400 font-medium">وقت البدء:</span>
+                  <span class="font-bold font-mono text-slate-800">{{ formatSessionStart(currentSession.start_time) }}</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-400 font-medium">الجهاز:</span>
+                  <span class="font-bold text-slate-800">{{ deviceLabel(currentSession) }}</span>
+                </div>
+                <div v-if="currentSession.terminal_name || currentSession.terminal_code || currentSession.terminal_id" class="flex justify-between text-xs">
+                  <span class="text-slate-400 font-medium">الترمينال:</span>
+                  <span class="font-bold text-slate-800 font-mono">{{ currentSession.terminal_name || currentSession.terminal_code || currentTerminalLabel || ('#' + currentSession.terminal_id) }}</span>
+                </div>
+                <div v-if="currentSession.shift_id" class="flex justify-between text-xs">
+                  <span class="text-slate-400 font-medium">رقم الوردية:</span>
+                  <span class="font-bold font-mono text-indigo-600">#{{ currentSession.shift_id }}</span>
+                </div>
+                <div class="flex justify-between text-xs pt-1 border-t border-slate-50">
+                  <span class="text-slate-400 font-medium">الرصيد الافتتاحي:</span>
+                  <span class="font-bold font-mono text-blue-600">{{ formatPrice(currentSession.opening_cash_amount || 0) }}</span>
+                </div>
+                <div class="pt-2">
+                  <button 
+                    @click="openRenameDevice" 
+                    class="h-8 w-full rounded-md border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition flex items-center justify-center gap-1.5"
+                  >
+                    <i class="fas fa-edit text-[10px]"></i>
+                    <span>تسمية الجهاز</span>
+                  </button>
+                </div>
               </div>
-              <button v-else @click="handleOpenSession" class="w-full py-2 bg-blue-600 text-white rounded-lg text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-blue-900/10 hover:bg-blue-700 transition-all">فتح جلسة عمل جديدة</button>
+
+              <div v-else class="space-y-3">
+                <p class="text-xs text-slate-500 leading-relaxed">لا توجد وردية نشطة حالياً لهذا المخزن.</p>
+                <div class="text-[11px] text-slate-400 font-bold flex items-center gap-1.5">
+                  <i class="fas fa-info-circle text-blue-500"></i>
+                  <span>نمط الجلسات: {{ sessionsModeLabel }}</span>
+                </div>
+                <div v-if="sessionLimitReached" class="text-xs text-rose-600 font-bold flex items-center gap-1.5">
+                  <i class="fas fa-triangle-exclamation"></i>
+                  <span>تم الوصول إلى الحد الأقصى للجلسات اليوم.</span>
+                </div>
+                <button 
+                  @click="handleOpenSession" 
+                  class="h-9 w-full bg-blue-600 text-white rounded-md text-xs font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  :disabled="sessionLimitReached || refreshingSession"
+                >
+                  <i class="fas fa-door-open text-[10px]"></i>
+                  <span>فتح جلسة جديدة</span>
+                </button>
+                <button 
+                  @click="openRenameDevice" 
+                  class="h-8 w-full rounded-md border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  <i class="fas fa-edit text-[10px] ml-1"></i>
+                  <span>تسمية الجهاز</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- The Main Checkout Card -->
-          <section class="bg-white border border-slate-200 rounded-xl shadow-xl flex flex-col min-h-[600px] overflow-hidden">
-            <!-- Customer Panel -->
-            <div class="p-5 border-b border-slate-100 space-y-4">
+          <!-- Checkout Cart Container -->
+          <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col min-h-[520px] overflow-hidden">
+
+            <!-- Customer Selection Header -->
+            <div class="p-4 border-b border-slate-100 space-y-3">
               <div class="flex items-center justify-between">
-                <h3 class="text-[10px] font-black text-slate-900 uppercase tracking-widest">العميل</h3>
-                <button v-if="invoice.length > 0" @click="holdInvoice" class="text-[9px] font-bold text-amber-600 uppercase hover:underline">تعليق الفاتورة</button>
+                <label class="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <i class="fas fa-user-circle text-blue-600"></i>
+                  <span>بيانات العميل</span>
+                </label>
+                <button 
+                  v-if="invoice.length > 0" 
+                  @click="holdInvoice" 
+                  class="text-[11px] text-amber-600 hover:text-amber-700 font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <i class="fas fa-pause-circle"></i>
+                  <span>تعليق الفاتورة</span>
+                </button>
               </div>
-              <div class="relative group">
+
+              <!-- Customer Search Input -->
+              <div class="relative">
                 <input
                   v-model="customerQuery"
                   @input="customerActiveIndex = 0; debouncedCustomerSearch(); showCustomerDropdown = true"
                   @focus="showCustomerDropdown = true"
                   @blur="hideCustomerDropdown"
-                  @keydown.down.prevent="moveCustomerActive(1)"
-                  @keydown.up.prevent="moveCustomerActive(-1)"
+                  @keydown.down.prevent="showCustomerDropdown = true; moveCustomerActive(1)"
+                  @keydown.up.prevent="showCustomerDropdown = true; moveCustomerActive(-1)"
                   @keydown.enter.prevent="selectActiveCustomer()"
+                  @keydown.esc.prevent="showCustomerDropdown = false"
                   type="text"
-                  placeholder="بحث عن عميل بالاسم أو الجوال..."
-                  class="w-full h-10 pr-9 pl-4 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all"
+                  placeholder="ابحث بالاسم أو رقم الهاتف..."
+                  class="filter-input"
+                  style="padding-right: 2rem;"
                 />
                 <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
-                
-                <div v-if="showCustomerDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl max-h-48 overflow-auto py-1 animate-fadeIn">
-                  <div @mousedown.prevent="selectedCustomer=''; customerQuery=''; showCustomerDropdown=false" class="px-4 py-2 hover:bg-slate-50 cursor-pointer text-slate-400 text-[10px] font-bold italic border-b border-slate-50">عميل نقدي (افتراضي)</div>
-                  <div v-for="(c, idx) in filteredCustomers" :key="c.id" @mousedown.prevent="selectCustomer(c)" :class="[idx === customerActiveIndex ? 'bg-blue-50' : 'hover:bg-slate-50']" class="px-4 py-2.5 cursor-pointer flex justify-between border-b border-slate-50 last:border-0 transition-colors">
-                    <span class="text-xs font-bold text-slate-700">{{ c.name }}</span>
-                    <span class="text-[10px] font-mono text-slate-400">{{ c.phone || '-' }}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div v-if="selectedCustomerData" class="flex items-center gap-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100 animate-fadeIn">
-                <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-blue-600"><i class="fas fa-user-check text-[10px]"></i></div>
-                <div class="min-w-0 flex-1">
-                  <p class="text-xs font-bold text-slate-900 truncate">{{ selectedCustomerData.name }}</p>
-                  <p class="text-[9px] font-black font-mono tracking-tighter" :class="selectedCustomerData.balance > 0 ? 'text-rose-500' : 'text-emerald-500'">{{ formatPrice(selectedCustomerData.balance) }}</p>
-                </div>
-              </div>
-            </div>
+                <button
+                  v-if="customerQuery"
+                  @click="customerQuery=''; customerActiveIndex=0; debouncedCustomerSearch(); showCustomerDropdown = true"
+                  type="button"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition"
+                >
+                  <i class="fas fa-times-circle text-xs"></i>
+                </button>
 
-            <!-- Items Ledger List -->
-            <div class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3 bg-slate-50/30">
-              <div v-if="requireApproval" class="mb-3 text-[10px] px-3 py-2 rounded-lg bg-amber-50 text-amber-700 font-bold border border-amber-200 flex items-center gap-2">
-                <i class="fas fa-shield-alt"></i> سيتم حفظ الفاتورة كطلب موافقة إداري.
-              </div>
-
-              <template v-if="invoice.length > 0">
-                <div v-for="item in invoice" :key="item.id" class="p-3 bg-white border border-slate-100 rounded-lg group relative hover:border-blue-200 transition-all shadow-sm">
-                  <button @click="removeFromInvoice(item)" class="absolute -left-2 -top-2 w-6 h-6 bg-white border border-slate-200 text-slate-300 hover:text-rose-500 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-all"><i class="fas fa-times text-[10px]"></i></button>
-                  
-                  <div class="flex justify-between items-start mb-3">
-                    <div class="min-w-0 flex-1">
-                      <p class="text-xs font-bold text-slate-800 truncate">{{ item.name }}</p>
-                      <p v-if="item.sale_price < item.min_sale_price" class="text-[8px] font-black text-rose-500 uppercase tracking-tighter mt-0.5">تنبيه: تحت السعر المعتمد</p>
-                    </div>
-                    <span class="text-xs font-bold text-slate-900 font-mono tracking-tighter">{{ formatPrice(item.sale_price * item.selectedQuantity) }}</span>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-3 items-end">
-                    <div class="space-y-1">
-                      <label class="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em]">الكمية</label>
-                      <input type="number" v-model.number="item.selectedQuantity" @change="updateQty(item, item.selectedQuantity)" class="h-8 w-full bg-slate-50 border border-slate-200 rounded text-center text-xs font-black text-indigo-600 focus:ring-0" />
-                    </div>
-                    <div class="space-y-1 text-left">
-                      <label class="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em]">تعديل السعر</label>
-                      <input type="number" v-model.number="item.sale_price" @change="validateSalePrice(item)" class="h-8 w-full bg-slate-50 border border-slate-200 rounded text-center text-[10px] font-bold text-slate-500" />
-                    </div>
-                  </div>
-
-                  <!-- Tracking Meta -->
-                  <div v-if="item.has_batch_number || item.has_serial_number" class="mt-3 grid grid-cols-2 gap-2">
-                    <select v-if="item.has_batch_number" v-model="item.batch_number" @change="onBatchChange(item)" class="h-7 border border-slate-100 bg-slate-50 rounded text-[9px] px-1 font-bold">
-                      <option value="">الدفعة</option>
-                      <option v-for="batch in item.available_batches" :key="batch.batch_number" :value="batch.batch_number">{{ batch.batch_number }}</option>
-                    </select>
-                    <select v-if="item.has_serial_number" v-model="item.serial" class="h-7 border border-slate-100 bg-slate-50 rounded text-[9px] px-1 font-bold">
-                      <option value="">SN</option>
-                      <option v-for="s in item.available_serials" :key="s" :value="s">{{ s }}</option>
-                    </select>
-                  </div>
-                </div>
-              </template>
-              <div v-else class="h-full flex flex-col items-center justify-center text-slate-300 opacity-30 py-20">
-                <i class="fas fa-shopping-basket text-4xl mb-4"></i>
-                <p class="text-[10px] font-black uppercase tracking-[0.3em]">بانتظار إضافة الأصناف</p>
-              </div>
-            </div>
-
-            <!-- Held Invoices Registry -->
-            <div v-if="heldInvoices.length > 0" class="px-5 py-3 bg-amber-50 border-t border-amber-100 divide-y divide-amber-100">
-               <div v-for="(held, idx) in heldInvoices" :key="idx" class="flex justify-between items-center py-2 animate-fadeIn">
-                 <div class="min-w-0 flex-1">
-                   <p class="text-[10px] font-bold text-amber-900 truncate">{{ held.customer_name }}</p>
-                   <p class="text-[8px] text-amber-600 font-mono tracking-tighter">{{ formatPrice(held.finalTotal) }}</p>
-                 </div>
-                 <button @click="resumeInvoice(idx)" class="h-7 px-3 bg-amber-200 text-amber-900 rounded text-[9px] font-bold uppercase tracking-widest hover:bg-amber-300 transition-colors">استئناف</button>
-               </div>
-            </div>
-
-            <!-- Totals Section: High-Contrast SaaS Footer -->
-            <footer class="bg-slate-900 p-6 text-white space-y-6">
-              <div class="space-y-2 border-b border-white/10 pb-4">
-                <div class="flex justify-between text-[11px] font-medium text-slate-400 uppercase tracking-tight">
-                  <span>الإجمالي الفرعي</span>
-                  <span class="font-mono tracking-tighter">{{ formatPrice(subTotalNet) }}</span>
-                </div>
-                <div class="flex justify-between items-center text-[11px] font-medium text-slate-400">
-                  <div class="flex items-center gap-2">
-                    <span class="uppercase tracking-tight">الخصم</span>
-                    <select v-model="discountType" class="bg-white/10 border-0 rounded px-1 text-[9px] font-bold outline-none"><option class="text-slate-900">مبلغ</option><option class="text-slate-900">نسبة %</option></select>
-                    <input v-model.number="discountValue" type="number" class="bg-white/10 border-0 rounded w-10 px-1 text-[9px] font-bold outline-none text-center" />
-                  </div>
-                  <span class="text-rose-400 font-mono tracking-tighter">- {{ formatPrice(discountAmount) }}</span>
-                </div>
-                <div class="flex justify-between text-[11px] font-medium text-slate-400 uppercase tracking-tight">
-                  <span>الضريبة ({{ (taxValue || 0).toFixed(0) }}%)</span>
-                  <span class="font-mono tracking-tighter">+ {{ formatPrice(taxAmount) }}</span>
+                <!-- Customer Dropdown Results -->
+                <div 
+                  v-if="showCustomerDropdown" 
+                  class="absolute z-30 w-full mt-1.5 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scroll"
+                >
+                  <ul class="text-xs divide-y divide-slate-50 font-medium">
+                    <li 
+                      @mousedown.prevent="selectedCustomer=''; customerQuery=''; showCustomerDropdown=false" 
+                      class="px-3.5 py-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-slate-700"
+                    >
+                      <span class="font-bold">عميل نقدي </span>
+                      <i class="fas fa-money-bill-wave text-emerald-600 text-xs"></i>
+                    </li>
+                    <li 
+                      v-for="(c, idx) in filteredCustomers || []" 
+                      :key="c?.id" 
+                      @mousedown.prevent="selectCustomer(c)" 
+                      :class="['px-3.5 py-2 cursor-pointer flex items-center justify-between', idx === customerActiveIndex ? 'bg-blue-50' : 'hover:bg-slate-50']"
+                    >
+                      <div>
+                        <div class="font-bold text-slate-900">{{ c.name }}</div>
+                        <div class="text-[10px] font-mono text-slate-400">{{ c.phone || '-' }}</div>
+                      </div>
+                      <span :class="['text-[9px] font-mono font-bold px-2 py-0.5 rounded border', (c.balance || 0) > 0 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100']">
+                        {{ formatPrice(c.balance || 0) }}
+                      </span>
+                    </li>
+                  </ul>
                 </div>
               </div>
 
-              <div class="flex justify-between items-end">
-                <div>
-                  <p class="text-[9px] font-bold text-blue-400 uppercase tracking-[0.2em] mb-1">المبلغ الإجمالي</p>
-                  <p class="text-4xl font-bold font-mono tracking-tighter leading-none">{{ formatPrice(finalTotal) }}</p>
+              <!-- Selected Customer Card -->
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-full bg-white border border-slate-200 text-blue-600 flex items-center justify-center text-xs shadow-sm">
+                    <i class="fas fa-user"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-xs font-bold text-slate-900">{{ selectedCustomerData?.name || 'عميل نقدي' }}</h4>
+                  </div>
                 </div>
-                <div class="text-left flex flex-col items-end gap-2">
-                  <span :class="[saleStatus === 'paid' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/20 text-rose-400 border-rose-500/20']" class="px-2 py-1 rounded text-[9px] font-bold uppercase border">
-                    {{ saleStatus === 'paid' ? 'مدفوعة' : 'آجل' }}
+                <div v-if="selectedCustomerData" class="text-left">
+                  <span :class="['text-[9px] font-mono font-bold px-2 py-0.5 rounded border', (selectedCustomerData?.balance || 0) > 0 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100']">
+                    {{ formatPrice(selectedCustomerData?.balance || 0) }}
                   </span>
                 </div>
               </div>
+              <div v-if="(selectedCustomerData?.balance || 0) > 0" class="text-[10px] px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold flex items-center gap-1.5">
+                <i class="fas fa-triangle-exclamation text-amber-500"></i>
+                <span>هذا العميل لديه رصيد مستحق سابق.</span>
+              </div>
+            </div>
 
-              <div class="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
-                <div class="space-y-1.5">
-                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">وسيلة الدفع</label>
-                  <select v-model="selectedPaymentMethod" class="w-full h-9 bg-white/5 border border-white/10 rounded-lg px-2 text-xs font-bold outline-none focus:border-blue-500 transition-all"><option v-for="m in paymentMethods" :key="m.id" :value="m.id" class="text-slate-900">{{ m.name }}</option></select>
-                </div>
-                <div class="space-y-1.5">
-                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">المبلغ المدفوع</label>
-                  <input v-model.number="actualPaidAmount" type="number" class="w-full h-9 bg-white/5 border border-white/10 rounded-lg px-3 text-sm font-bold font-mono text-emerald-400 text-left outline-none focus:border-emerald-500 transition-all" />
-                </div>
+            <!-- Held Invoices List -->
+            <div v-if="heldInvoices.length > 0" class="px-4 py-2.5 bg-amber-50/60 border-b border-amber-100 space-y-1.5">
+              <div class="flex items-center justify-between text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                <span>فواتير معلقة ({{ heldInvoices.length }})</span>
+              </div>
+              <ul class="space-y-1">
+                <li 
+                  v-for="(held, index) in heldInvoices" 
+                  :key="index" 
+                  class="flex items-center justify-between bg-white rounded-md px-3 py-1.5 border border-amber-200/60 shadow-sm"
+                >
+                  <div>
+                    <div class="text-xs font-bold text-slate-800">{{ held.customer_name }}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">{{ held.items.length }} أصناف · {{ formatPrice(held.finalTotal) }}</div>
+                  </div>
+                  <button 
+                    @click="resumeInvoice(index)" 
+                    class="h-6 px-2 text-[10px] font-bold bg-amber-100 text-amber-800 rounded hover:bg-amber-200 transition"
+                  >
+                    استئناف
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Cart Table Area -->
+            <div class="flex-grow overflow-y-auto max-h-[340px] p-3 custom-scroll">
+              
+              <!-- Approval System Alert -->
+              <div v-if="requireApproval" class="mb-2 text-[10px] px-3 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 font-bold flex items-center gap-2">
+                <i class="fas fa-info-circle text-amber-600"></i>
+                <span>نظام الموافقات مفعل. سيتم قيد الفاتورة كمسودة موافقة.</span>
               </div>
 
-              <div class="grid grid-cols-1 gap-3 pt-2">
-                <button @click="saveAndPrint" :disabled="isSaving || isPrinting || !invoice.length" class="h-12 bg-blue-600 rounded-xl text-sm font-bold flex items-center justify-center gap-3 shadow-lg shadow-blue-900/50 hover:bg-blue-500 active:scale-95 transition-all">
-                  <i v-if="!isPrinting" class="fas fa-print"></i>
-                  <BaseSpinner v-else size="18" color="#fff" />
-                  حفظ وطباعة الفاتورة (F2)
-                </button>
-                <button @click="saveSale()" :disabled="isSaving || isPrinting || !invoice.length" class="h-10 border border-white/10 hover:bg-white/5 rounded-xl text-xs font-bold text-slate-400 transition-all">
-                  <i v-if="!isSaving" class="fas fa-save ml-2"></i>
-                  <BaseSpinner v-else size="14" color="#fff" class="ml-2" />
-                  {{ requireApproval ? 'إرسال طلب اعتماد' : 'حفظ الفاتورة فقط (F3)' }}
-                </button>
-              </div>
-            </footer>
-          </section>
-        </aside>
-      </div>
-    </main>
+              <table class="w-full text-right text-xs">
+                <thead>
+                  <tr class="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider pb-1">
+                    <th class="py-1.5">الصنف</th>
+                    <th class="py-1.5 text-center">الكمية</th>
+                    <th class="py-1.5 text-center">السعر</th>
+                    <th class="py-1.5 text-center">الإجمالي</th>
+                    <th class="py-1.5 text-center w-6"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  <tr v-for="item in invoice" :key="item.id" class="hover:bg-slate-50/50 group transition-all">
+                    <!-- Name & Sub-details -->
+                    <td class="py-2.5 pl-2">
+                      <div class="font-bold text-slate-900 leading-tight">{{ item.name }}</div>
+                      <div class="flex items-center gap-2 mt-1 text-[10px]">
+                        <!-- Batches Select -->
+                        <select 
+                          v-if="item.has_batch_number" 
+                          v-model="item.batch_number" 
+                          class="h-6 text-[10px] bg-white border border-slate-200 rounded px-1 outline-none" 
+                          @change="onBatchChange(item)"
+                        >
+                          <option value="">-- الدفعة --</option>
+                          <option v-for="batch in item.available_batches" :key="batch.batch_number" :value="batch.batch_number">{{ batch.batch_number }} ({{ batch.quantity }})</option>
+                        </select>
+                        
+                        <!-- Serials Select -->
+                        <select 
+                          v-if="item.has_serial_number" 
+                          v-model="item.serial" 
+                          class="h-6 text-[10px] bg-white border border-slate-200 rounded px-1 outline-none"
+                        >
+                          <option value="">-- السيريال --</option>
+                          <option v-for="serial in item.available_serials" :key="serial" :value="serial">{{ serial }}</option>
+                        </select>
 
-    <!-- Modals Logic Area (Teleported for robustness) -->
-    <Teleport to="body">
-      <div v-if="showOpenDialog || showCloseDialog || showSummaryDialog || showRenameDevice || showBranchRequiredModal" class="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        
-        <!-- Opening Session Dialog -->
-        <BaseModal :show="showOpenDialog" @close="showOpenDialog = false" maxWidth="md" variant="modern">
-          <template #header>
-            <h3 class="text-sm font-bold text-slate-900 uppercase">بدء جلسة عمل جديدة</h3>
-          </template>
-          <div class="p-4 space-y-6">
-            <div v-if="authStore.isAdmin" class="space-y-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">المستودع المستهدف</label>
-              <select v-model="selectedBranch" class="h-10 w-full border border-slate-200 rounded-lg px-3 text-xs font-bold appearance-none bg-slate-50 focus:bg-white transition-all"><option v-for="wh in branches" :key="wh.id" :value="wh.id">{{ wh.name }}</option></select>
+                        <!-- Expiry Tag -->
+                        <div v-if="item.has_expiry_date && item.expiry_date" class="font-mono text-[9px] font-bold">
+                          <span :class="{'text-rose-600': isExpired(item.expiry_date), 'text-amber-600': isExpiringSoon(item.expiry_date), 'text-slate-500': !isExpiringSoon(item.expiry_date) && !isExpired(item.expiry_date)}">
+                            {{ formatDate(item.expiry_date) }}
+                          </span>
+                        </div>
+                      </div>
+                      <div v-if="item.sale_price < item.min_sale_price" class="text-[9px] font-mono text-rose-500 font-bold mt-0.5">
+                        أقل سعر مسموح: {{ formatPrice(item.min_sale_price) }}
+                      </div>
+                    </td>
+
+                    <!-- Quantity Input -->
+                    <td class="py-2.5 px-1 text-center">
+                      <input 
+                        type="number" 
+                        v-model.number="item.selectedQuantity" 
+                        min="1" 
+                        class="w-12 h-7 text-center font-mono font-bold bg-white border border-slate-200 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none" 
+                        @change="updateQty(item, item.selectedQuantity)" 
+                      />
+                    </td>
+
+                    <!-- Price Input -->
+                    <td class="py-2.5 px-1 text-center">
+                      <input 
+                        type="number" 
+                        v-model.number="item.sale_price" 
+                        :min="item.min_sale_price" 
+                        :class="['w-16 h-7 text-center font-mono font-bold bg-white border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none', item.sale_price < item.min_sale_price ? 'border-rose-300 text-rose-600' : 'border-slate-200 text-slate-800']" 
+                        @change="validateSalePrice(item)" 
+                      />
+                    </td>
+
+                    <!-- Line Total -->
+                    <td class="py-2.5 px-1 font-mono font-bold text-xs text-blue-600 text-center">
+                      {{ formatPrice(getNetItemTotal(item)) }}
+                    </td>
+
+                    <!-- Delete Button -->
+                    <td class="py-2.5 pr-1 text-center">
+                      <button 
+                        @click="removeFromInvoice(item)" 
+                        class="w-6 h-6 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all flex items-center justify-center mx-auto"
+                        title="حذف من السلة"
+                      >
+                        <i class="fas fa-times text-[11px]"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <!-- Empty Cart State -->
+                  <tr v-if="invoice.length === 0">
+                    <td colspan="5" class="py-14 text-center text-slate-300">
+                      <i class="fas fa-basket-shopping text-3xl mb-2 opacity-20 block"></i>
+                      <p class="text-xs font-bold uppercase tracking-widest">سلة البيع فارغة</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="space-y-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">الرصيد الافتتاحي (العهدة)</label>
-              <input v-model.number="openingAmount" type="number" class="h-14 w-full border-2 border-slate-100 rounded-xl text-3xl font-black text-center text-blue-600 focus:border-blue-500 outline-none transition-all" />
+
+            <!-- Financial Totals Section -->
+            <div class="p-4 bg-slate-50/70 border-t border-slate-200 space-y-2.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400 font-medium">الإجمالي الفرعي:</span>
+                <span class="font-mono font-bold text-slate-800">{{ formatPrice(subTotalNet) }}</span>
+              </div>
+
+              <!-- Discount Controls -->
+              <div class="flex items-center gap-2 text-xs">
+                <select v-model="discountType" class="h-7 text-[11px] font-bold bg-white border border-slate-200 rounded px-1.5 text-slate-600 outline-none">
+                  <option>مبلغ</option>
+                  <option>نسبة %</option>
+                </select>
+                <input 
+                  v-model.number="discountValue" 
+                  type="number" 
+                  min="0" 
+                  class="w-16 h-7 text-xs font-mono font-bold bg-white border border-slate-200 rounded px-2 text-center outline-none focus:border-blue-500" 
+                />
+                <span class="text-[10px] text-slate-400 font-mono">{{ discountType === 'مبلغ' ? formatPrice(discountValue) : discountValue + '%' }}</span>
+                <div class="flex-grow"></div>
+                <span class="text-rose-600 font-mono font-bold text-xs">- {{ formatPrice(discountAmount) }}</span>
+              </div>
+
+              <!-- Taxes -->
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400 font-medium">ضريبة القيمة المضافة ({{ (taxValue || 0).toFixed(0) }}%):</span>
+                <span class="font-mono font-bold text-slate-800">{{ formatPrice(taxAmount) }}</span>
+              </div>
+
+              <!-- Final Total Box -->
+              <div class="pt-2.5 border-t border-slate-200 space-y-3">
+                <div class="flex justify-between items-center">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-900">المجموع الصافي</span>
+                    <span :class="['text-[9px] font-bold px-2 py-0.5 rounded-full border', saleStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : saleStatus === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200']">
+                      {{ saleStatus === 'paid' ? 'مدفوعة' : saleStatus === 'partial' ? 'جزئي' : 'مستحقة' }}
+                    </span>
+                  </div>
+                  <span class="text-xl font-bold font-mono tracking-tight text-blue-600">{{ formatPrice(finalTotal) }}</span>
+                </div>
+
+                <!-- Payment Form Controls -->
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="relative">
+                    <select v-model="selectedPaymentMethod" class="filter-input text-xs h-9 appearance-none" style="padding-right: 1.75rem;">
+                      <option v-for="method in paymentMethods || []" :key="method?.id" :value="method?.id">{{ method?.name }}</option>
+                    </select>
+                    <i class="fas fa-wallet absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+                  </div>
+                  <input 
+                    v-model.number="actualPaidAmount" 
+                    type="number" 
+                    min="0" 
+                    :max="finalTotal" 
+                    placeholder="المدفوع نقداً..." 
+                    class="filter-input text-xs h-9 text-center font-mono font-bold" 
+                    :class="{ 'border-rose-300 text-rose-600': actualPaidAmount > finalTotal }" 
+                    :disabled="requireApproval" 
+                  />
+                </div>
+
+                <div v-if="!requireApproval && actualPaidAmount > finalTotal" class="text-[10px] p-2 rounded-md bg-rose-50 border border-rose-200 text-rose-600 font-bold flex items-center gap-1.5">
+                  <i class="fas fa-circle-exclamation"></i>
+                  <span>المبلغ المدفوع يتجاوز إجمالي الفاتورة!</span>
+                </div>
+
+                <div v-if="remainingAmount > 0" class="flex justify-between items-center p-2 rounded-md bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold font-mono">
+                  <span>المتبقي (ذمم آجلة):</span>
+                  <span>{{ formatPrice(remainingAmount) }}</span>
+                </div>
+
+                <!-- Action Execute Buttons -->
+                <div class="space-y-2 pt-1">
+                  <button 
+                    @click="saveAndPrint" 
+                    :disabled="isSaving || isPrinting" 
+                    class="h-10 w-full bg-blue-600 text-white rounded-md text-xs font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <BaseSpinner v-if="isPrinting" size="14" color="#fff" />
+                    <template v-else>
+                      <i class="fas fa-print text-[11px]"></i>
+                      <span>حفظ وطباعة الفاتورة</span>
+                      <span class="text-[10px] opacity-70 font-mono">(F2)</span>
+                    </template>
+                  </button>
+
+                  <button 
+                    @click="saveSale()" 
+                    :disabled="isSaving || isPrinting" 
+                    class="h-9 w-full bg-slate-900 text-white rounded-md text-xs font-bold shadow-sm hover:bg-black active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <BaseSpinner v-if="isSaving" size="14" color="#fff" />
+                    <template v-else>
+                      <i class="fas fa-save text-[11px]"></i>
+                      <span>{{ requireApproval ? 'حفظ (طلب موافقة)' : 'حفظ الفاتورة فقط' }}</span>
+                      <span class="text-[10px] opacity-70 font-mono">(F3)</span>
+                    </template>
+                  </button>
+                </div>
+              </div>
             </div>
-            <button @click="confirmOpenSession" :disabled="openSubmitting" class="w-full h-12 bg-blue-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">تأكيد وبدء العمل</button>
+
           </div>
-        </BaseModal>
 
-        <!-- Branch Required Selection -->
-        <div v-if="showBranchRequiredModal" class="bg-white rounded-2xl p-10 max-w-sm w-full shadow-2xl text-center space-y-8 border border-slate-200 animate-modalIn">
-          <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner"><i class="fas fa-warehouse text-2xl"></i></div>
-          <div><h2 class="text-xl font-bold text-slate-900 uppercase">تحديد موقع العمل</h2><p class="text-[10px] text-slate-400 mt-2 font-medium">يتطلب النظام تحديد فرع نشط لمباشرة عمليات البيع</p></div>
-          <select v-model="tempBranchId" class="w-full h-12 border border-slate-200 rounded-xl px-4 text-sm font-black text-center text-slate-700 focus:ring-4 focus:ring-blue-500/10 outline-none bg-slate-50"><option :value="null" disabled>-- اختر الفرع المطلوب --</option><option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option></select>
-          <div class="flex gap-3"><button @click="cancelBranchSelection" class="flex-1 h-11 text-xs font-bold text-slate-500">إلغاء</button><button @click="confirmBranchSelection" :disabled="!tempBranchId" class="flex-[2] h-11 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xl active:scale-95 disabled:opacity-50 transition-all">دخول لنقطة البيع</button></div>
         </div>
 
-        <!-- Additional modals (Close/Summary/Rename) follow same pattern... -->
       </div>
-    </Teleport>
+
+    </div>
+
+    <!-- ===== SYSTEM MODALS ===== -->
+
+    <!-- Open Session Modal -->
+    <BaseModal :show="showOpenDialog" @close="showOpenDialog = false" maxWidth="md">
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-door-open"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">فتح جلسة كاشير جديدة</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">بدء وردية مبيعات جديدة في النظام</p>
+          </div>
+        </div>
+      </template>
+      
+      <div class="space-y-4">
+        <div v-if="authStore.isAdmin && branches.length > 0" class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">المخزن / الفرع المستهدف <span class="text-rose-500">*</span></label>
+          <select v-model="selectedBranch" class="filter-input appearance-none" style="padding-right: 2rem;">
+            <option disabled value="">-- اختر الفرع --</option>
+            <option v-for="wh in branches" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
+          </select>
+          <i class="fas fa-building absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+        </div>
+
+        <div v-if="terminals.length" class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">جهاز نقطة البيع (الترمينال) <span class="text-rose-500">*</span></label>
+          <div class="relative">
+            <select v-model="selectedTerminalId" class="filter-input appearance-none" style="padding-right: 2rem;">
+              <option disabled value="">-- اختر الجهاز --</option>
+              <option v-for="t in terminals" :key="t.id" :value="t.id">{{ t.code ? (t.code + ' - ' + t.name) : t.name }}</option>
+            </select>
+            <i class="fas fa-desktop absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">المبلغ الافتتاحي بالخزينة <span class="text-rose-500">*</span></label>
+          <input v-model.number="openingAmount" type="number" min="0" step="0.01" class="filter-input font-mono text-center text-sm font-bold" placeholder="0.00" />
+        </div>
+
+        <div class="bg-blue-50 border border-blue-100 p-3 rounded-lg text-xs text-blue-700 flex items-center gap-2">
+          <i class="fas fa-info-circle shrink-0"></i>
+          <span>سيتم فتح الجلسة وربط المعاملات المالية بالفرع والجهاز الحالي.</span>
+        </div>
+      </div>
+      
+      <template #footer>
+        <button @click="showOpenDialog = false" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+          إلغاء
+        </button>
+        <button 
+          @click="confirmOpenSession" 
+          :disabled="openSubmitting" 
+          class="px-6 h-9 rounded-md bg-blue-600 text-white text-xs font-bold shadow-sm hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <BaseSpinner v-if="openSubmitting" size="14" color="#fff" />
+          <span>تأكيد فتح الوردية</span>
+        </button>
+      </template>
+    </BaseModal>
+
+    <!-- Close Session Modal -->
+    <BaseModal :show="showCloseDialog" @close="showCloseDialog = false" maxWidth="md">
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-stopwatch"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">إنهاء الوردية وجرد الصندوق</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">إغلاق الجلسة الحالية وتثبيت الفروقات</p>
+          </div>
+        </div>
+      </template>
+      
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <div class="text-slate-400 text-[10px] font-bold uppercase mb-1">الرصيد الافتتاحي</div>
+            <div class="text-sm font-bold font-mono text-blue-600">{{ formatPrice(currentSession?.opening_cash_amount || 0) }}</div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <div class="text-slate-400 text-[10px] font-bold uppercase mb-1">المتوقع بالخزينة</div>
+            <div class="text-xs font-bold text-slate-700">انظر ملخص الكاشير</div>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">المبلغ الفعلي في الخزينة (الجرد اليدوي)</label>
+          <input v-model="closeCountedCash" type="number" step="0.01" min="0" class="filter-input font-mono text-center text-sm font-bold" placeholder="0.00" />
+        </div>
+
+        <div v-if="closeCountedCash !== ''" :class="['p-3 rounded-lg border text-center text-xs font-mono font-bold', cashDifferencePos === 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200']">
+          <div>{{ cashDifferencePos === 0 ? 'مطابق تماماً للرصيد المتوقع' : 'يوجد فارق في الصندوق' }}</div>
+          <div class="mt-0.5">الفارق: {{ formatPrice(cashDifferencePos) }}</div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">سبب الفرق (اختياري)</label>
+          <select v-model="selectedVarianceReason" class="filter-input appearance-none" style="padding-right: 2rem;" @change="handleVarianceReasonChange">
+            <option v-for="reason in varianceReasons" :key="reason.value" :value="reason.value">{{ reason.label }}</option>
+          </select>
+          <i class="fas fa-question-circle absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+          <textarea v-if="selectedVarianceReason === 'other'" v-model="varianceReason" rows="2" class="filter-input h-auto p-2.5 text-xs mt-2" placeholder="حدد تفاصيل سبب الفرق..."></textarea>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ملاحظات الإغلاق</label>
+          <textarea v-model="closeNotes" rows="2" class="filter-input h-auto p-2.5 text-xs" placeholder="أي ملاحظات إضافية..."></textarea>
+        </div>
+      </div>
+      
+      <template #footer>
+        <button @click="showCloseDialog = false" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+          إلغاء
+        </button>
+        <button 
+          @click="confirmCloseSession" 
+          :disabled="closeSubmitting" 
+          class="px-6 h-9 rounded-md bg-rose-600 text-white text-xs font-bold shadow-sm hover:bg-rose-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <BaseSpinner v-if="closeSubmitting" size="14" color="#fff" />
+          <span>تأكيد إنهاء الوردية</span>
+        </button>
+      </template>
+    </BaseModal>
+
+    <!-- Session Summary Modal -->
+    <BaseModal :show="showSummaryDialog" @close="showSummaryDialog = false" maxWidth="lg">
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-receipt"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">ملخص وإحصائيات الوردية</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">تفاصيل الحركات المالية المكتملة</p>
+          </div>
+        </div>
+      </template>
+      
+      <div class="space-y-4" v-if="closeSummary">
+        <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold border', closeSummary.closing?.variance === 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200']">
+          <i :class="closeSummary.closing?.variance === 0 ? 'fas fa-check-circle' : 'fas fa-triangle-exclamation'"></i>
+          <span>{{ closeSummary.closing?.variance === 0 ? 'تم الإغلاق بدون أي فروقات نقدية' : `يوجد فارق مسجل: ${formatPrice(closeSummary.closing?.variance)}` }}</span>
+        </span>
+
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="bg-slate-50 border border-slate-100 rounded-lg p-3"><div class="text-slate-400 text-[10px] uppercase font-bold mb-1">وقت البداية</div><div class="font-mono text-slate-800">{{ formatSessionStart(closeSummary.session?.start_time) }}</div></div>
+          <div class="bg-slate-50 border border-slate-100 rounded-lg p-3"><div class="text-slate-400 text-[10px] uppercase font-bold mb-1">وقت النهاية</div><div class="font-mono text-slate-800">{{ formatSessionStart(closeSummary.session?.end_time) }}</div></div>
+          <div class="bg-slate-50 border border-slate-100 rounded-lg p-3"><div class="text-slate-400 text-[10px] uppercase font-bold mb-1">إجمالي المدفوعات</div><div class="font-mono font-bold text-blue-600">{{ formatPrice(closeSummary.totals?.payments || 0) }}</div></div>
+          <div class="bg-slate-50 border border-slate-100 rounded-lg p-3"><div class="text-slate-400 text-[10px] uppercase font-bold mb-1">نقد داخل (Cash In)</div><div class="font-mono font-bold text-emerald-600">{{ formatPrice(closeSummary.totals?.cash_in || 0) }}</div></div>
+          <div class="bg-slate-50 border border-slate-100 rounded-lg p-3"><div class="text-slate-400 text-[10px] uppercase font-bold mb-1">نقد خارج (Cash Out)</div><div class="font-mono font-bold text-rose-600">{{ formatPrice(closeSummary.totals?.cash_out || 0) }}</div></div>
+          <div class="bg-slate-50 border border-slate-100 rounded-lg p-3"><div class="text-slate-400 text-[10px] uppercase font-bold mb-1">المتوقع بالدرج</div><div class="font-mono font-bold text-slate-900">{{ formatPrice(closeSummary.calculated?.expected_cash || 0) }}</div></div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <button 
+          @click="printSummary" 
+          class="px-5 h-9 rounded-md border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center gap-2"
+        >
+          <i class="fas fa-print text-[11px]"></i>
+          <span>طباعة تقرير الجلسة</span>
+        </button>
+        <button 
+          @click="showSummaryDialog = false" 
+          class="px-6 h-9 rounded-md bg-slate-900 text-white text-xs font-bold hover:bg-black transition"
+        >
+          إغلاق
+        </button>
+      </template>
+    </BaseModal>
+
+    <!-- Rename Device Modal -->
+    <BaseModal :show="showRenameDevice" @close="showRenameDevice = false" maxWidth="md">
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-desktop"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">تسمية جهاز نقطة البيع</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">تعيين معرف دائم للجهاز الحالي</p>
+          </div>
+        </div>
+      </template>
+      
+      <div class="space-y-2">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">اسم الجهاز المخصص</label>
+        <input v-model.trim="deviceNameInput" type="text" maxlength="64" class="filter-input" placeholder="مثال: كاشير 1 - الفرع الرئيسي" />
+        <p class="text-[10px] text-slate-400 font-bold">اتركه فارغاً للاعتماد على المعرف الافتراضي للشبكة.</p>
+      </div>
+      
+      <template #footer>
+        <button @click="showRenameDevice = false" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+          إلغاء
+        </button>
+        <button @click="saveDeviceName" class="px-6 h-9 rounded-md bg-slate-900 text-white text-xs font-bold hover:bg-black transition">
+          حفظ
+        </button>
+      </template>
+    </BaseModal>
+
+    <!-- Branch Required Modal -->
+    <Transition name="fade">
+      <div v-if="showBranchRequiredModal" class="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-fadeIn">
+          <div class="w-12 h-12 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl flex items-center justify-center mx-auto shadow-sm">
+            <i class="fas fa-building text-lg"></i>
+          </div>
+          
+          <div class="space-y-1">
+            <h2 class="text-sm font-bold text-slate-900">
+              <span v-if="[1, 2, 3].includes(authStore.user?.role_id)">حدد الفرع لبدء المبيعات</span>
+              <span v-else>اختر فرعاً للمتابعة</span>
+            </h2>
+            <p class="text-xs text-slate-400 font-medium">نظام نقطة البيع يتطلب عزل وتحديد الفرع بدقة قبل العمل.</p>
+          </div>
+          
+          <!-- Branch Selector for Admin -->
+          <div v-if="[1, 2, 3].includes(authStore.user?.role_id)">
+            <select v-model="tempBranchId" class="filter-input appearance-none text-xs" style="padding-right: 2rem;">
+              <option :value="null" disabled>-- اختر الفرع المطلوب --</option>
+              <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+            </select>
+            <i class="fas fa-building absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+          </div>
+          
+          <!-- Regular User Notice -->
+          <div v-else-if="authStore.user?.branch_id" class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs font-bold text-blue-700">
+            تم تحديد فرعك: {{ branches.find(b => b.id === authStore.user?.branch_id)?.name || 'الفرع الرئيسي' }}
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button @click="cancelBranchSelection" class="h-9 rounded-md bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition-all">
+              إلغاء
+            </button>
+            <button 
+              @click="confirmBranchSelection" 
+              :disabled="!tempBranchId && [1, 2, 3].includes(authStore.user?.role_id)" 
+              class="h-9 rounded-md bg-slate-900 text-white text-xs font-bold hover:bg-black transition-all disabled:opacity-50"
+            >
+              تأكيد
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
   </div>
 </template>
@@ -414,6 +939,13 @@ const bootstrapStore = useBootstrapStore();
 const { ensureOpenSession } = useCashierSessionGuard();
 const { formatCurrencyLocale, fetchSettings } = useCompanyCurrency();
 const formatPrice = (amount) => formatCurrencyLocale(amount, 2);
+
+// ✅ يتتبع الاختيار اليدوي للفرع (نفس النمط المستخدم في SalesHistory)
+const userChoseBranch = ref(
+  localStorage.getItem('selectedBranchId') !== null
+  && localStorage.getItem('selectedBranchId') !== 'all'
+);
+const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null);
 
 // --- Debug ---
 const DEBUG = (import.meta?.env?.VITE_POS_DEBUG === '1') || (localStorage.getItem('pos_debug') === '1');
@@ -1206,6 +1738,8 @@ watch(selectedPaymentMethod, (newVal) => { if (!newVal) return; const pm = Numbe
 watch(requireApproval, (v) => { actualPaidAmount.value = v ? 0 : parseFloat(finalTotal.value.toFixed(2)); });
 watch(selectedBranch, async (newVal, oldVal) => {
   if (!newVal || !settingsLoaded.value) return;
+  // تحديث الـ flag عند تغيير الفرع يدويًا
+  userChoseBranch.value = true;
   // تحذير لو في فاتورة مفتوحة عند تغيير المخزن
   if (oldVal && invoice.value.length > 0) {
     const confirmed = window.confirm(
@@ -1242,8 +1776,9 @@ const confirmBranchSelection = async () => {
   const branchId = tempBranchId.value || authStore.user?.branch_id;
   if (!branchId) return;
   
-  // setTemporaryBranch: sets in-memory only, does NOT overwrite localStorage 'all'
-  branchStore.setTemporaryBranch(branchId);
+  // ✅ استخدم setSelectedBranch لحفظ الاختيار بشكل دائم في localStorage
+  // هذا يضمن أنه عند تحديث الصفحة سيتم استعادة الفرع بدون ظهور Modal
+  branchStore.setSelectedBranch(branchId);
   showBranchRequiredModal.value = false;
   await Promise.all([loadInitial(), refreshSession(), fetchTerminals()]);
   debouncedSearch();
@@ -1276,8 +1811,21 @@ onMounted(async () => {
   // ✅ تعيين حالة المكون قبل أي شيء
   isComponentMounted.value = true;
   
-  // Initialize branch store
-  await branchStore.initialize();
+  // ✅ FIX: تهيئة/استعادة branch context قبل أول API call (نفس النمط من SalesHistory)
+  // سجّل ما إذا كان المستخدم اختار فرعاً في جلسة سابقة (قبل fetchBranches يكتب default)
+  const hadPriorBranchChoice = localStorage.getItem('selectedBranchId') !== null 
+                               && localStorage.getItem('selectedBranchId') !== 'all';
+
+  try {
+    branchStore.loadFromStorage();
+    if (!branchStore.branches || branchStore.branches.length === 0) {
+      await branchStore.fetchBranches();
+    }
+  } catch {}
+
+  // بعد fetchBranches: أعد تعيين الـ flag بما كان موجوداً قبل الكتابة
+  // لأن fetchBranches() قد تكتب selectedBranchId في localStorage تلقائياً
+  userChoseBranch.value = hadPriorBranchChoice;
   
   // ✅ تحميل كل الإعدادات مرة واحدة بدل 3 مرات
   await loadAllSettings();
@@ -1289,7 +1837,9 @@ onMounted(async () => {
     if (savedPaymentMethod && paymentMethods.value?.some(pm => String(pm.id) === String(savedPaymentMethod))) {
       selectedPaymentMethod.value = savedPaymentMethod;
     } else {
-      selectedPaymentMethod.value = paymentMethods.value?.[0]?.id || '';
+      // ✅ حاول البحث عن طريقة الدفع النقدية، أو استخدم الأولى
+      const cashMethod = paymentMethods.value?.find(pm => pm.kind === 'cash' || pm.code?.toLowerCase() === 'cash');
+      selectedPaymentMethod.value = cashMethod?.id || paymentMethods.value?.[0]?.id || '';
     }
     
     discountType.value = localStorage.getItem('pos_discountType') || discountType.value;
@@ -1304,10 +1854,10 @@ onMounted(async () => {
     // branch already selected — proceed normally
   } else if ([1, 2, 3].includes(authStore.user?.role_id)) {
     // Admin with 'all branches' setting
-    await branchStore.fetchBranches();
     if (!branchStore.selectedBranchId) {
       // Admin chose 'all branches' globally → ask for a temporary branch for this session
-      // We DON'T call setSelectedBranch() here to avoid overriding localStorage 'all'
+      // ✅ الآن عند الاختيار، setSelectedBranch سيحفظ الاختيار في localStorage
+      // فعند التحديث القادم سيتم استعادة الفرع بدون Modal
       showBranchRequiredModal.value = true;
       return; // wait for modal confirmation before continuing init
     }
@@ -1315,7 +1865,8 @@ onMounted(async () => {
     // Regular user with assigned branch
     const defaultBranch = authStore.user?.branch_id;
     if (defaultBranch && !branchStore.selectedBranchId) {
-      branchStore.setTemporaryBranch(defaultBranch);
+      // ✅ استخدم setSelectedBranch لحفظ الفرع المخصص
+      branchStore.setSelectedBranch(defaultBranch);
     }
   }
 
@@ -1351,18 +1902,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@keyframes loading { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-
-.add-btn-table {
-  @apply h-8 w-8 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm;
+@keyframes loading {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }
 
-.custom-scroll::-webkit-scrollbar { width: 5px; }
+.filter-input {
+  @apply w-full h-9 bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all;
+}
+
+.custom-scroll::-webkit-scrollbar { width: 4px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
 
-@keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-.animate-modalIn { animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-fadeIn { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-.animate-fadeIn { animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

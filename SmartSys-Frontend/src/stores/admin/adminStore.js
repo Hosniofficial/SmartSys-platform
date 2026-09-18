@@ -161,7 +161,9 @@ export const useAdminStore = defineStore('admin', () => {
     loading.value = true;
     try {
       const response = await apiClient.get('/admin/plans');
-      const plans = (response.data?.data || []).map(p => ({ ...p, is_active: Number(p.is_active) }));
+      // API returns { data: { items: [...] } }
+      const plansList = response.data?.data?.items || response.data?.data || [];
+      const plans = Array.isArray(plansList) ? plansList.map(p => ({ ...p, is_active: Number(p.is_active) })) : [];
       return {
         status: 'success',
         data: plans,

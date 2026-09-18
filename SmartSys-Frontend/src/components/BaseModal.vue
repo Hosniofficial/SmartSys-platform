@@ -58,6 +58,11 @@
 <script setup>
 import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
+// ✅ تعطيل الـ automatic attribute inheritance لأن المكون يستخدم Teleport
+defineOptions({
+  inheritAttrs: false
+})
+
 const props = defineProps({
   show: {
     type: Boolean,
