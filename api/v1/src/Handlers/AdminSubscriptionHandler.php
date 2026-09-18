@@ -51,12 +51,16 @@ class AdminSubscriptionHandler extends BaseHandler
             $sql = "
                 SELECT
                     s.*,
+                    u.name AS tenant_name,
+                    u.email AS tenant_email,
+                    u.email_verified_at IS NOT NULL AS email_verified,
                     p.code AS plan_code,
                     p.name AS plan_name,
                     p.price,
                     p.currency
                 FROM subscriptions s
                 JOIN plans p ON p.id = s.plan_id
+                LEFT JOIN users u ON u.id = s.tenant_id
                 {$where}
                 ORDER BY s.id DESC
                 LIMIT 200
@@ -66,8 +70,25 @@ class AdminSubscriptionHandler extends BaseHandler
             $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+            // Process each row to parse security_flags JSON and format data
+            $processedRows = array_map(function($row) {
+                // Parse security_flags JSON
+                if (!empty($row['security_flags'])) {
+                    $flags = json_decode($row['security_flags'], true);
+                    $row['security_flags'] = is_array($flags) ? $flags : [];
+                } else {
+                    $row['security_flags'] = [];
+                }
+
+                // Convert boolean strings to integers for consistency
+                $row['email_verified'] = (int) $row['email_verified'];
+                $row['auto_renew'] = (int) $row['auto_renew'];
+
+                return $row;
+            }, $rows);
+
             return $this->successResponse($response, [
-                'items' => $rows
+                'items' => $processedRows
             ], 200);
         } catch (Throwable $e) {
             $this->logger->error('Failed to list subscriptions', [

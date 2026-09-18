@@ -12,9 +12,11 @@ export const useAdminStore = defineStore('admin', () => {
     loading.value = true;
     try {
       const response = await apiClient.get('/admin/subscriptions', { params });
+      // API returns { data: { items: [...] } }
+      const subscriptions = response.data?.data?.items || response.data?.data || [];
       return {
         status: 'success',
-        data: response.data?.data || [],
+        data: Array.isArray(subscriptions) ? subscriptions : [],
         message: ''
       };
     } catch (error) {

@@ -1,109 +1,187 @@
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-4 lg:p-8 text-slate-700 animate-fadeIn text-right" dir="rtl">
+  <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100 text-right" dir="rtl">
     
-    <div class="max-w-5xl mx-auto space-y-10">
+    <!-- Top Progress Bar -->
+    <div v-if="loadingPlans" class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-[110]">
+      <div class="h-full bg-blue-600 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
+    </div>
+
+    <div class="max-w-[1200px] mx-auto p-6 lg:p-10 space-y-8 animate-fadeIn">
       
       <!-- Hero Header Section -->
-      <header class="text-center space-y-4 max-w-2xl mx-auto mt-8">
-        <div class="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-200 text-white mx-auto mb-6 transform hover:rotate-12 transition-transform duration-500">
-          <i class="fas fa-rocket text-3xl"></i>
+      <header class="text-center space-y-3 max-w-2xl mx-auto pt-4">
+        <div class="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center mx-auto shadow-sm">
+          <i class="fas fa-rocket text-sm"></i>
         </div>
-        <h1 class="text-3xl md:text-4xl font-black text-slate-900 leading-tight tracking-tight">الترقية مطلوبة لمتابعة الاستخدام</h1>
-        <p class="text-slate-400 font-bold text-base leading-relaxed">عذراً، لقد انتهت الفترة التجريبية أو الاشتراك الحالي لمنشأتك. يرجى اختيار الخطة المناسبة لاستكمال العمل بكافة الصلاحيات.</p>
+        <h1 class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+          الترقية مطلوبة لمتابعة الاستخدام
+        </h1>
+        <p class="text-xs text-slate-500 font-medium leading-relaxed max-w-lg mx-auto">
+          عذراً، لقد انتهت الفترة التجريبية أو الاشتراك الحالي لمنشأتك. يرجى اختيار الخطة المناسبة لاستكمال العمل بكافة الصلاحيات.
+        </p>
       </header>
 
       <!-- Reason Alert (Conditional) -->
-      <transition name="slide-fade">
-        <div v-if="reason" class="bg-amber-50 border border-amber-100 p-5 rounded-[1.5rem] flex items-center gap-4 max-w-3xl mx-auto shadow-sm shadow-amber-50">
-          <div class="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shrink-0 shadow-md">
-            <i class="fas fa-circle-info"></i>
+      <transition name="slide-down">
+        <div v-if="reason" class="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm flex items-center gap-3 max-w-3xl mx-auto">
+          <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs shrink-0">
+            <i class="fas fa-exclamation-triangle"></i>
           </div>
-          <p class="text-sm font-black text-amber-900 leading-relaxed">{{ reason }}</p>
+          <div class="space-y-0.5">
+            <p class="text-[10px] font-bold text-amber-700 uppercase tracking-widest">تنبيه الاشتراك</p>
+            <p class="text-xs font-bold text-amber-900 leading-relaxed">{{ reason }}</p>
+          </div>
         </div>
       </transition>
 
       <!-- Pricing Plans Grid -->
-      <section class="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-        <div v-for="p in plans" :key="p.code" class="pricing-card group">
-          <div class="absolute top-0 left-0 w-24 h-24 bg-blue-500/5 rounded-full -translate-x-12 -translate-y-12 transition-transform group-hover:scale-150"></div>
-          
-          <div class="relative z-10 flex-grow">
-            <div class="flex items-center justify-between mb-6">
-              <span class="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-100">باقة الأعمال</span>
-              <div class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl flex items-center justify-center transition-colors group-hover:bg-blue-600 group-hover:text-white">
+      <section class="grid grid-cols-1 md:grid-cols-3 gap-6 py-2">
+        <div 
+          v-for="p in plans" 
+          :key="p.code" 
+          class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between group"
+        >
+          <!-- Plan Content -->
+          <div class="space-y-6">
+            <div class="flex items-center justify-between">
+              <span class="px-2.5 py-0.5 rounded text-[9px] font-bold border border-blue-100 bg-blue-50 text-blue-600 uppercase tracking-wider">
+                باقة الأعمال
+              </span>
+              <div class="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 text-slate-400 flex items-center justify-center text-xs group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                 <i class="fas fa-gem"></i>
               </div>
             </div>
 
-            <h3 class="text-2xl font-black text-slate-800 mb-1 capitalize">{{ p.name }}</h3>
-            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-8">دورة الفوترة: كل {{ p.billing_cycle_days }} يوم</p>
-
-            <div class="flex items-baseline gap-2 mb-8">
-              <span class="text-5xl font-black text-slate-900 tracking-tighter">{{ p.price }}</span>
-              <span class="text-sm font-black text-slate-400 uppercase tracking-widest">{{ p.currency }}</span>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900 capitalize">{{ p.name }}</h3>
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                دورة الفوترة: كل {{ p.billing_cycle_days }} يوم
+              </p>
             </div>
 
-            <ul class="space-y-4 mb-10">
-               <li v-for="feature in ['كافة ميزات النظام الأساسية', 'دعم فني متكامل 24/7', 'تحديثات دورية مجانية']" :key="feature" class="flex items-center gap-3 text-sm font-bold text-slate-500">
-                  <i class="fas fa-check-circle text-emerald-500 text-xs"></i>
-                  {{ feature }}
-               </li>
+            <!-- Price -->
+            <div class="flex items-baseline gap-1.5 pt-2 border-t border-slate-50">
+              <span class="text-3xl font-bold font-mono tracking-tight text-slate-900">{{ p.price }}</span>
+              <span class="text-xs font-bold text-slate-400 uppercase">{{ p.currency }}</span>
+            </div>
+
+            <!-- Feature List -->
+            <ul class="space-y-3 pt-2 border-t border-slate-50">
+              <li v-for="feature in ['كافة ميزات النظام الأساسية', 'دعم فني متكامل 24/7', 'تحديثات دورية مجانية']" :key="feature" class="flex items-center gap-2.5 text-xs font-medium text-slate-600">
+                <div class="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[9px] shrink-0">
+                  <i class="fas fa-check"></i>
+                </div>
+                <span>{{ feature }}</span>
+              </li>
             </ul>
           </div>
 
-          <button @click="selectPlan(p)" class="w-full py-4 bg-blue-600 text-white rounded-[1.2rem] font-black text-sm shadow-xl shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-3 group/btn relative z-10">
-            <span>اشترك الآن</span>
-            <i class="fas fa-arrow-left-long text-[10px] group-hover/btn:-translate-x-2 transition-transform"></i>
-          </button>
+          <!-- Select Action -->
+          <div class="pt-8">
+            <button 
+              @click="selectPlan(p)" 
+              class="h-9 w-full bg-slate-900 text-white rounded-md text-xs font-bold shadow-sm hover:bg-blue-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <span>اشترك الآن</span>
+              <i class="fas fa-arrow-left text-[10px]"></i>
+            </button>
+          </div>
         </div>
       </section>
 
       <!-- Footer Info -->
-      <footer class="text-center py-6 border-t border-slate-100">
-        <p class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed italic max-w-lg mx-auto">
-          الأسعار الموضحة قد تخضع للتغيير. <br> جميع بوابات الدفع الإلكترونية مؤمنة بالكامل وسيتم تفعيل الدفع المباشر قريباً.
+      <footer class="text-center py-6 border-t border-slate-200">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed max-w-lg mx-auto">
+          الأسعار الموضحة قد تخضع للتغيير. جميع بوابات التحويل المباشر مؤمنة بالكامل وسيتم تفعيل بوابات الدفع الإلكتروني قريباً.
         </p>
       </footer>
     </div>
 
     <!-- Payment Selection Modal -->
-    <BaseModal :show="showPaymentModal" @close="closePaymentModal" maxWidth="md" variant="modern" align="center">
+    <BaseModal :show="showPaymentModal" @close="closePaymentModal" maxWidth="md">
       <template #header>
-        <h3 class="text-xl font-black text-slate-800 tracking-tight leading-none">اختر وسيلة الدفع</h3>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-credit-card"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">اختر وسيلة الدفع</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">التحويل المالي المباشر</p>
+          </div>
+        </div>
       </template>
 
-      <div class="space-y-6">
+      <div class="space-y-5">
         <!-- Selected Plan Summary -->
-        <div class="bg-slate-900 p-6 rounded-[1.5rem] text-white shadow-xl relative overflow-hidden">
-          <div class="absolute right-0 bottom-0 w-20 h-20 bg-white/5 rounded-full translate-x-8 translate-y-8"></div>
-          <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">الخطة المختارة:</p>
-          <h4 class="text-lg font-black leading-none">{{ selectedPlan?.name }}</h4>
-          <div class="mt-4 text-2xl font-black font-mono tracking-tighter text-blue-400">{{ selectedPlan?.price }} {{ selectedPlan?.currency }}</div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+          <div class="space-y-0.5">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">الخطة المختارة</p>
+            <h4 class="text-xs font-bold text-slate-900">{{ selectedPlan?.name }}</h4>
+          </div>
+          <div class="text-right">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">المبلغ المستحق</p>
+            <span class="text-sm font-bold font-mono tracking-tight text-blue-600">
+              {{ selectedPlan?.price }} {{ selectedPlan?.currency }}
+            </span>
+          </div>
         </div>
 
-        <div class="space-y-3">
-          <button @click="selectPaymentMethod('instapay')" class="payment-option group border-emerald-100 hover:border-emerald-500 hover:bg-emerald-50/30">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300"><i class="fas fa-mobile-screen-button"></i></div>
-              <div class="text-right"><p class="text-sm font-black text-slate-800 leading-none">Instapay</p><p class="text-[10px] text-slate-400 font-bold mt-1.5 uppercase">دفع سريع عبر التطبيق</p></div>
+        <!-- Payment Methods -->
+        <div class="space-y-2.5">
+          <!-- Instapay -->
+          <button 
+            @click="selectPaymentMethod('instapay')" 
+            class="w-full p-4 bg-white border border-slate-200 rounded-xl hover:border-emerald-300 hover:bg-emerald-50/20 transition-all flex items-center justify-between group active:scale-[0.99] shadow-sm"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center text-sm shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <i class="fas fa-mobile-screen-button"></i>
+              </div>
+              <div class="text-right">
+                <p class="text-xs font-bold text-slate-900">Instapay</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">دفع سريع ولحظي عبر التطبيق</p>
+              </div>
             </div>
-            <i class="fas fa-chevron-left text-slate-200 group-hover:text-emerald-500 transition-colors"></i>
+            <i class="fas fa-chevron-left text-[10px] text-slate-300 group-hover:text-emerald-600 transition-colors"></i>
           </button>
 
-          <button @click="selectPaymentMethod('vodafonecash')" class="payment-option group border-rose-100 hover:border-rose-500 hover:bg-rose-50/30">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl shadow-sm group-hover:bg-rose-600 group-hover:text-white transition-all duration-300"><i class="fas fa-wallet"></i></div>
-              <div class="text-right"><p class="text-sm font-black text-slate-800 leading-none">Vodafone Cash</p><p class="text-[10px] text-slate-400 font-bold mt-1.5 uppercase">تحويل فوري عبر المحفظة</p></div>
+          <!-- Vodafone Cash -->
+          <button 
+            @click="selectPaymentMethod('vodafonecash')" 
+            class="w-full p-4 bg-white border border-slate-200 rounded-xl hover:border-rose-300 hover:bg-rose-50/20 transition-all flex items-center justify-between group active:scale-[0.99] shadow-sm"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center text-sm shadow-sm group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                <i class="fas fa-wallet"></i>
+              </div>
+              <div class="text-right">
+                <p class="text-xs font-bold text-slate-900">Vodafone Cash</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">تحويل فوري عبر المحفظة</p>
+              </div>
             </div>
-            <i class="fas fa-chevron-left text-slate-200 group-hover:text-rose-500 transition-colors"></i>
+            <i class="fas fa-chevron-left text-[10px] text-slate-300 group-hover:text-rose-600 transition-colors"></i>
           </button>
         </div>
 
-        <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-center gap-3">
-          <i class="fab fa-whatsapp text-emerald-500 text-lg"></i>
-          <p class="text-[10px] font-black text-blue-700 leading-relaxed italic">سيتم توجيهك إلى المحادثة المباشرة عبر WhatsApp لإتمام التحقق وتفعيل الحساب.</p>
+        <!-- WhatsApp Support Notice -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <i class="fab fa-whatsapp text-sm"></i>
+          </div>
+          <p class="text-[11px] font-medium text-slate-600 leading-relaxed">
+            سيتم توجيهك مباشرة إلى محادثة WhatsApp مع فريق الدعم لإتمام التحقق وتفعيل الحساب.
+          </p>
         </div>
       </div>
+
+      <template #footer>
+        <button 
+          @click="closePaymentModal" 
+          class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+        >
+          إلغاء
+        </button>
+      </template>
     </BaseModal>
 
   </div>
@@ -111,7 +189,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import BaseModal from '@/components/BaseModal.vue';
+import BaseModal from '@/components/BaseModal.vue'
 import { useRoute } from 'vue-router'
 import apiClient from '@/config/axios'
 
@@ -181,11 +259,11 @@ async function loadPlans() {
       return
     }
   } catch (error) {
-    // Silent catch: 402 expected when subscription expired
-    // Also catches network errors gracefully
     if (import.meta.env.DEV) {
       console.log('[Upgrade Page] API call failed, using fallback plans:', error.message)
     }
+  } finally {
+    loadingPlans.value = false
   }
   
   // Fallback: use hardcoded plans
@@ -228,21 +306,25 @@ onMounted(loadPlans)
 </script>
 
 <style scoped>
+@keyframes loading {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
 
+.animate-fadeIn {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
-/* Pricing Card Styling */
-.pricing-card { @apply relative bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-100 hover:-translate-y-2 flex flex-col; }
-
-/* Payment Option Styling */
-.payment-option { @apply w-full p-5 bg-white border-2 rounded-[1.5rem] transition-all flex items-center justify-between active:scale-[0.98]; }
-
-/* Modal removed - now using BaseModal component */
-
-/* Animations */
-.animate-fadeIn { animation: fadeIn 0.5s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-
-.slide-fade-enter-active { transition: all 0.3s ease-out; }
-.slide-fade-enter-from { opacity: 0; transform: translateY(-10px); }
+.slide-down-enter-active, .slide-down-leave-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-down-enter-from, .slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
 </style>

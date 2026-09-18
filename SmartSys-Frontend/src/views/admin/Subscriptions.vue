@@ -1,227 +1,334 @@
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-4 lg:p-8 text-slate-700 animate-fadeIn text-right" dir="rtl">
+  <div class="min-h-screen bg-[#fafafa] text-slate-900 font-sans antialiased selection:bg-blue-100" dir="rtl">
     
-    <!-- Page Header Area -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-      <div class="flex items-center gap-4">
-        <div class="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-200 text-white shrink-0">
-          <i class="fas fa-id-card-clip text-2xl"></i>
-        </div>
-        <div>
-          <h1 class="text-2xl font-black text-slate-900 leading-none tracking-tight">إدارة الاشتراكات</h1>
-          <p class="text-slate-500 text-sm mt-2 font-medium italic">متابعة تراخيص المستأجرين، صلاحية الباقات، والتدقيق الأمني</p>
-        </div>
-      </div>
+    <!-- Top Progress Bar -->
+    <div v-if="loading || actionLoading || securityLoading" class="fixed top-0 left-0 right-0 h-0.5 bg-blue-600/10 z-[110]">
+      <div class="h-full bg-blue-600 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
+    </div>
+
+    <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8 animate-fadeIn">
       
-      <div class="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-        <button @click="load" :disabled="loading" class="px-5 py-2.5 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 border-l border-slate-50">
-          <i class="fas fa-sync-alt" :class="{'animate-spin': loading}"></i> {{ loading ? 'جاري التحميل...' : 'تحديث البيانات' }}
-        </button>
-        <button @click="exportCsv" :disabled="rows.length===0" class="px-5 py-2.5 rounded-xl text-xs font-black text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-2 disabled:opacity-30">
-          <i class="fas fa-file-csv"></i> تصدير سجل CSV
-        </button>
-      </div>
-    </div>
+      <!-- Page Header -->
+      <PageHeader
+        :breadcrumb="breadcrumb"
+        title="إدارة الاشتراكات"
+        description="متابعة تراخيص المستأجرين، صلاحية الباقات، والتدقيق الأمني."
+        :branches="[]"
+        :selectedBranch="null"
+      >
+        <template #controls>
+          <div class="flex items-center gap-2">
+            <button 
+              @click="load" 
+              :disabled="loading" 
+              class="h-9 px-4 rounded-md border border-slate-200 bg-white text-slate-700 text-xs font-bold transition-all flex items-center gap-2 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+            >
+              <i class="fas fa-sync-alt text-[10px]" :class="{'animate-spin': loading}"></i>
+              <span>{{ loading ? 'جاري التحميل...' : 'تحديث البيانات' }}</span>
+            </button>
+            <button 
+              @click="exportCsv" 
+              :disabled="!Array.isArray(rows) || rows.length === 0" 
+              class="h-9 px-4 rounded-md bg-white border border-slate-200 text-emerald-600 text-xs font-bold transition-all flex items-center gap-2 shadow-sm hover:bg-emerald-50 hover:border-emerald-200 disabled:opacity-40"
+            >
+              <i class="fas fa-file-csv text-xs"></i>
+              <span>تصدير CSV</span>
+            </button>
+          </div>
+        </template>
+      </PageHeader>
 
-    <!-- Filters Section -->
-    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 mb-8 overflow-visible">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div class="space-y-2">
-          <label class="filter-label">باقة الاشتراك</label>
-          <select v-model="filters.plan" class="form-select-modern font-black text-xs">
-            <option value="">كل الخطط</option>
-            <option value="trial">التجريبية (Trial)</option>
-            <option value="monthly">الشهرية (Monthly)</option>
-            <option value="yearly">السنوية (Yearly)</option>
-          </select>
-        </div>
-
-        <div class="space-y-2 text-right">
-          <label class="filter-label">حالة الاشتراك</label>
-          <select v-model="filters.status" class="form-select-modern font-black text-xs">
-            <option value="">كل الحالات</option>
-            <option value="trial">تجريبي</option>
-            <option value="active">نشط</option>
-            <option value="expired">منتهي</option>
-            <option value="cancelled">ملغى</option>
-            <option value="pending">قيد الانتظار</option>
-          </select>
-        </div>
-
-        <div class="space-y-2 text-right">
-          <label class="filter-label">مستوى المخاطر</label>
-          <select v-model="filters.risk_level" class="form-select-modern font-black text-xs">
-            <option value="">كل المستويات</option>
-            <option value="low">منخفض (Low Risk)</option>
-            <option value="medium">متوسط (Medium)</option>
-            <option value="high">مرتفع (High Risk)</option>
-          </select>
-        </div>
-
-        <div class="space-y-2 group">
-          <label class="filter-label">رقم المستأجر (Tenant ID)</label>
-          <div class="relative">
-            <input v-model.number="filters.tenant_id" type="number" min="1" class="form-input-modern h-[46px] pr-10 font-mono" placeholder="مثال: 101" />
-            <i class="fas fa-hashtag absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500"></i>
+      <!-- KPI Summary Section -->
+      <section class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">إجمالي الاشتراكات</p>
+            <p class="text-2xl font-bold font-mono tracking-tighter text-slate-900">{{ (Array.isArray(rows) ? rows.length : 0) }}</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-sm bg-blue-50 text-blue-600 opacity-80 group-hover:opacity-100 transition-opacity">
+            <i class="fas fa-id-card"></i>
           </div>
         </div>
-      </div>
 
-      <div class="flex justify-end gap-3 pt-6 border-t border-slate-50">
-        <button @click="resetFilters" :disabled="loading" class="px-6 py-2.5 rounded-xl text-xs font-black text-slate-400 hover:bg-slate-50 transition-all uppercase tracking-widest">إعادة تعيين</button>
-        <button @click="applyFilters" :disabled="loading" class="px-10 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-95 flex items-center gap-2">
-          <i class="fas fa-filter"></i> تطبيق التصفية
-        </button>
-      </div>
-    </div>
+        <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">تراخيص نشطة</p>
+            <p class="text-2xl font-bold font-mono tracking-tighter text-emerald-600">{{ summary.active }}</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-sm bg-emerald-50 text-emerald-600 opacity-80 group-hover:opacity-100 transition-opacity">
+            <i class="fas fa-check-double"></i>
+          </div>
+        </div>
 
-    <!-- Summary Statistics Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-      <div class="kpi-card group border-l-4 border-l-blue-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-blue-50 text-blue-600"><i class="fas fa-users-rectangle"></i></div>
-          <div><p class="kpi-label uppercase">إجمالي الاشتراكات</p><p class="kpi-value text-slate-800">{{ rows.length }}</p></div>
+        <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">تراخيص منتهية</p>
+            <p class="text-2xl font-bold font-mono tracking-tighter text-rose-600">{{ summary.expired }}</p>
+          </div>
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-sm bg-rose-50 text-rose-600 opacity-80 group-hover:opacity-100 transition-opacity">
+            <i class="fas fa-hourglass-end"></i>
+          </div>
+        </div>
+      </section>
+
+      <!-- Filters Section -->
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">باقة الاشتراك</label>
+            <select v-model="filters.plan" class="filter-input appearance-none">
+              <option value="">كل الخطط</option>
+              <option value="trial">التجريبية (Trial)</option>
+              <option value="monthly">الشهرية (Monthly)</option>
+              <option value="yearly">السنوية (Yearly)</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">حالة الاشتراك</label>
+            <select v-model="filters.status" class="filter-input appearance-none">
+              <option value="">كل الحالات</option>
+              <option value="trial">تجريبي</option>
+              <option value="active">نشط</option>
+              <option value="expired">منتهي</option>
+              <option value="cancelled">ملغى</option>
+              <option value="pending">قيد الانتظار</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">مستوى المخاطر</label>
+            <select v-model="filters.risk_level" class="filter-input appearance-none">
+              <option value="">كل المستويات</option>
+              <option value="low">منخفض (Low Risk)</option>
+              <option value="medium">متوسط (Medium)</option>
+              <option value="high">مرتفع (High Risk)</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">رقم المستأجر (Tenant ID)</label>
+            <div class="relative">
+              <input v-model.number="filters.tenant_id" type="number" min="1" class="filter-input pr-8 font-mono" placeholder="مثال: 101" />
+              <i class="fas fa-hashtag absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-50">
+          <button 
+            @click="resetFilters" 
+            :disabled="loading" 
+            class="h-9 px-4 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+          >
+            إعادة تعيين
+          </button>
+          <button 
+            @click="applyFilters" 
+            :disabled="loading" 
+            class="h-9 px-5 bg-slate-900 text-white rounded-md text-xs font-bold shadow-sm hover:bg-black transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+          >
+            <i class="fas fa-filter text-[10px]"></i>
+            <span>تطبيق التصفية</span>
+          </button>
         </div>
       </div>
-      <div class="kpi-card group border-l-4 border-l-emerald-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="fas fa-check-double"></i></div>
-          <div><p class="kpi-label uppercase">تراخيص نشطة</p><p class="kpi-value text-emerald-600">{{ summary.active }}</p></div>
-        </div>
-      </div>
-      <div class="kpi-card group border-l-4 border-l-rose-500">
-        <div class="flex items-center gap-4">
-          <div class="kpi-icon bg-rose-50 text-rose-600"><i class="fas fa-hourglass-end"></i></div>
-          <div><p class="kpi-label uppercase">تراخيص منتهية</p><p class="kpi-value text-rose-600">{{ summary.expired }}</p></div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Subscriptions Data Table Card -->
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden relative min-h-[400px]">
-      <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
-          <thead>
-            <tr class="bg-slate-50/50 text-slate-500 font-black border-b border-slate-50 uppercase tracking-tighter">
-              <th class="px-6 py-5 w-16 text-center">#</th>
-              <th class="px-4 py-5 w-24">Tenant</th>
-              <th class="px-4 py-5">الخطة / الباقة</th>
-              <th class="px-4 py-5 text-center">الحالة</th>
-              <th class="px-4 py-5">تاريخ البداية</th>
-              <th class="px-4 py-5">تاريخ الانتهاء</th>
-              <th class="px-4 py-5 text-center">السداد</th>
-              <th class="px-4 py-5 text-center">المخاطر</th>
-              <th class="px-8 py-5 text-center">الإجراءات والتحكم</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-50 font-bold text-slate-700">
-            <!-- Skeleton loading for table (GPU-accelerated) -->
-            <template v-if="loading">
-              <tr v-for="row in 6" :key="row">
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="8rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="10rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="6rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="5rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="5rem" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="circle" size="sm" animation="shimmer" /></td>
-                <td class="px-6 py-5"><BaseSkeleton type="text" size="sm" width="6rem" animation="shimmer" /></td>
-                <td class="px-6 py-5 text-center"><BaseSkeleton type="circle" size="sm" animation="shimmer" /></td>
-                <td class="px-6 py-5 text-center"><BaseSkeleton type="circle" size="sm" animation="shimmer" /></td>
+      <!-- Subscriptions Data Table Card -->
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[400px]">
+        <div class="overflow-x-auto">
+          <table class="w-full text-right border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">#</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المستأجر</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الخطة / الباقة</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">التحقق من البريد</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">تاريخ البداية</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">تاريخ الانتهاء</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">السداد</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">المخاطر</th>
+                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">إجراءات</th>
               </tr>
-            </template>
-            <tr v-else-if="pagedRows.length === 0" class="text-center py-20">
-              <td colspan="9" class="py-24 opacity-20 text-slate-400">
-                <i class="fas fa-id-card text-6xl mb-4"></i>
-                <p class="font-black text-sm uppercase">لا توجد اشتراكات مسجلة</p>
-              </td>
-            </tr>
-            <tr v-for="s in pagedRows" :key="s.id" class="hover:bg-blue-50/30 transition-all group">
-              <td class="px-6 py-4 text-center text-slate-300 font-mono text-xs">{{ s.id }}</td>
-              <td class="px-4 py-4"><span class="font-black text-slate-900 bg-slate-50 px-2 py-1 rounded-lg">#{{ s.tenant_id }}</span></td>
-              <td class="px-4 py-4">
-                <div class="flex flex-col">
-                  <span class="font-black text-slate-800 leading-none">{{ s.plan_name }}</span>
-                  <span class="text-[9px] text-slate-400 mt-1.5 uppercase font-black tracking-widest">{{ s.plan_code }}</span>
-                </div>
-              </td>
-              <td class="px-4 py-4 text-center">
-                <span :class="['status-badge', badgeClass(s.status)]">{{ s.status }}</span>
-              </td>
-              <td class="px-4 py-4 text-xs font-bold text-slate-500 font-mono tracking-tighter">{{ formatDate(s.start_date) }}</td>
-              <td class="px-4 py-4 text-xs font-bold text-slate-500 font-mono tracking-tighter">{{ formatDate(s.end_date) }}</td>
-              <td class="px-4 py-4 text-center">
-                <span class="text-[10px] font-black uppercase text-slate-400">{{ s.payment_status || '-' }}</span>
-              </td>
-              <td class="px-4 py-4 text-center">
-                <span v-if="s.risk_score" :class="['px-2 py-1 rounded-lg text-[10px] font-black font-mono tracking-tight', riskBadgeClass(s.risk_score)]">
-                   {{ s.risk_score }}/10
-                </span>
-                <span v-else class="text-slate-200">—</span>
-              </td>
-              <td class="px-8 py-4 text-center">
-                <div class="flex items-center justify-center gap-1.5 flex-wrap max-w-[280px] mx-auto">
-                  <button @click="openActivate(s)" class="action-btn-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-600" title="تفعيل"><i class="fas fa-play"></i></button>
-                  <button @click="openExpire(s)" class="action-btn-xs bg-rose-50 text-rose-600 hover:bg-rose-600" title="إيقاف"><i class="fas fa-stop"></i></button>
-                  <button @click="openExtend(s)" class="action-btn-xs bg-amber-50 text-amber-600 hover:bg-amber-600" title="تمديد"><i class="fas fa-calendar-plus"></i></button>
-                  <button @click="viewSecurityDetails(s)" class="action-btn-xs bg-blue-50 text-blue-600 hover:bg-blue-600" title="فحص أمني"><i class="fas fa-shield-halved"></i></button>
-                  <button @click="openChangePlan(s)" class="action-btn-xs bg-purple-50 text-purple-600 hover:bg-purple-600" title="تغيير الخطة"><i class="fas fa-shuffle"></i></button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <!-- Skeleton loading for table -->
+              <template v-if="loading">
+                <tr v-for="row in 6" :key="row" class="animate-pulse">
+                  <td class="px-6 py-4 text-center"><div class="h-3 bg-slate-100 rounded w-6 mx-auto"></div></td>
+                  <td class="px-4 py-4"><div class="h-3 bg-slate-100 rounded w-16"></div></td>
+                  <td class="px-4 py-4"><div class="h-3 bg-slate-100 rounded w-24"></div></td>
+                  <td class="px-4 py-4 text-center"><div class="h-4 bg-slate-100 rounded-full w-14 mx-auto"></div></td>
+                  <td class="px-4 py-4 text-center"><div class="h-4 bg-slate-100 rounded-full w-12 mx-auto"></div></td>
+                  <td class="px-4 py-4"><div class="h-3 bg-slate-100 rounded w-20"></div></td>
+                  <td class="px-4 py-4"><div class="h-3 bg-slate-100 rounded w-20"></div></td>
+                  <td class="px-4 py-4 text-center"><div class="h-3 bg-slate-100 rounded w-12 mx-auto"></div></td>
+                  <td class="px-4 py-4 text-center"><div class="h-4 bg-slate-100 rounded w-10 mx-auto"></div></td>
+                  <td class="px-6 py-4 text-center"><div class="h-7 bg-slate-100 rounded w-36 mx-auto"></div></td>
+                </tr>
+              </template>
+              
+              <!-- Empty State -->
+              <tr v-else-if="pagedRows.length === 0">
+                <td colspan="9" class="py-24 text-center text-slate-300">
+                  <i class="fas fa-id-card text-3xl mb-3 opacity-20"></i>
+                  <p class="text-xs font-bold uppercase tracking-widest">لا توجد اشتراكات مسجلة</p>
+                </td>
+              </tr>
 
-      <!-- Pagination Footer -->
-      <div class="px-8 py-6 bg-slate-50/50 border-t border-slate-50 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-          عرض الصفحة <span class="text-slate-900">{{ page }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
+              <!-- Data Rows -->
+              <tr v-for="s in pagedRows" :key="s.id" class="hover:bg-blue-50/20 transition-all group">
+                <td class="px-6 py-4 text-center text-slate-400 font-mono text-xs font-bold">{{ s.id }}</td>
+                <td class="px-4 py-4">
+                  <div class="flex flex-col">
+                    <span class="text-xs font-bold text-slate-900">{{ s.tenant_name || 'بدون اسم' }}</span>
+                    <span class="text-[9px] text-slate-400 uppercase font-bold font-mono tracking-wider mt-0.5">#{{ s.tenant_id }}</span>
+                    <span v-if="s.tenant_email" class="text-[8px] text-slate-500 font-mono mt-0.5 truncate max-w-[120px]">{{ s.tenant_email }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-4">
+                  <div class="flex flex-col">
+                    <span class="text-xs font-bold text-slate-900">{{ s.plan_name }}</span>
+                    <span class="text-[9px] text-slate-400 uppercase font-bold font-mono tracking-wider mt-0.5">{{ s.plan_code }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <span :class="['px-2.5 py-0.5 rounded-full text-[9px] font-bold border inline-flex items-center gap-1.5', badgeClass(s.status)]">
+                    <span class="w-1 h-1 rounded-full bg-current"></span>
+                    {{ s.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <span v-if="s.email_verified" class="px-2 py-0.5 rounded-full text-[9px] font-bold border bg-emerald-50 text-emerald-600 border-emerald-100 inline-flex items-center gap-1">
+                    <i class="fas fa-check text-[8px]"></i>
+                    <span>مُتحقّق</span>
+                  </span>
+                  <span v-else class="px-2 py-0.5 rounded-full text-[9px] font-bold border bg-amber-50 text-amber-600 border-amber-100 inline-flex items-center gap-1">
+                    <i class="fas fa-clock text-[8px]"></i>
+                    <span>بانتظار</span>
+                  </span>
+                </td>
+                <td class="px-4 py-4 text-[10px] font-bold text-slate-500 font-mono tracking-tighter">{{ formatDate(s.start_date) }}</td>
+                <td class="px-4 py-4 text-[10px] font-bold text-slate-500 font-mono tracking-tighter">{{ formatDate(s.end_date) }}</td>
+                <td class="px-4 py-4 text-center">
+                  <span class="text-[10px] font-bold uppercase text-slate-400 font-mono">{{ s.payment_status || '-' }}</span>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <span v-if="s.risk_score != null" :class="['px-2 py-0.5 rounded text-[9px] font-bold font-mono border', riskBadgeClass(s.risk_score)]">
+                     {{ s.risk_score }}/10
+                  </span>
+                  <span v-else class="text-slate-300 font-mono text-xs">—</span>
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <div class="flex items-center justify-center gap-1">
+                    <button @click="openActivate(s)" class="w-7 h-7 rounded border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all flex items-center justify-center" title="تفعيل">
+                      <i class="fas fa-play text-[9px]"></i>
+                    </button>
+                    <button @click="openExpire(s)" class="w-7 h-7 rounded border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all flex items-center justify-center" title="إيقاف">
+                      <i class="fas fa-stop text-[9px]"></i>
+                    </button>
+                    <button @click="openExtend(s)" class="w-7 h-7 rounded border border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-all flex items-center justify-center" title="تمديد">
+                      <i class="fas fa-calendar-plus text-[9px]"></i>
+                    </button>
+                    <button @click="viewSecurityDetails(s)" class="w-7 h-7 rounded border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all flex items-center justify-center" title="فحص أمني">
+                      <i class="fas fa-shield-halved text-[9px]"></i>
+                    </button>
+                    <button @click="openChangePlan(s)" class="w-7 h-7 rounded border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all flex items-center justify-center" title="تغيير الخطة">
+                      <i class="fas fa-shuffle text-[9px]"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="flex items-center gap-1">
-          <button @click="page--" :disabled="page===1" class="pagination-btn"><i class="fas fa-angle-right"></i></button>
-          <div class="px-6 h-10 bg-white border border-slate-200 rounded-xl flex items-center text-xs font-black shadow-sm">
-            {{ page }} / {{ totalPages }}
+
+        <!-- Pagination Footer -->
+        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            صفحة <span class="text-slate-900">{{ page }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
+            <span class="mx-2 text-slate-200">|</span> إجمالي <span class="text-slate-900">{{ rows.length }}</span> سجل
           </div>
-          <button @click="page++" :disabled="page===totalPages" class="pagination-btn"><i class="fas fa-angle-left"></i></button>
+          <div class="flex items-center gap-1">
+            <button @click="page--" :disabled="page <= 1" class="pagination-btn-v2">
+              <i class="fas fa-chevron-right text-[10px]"></i>
+            </button>
+            <div class="px-3 h-8 bg-white border border-slate-200 rounded flex items-center text-[10px] font-bold text-slate-700 font-mono shadow-sm">
+              {{ page }} / {{ totalPages }}
+            </div>
+            <button @click="page++" :disabled="page >= totalPages" class="pagination-btn-v2">
+              <i class="fas fa-chevron-left text-[10px]"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Activate Modal -->
-    <BaseModal :show="dialogs.activate" @close="closeDialogs" maxWidth="md" variant="modern" align="center">
+    <BaseModal :show="dialogs.activate" @close="closeDialogs" maxWidth="md">
       <template #header>
-        <div class="w-full text-center">
-          <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-4"><i class="fas fa-bolt-lightning text-2xl"></i></div>
-          <h3 class="text-xl font-black text-slate-800 leading-none">تفعيل الاشتراك #{{ current?.id }}</h3>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-bolt-lightning"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">تفعيل الاشتراك #{{ current?.id }}</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">اعتماد ترخيص المستأجر</p>
+          </div>
         </div>
       </template>
+
       <div class="space-y-2">
-        <label class="modal-label">تعيين خطة مخصصة (اختياري)</label>
-        <select v-model="form.plan" class="form-select-modern font-black">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">تعيين خطة مخصصة (اختياري)</label>
+        <select v-model="form.plan" class="filter-input appearance-none">
           <option value="">بدون تغيير (الافتراضية)</option>
           <option value="monthly">monthly</option>
           <option value="yearly">yearly</option>
         </select>
       </div>
+
       <template #footer>
-        <button @click="closeDialogs" class="flex-1 py-3 rounded-2xl border-2 border-slate-100 font-black text-slate-400 text-xs">إلغاء</button>
-        <button @click="submitActivate" :disabled="actionLoading" class="flex-[2] py-3 rounded-2xl bg-emerald-600 text-white font-black shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-3">
-          <BaseSpinner v-if="actionLoading" :size="16" color="#fff" />
-          <span>تفعيل الاشتراك</span>
+        <button @click="closeDialogs" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إلغاء</button>
+        <button 
+          @click="submitActivate" 
+          :disabled="actionLoading" 
+          class="px-6 h-9 rounded-md bg-emerald-600 text-white text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <BaseSpinner v-if="actionLoading" :size="14" color="#fff" />
+          <span>تأكيد التفعيل</span>
         </button>
       </template>
     </BaseModal>
 
     <!-- Expire Modal -->
-    <BaseModal :show="dialogs.expire" @close="closeDialogs" maxWidth="md" variant="modern" align="center">
-      <div class="text-center py-4">
-        <div class="w-20 h-20 bg-rose-50 text-rose-500 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-sm"><i class="fas fa-hand-holding-hand text-3xl"></i></div>
-        <h3 class="text-xl font-black text-slate-900 leading-none">إيقاف الاشتراك #{{ current?.id }}</h3>
-        <p class="text-slate-400 text-sm mt-4 leading-relaxed font-bold">تحذير: سيتم تعطيل وصول المستأجر للنظام فوراً. هل تريد المتابعة؟</p>
+    <BaseModal :show="dialogs.expire" @close="closeDialogs" maxWidth="md">
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-stop"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">إيقاف الاشتراك #{{ current?.id }}</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">تعطيل وصول المستأجر</p>
+          </div>
+        </div>
+      </template>
+
+      <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3">
+        <i class="fas fa-triangle-exclamation text-rose-600 text-sm shrink-0"></i>
+        <p class="text-xs font-semibold text-rose-900 leading-relaxed">
+          تحذير: سيتم تعطيل وصول المستأجر إلى النظام بشكل فوري عند التأكيد.
+        </p>
       </div>
+
       <template #footer>
-        <button @click="closeDialogs" class="flex-1 h-12 rounded-2xl border-2 border-slate-50 font-black text-slate-400 text-xs hover:bg-slate-50 transition-all">تراجع</button>
-        <button @click="submitExpire" :disabled="actionLoading" class="flex-1 h-12 rounded-2xl bg-rose-600 text-white font-black text-xs shadow-xl shadow-rose-100 active:scale-95 transition-all flex items-center justify-center gap-2">
+        <button @click="closeDialogs" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">تراجع</button>
+        <button 
+          @click="submitExpire" 
+          :disabled="actionLoading" 
+          class="px-6 h-9 rounded-md bg-rose-600 text-white text-xs font-bold shadow-sm hover:bg-rose-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
           <BaseSpinner v-if="actionLoading" :size="14" color="#fff" />
           <span>إيقاف الآن</span>
         </button>
@@ -229,87 +336,149 @@
     </BaseModal>
 
     <!-- Extend Modal -->
-    <BaseModal :show="dialogs.extend" @close="closeDialogs" maxWidth="md" variant="modern" align="center">
+    <BaseModal :show="dialogs.extend" @close="closeDialogs" maxWidth="md">
       <template #header>
-        <h3 class="text-xl font-black text-slate-800">تمديد اشتراك #{{ current?.id }}</h3>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-calendar-plus"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">تمديد اشتراك #{{ current?.id }}</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">إضافة فترة صلاحية جديدة</p>
+          </div>
+        </div>
       </template>
-      <div class="space-y-2 text-right">
-        <label class="modal-label">عدد أيام التمديد الإضافية</label>
-        <input v-model.number="form.days" type="number" min="1" class="form-input-modern text-center font-black text-3xl h-16" />
-        <p class="text-[10px] text-slate-400 font-bold uppercase mt-2 text-center">سيتم إضافة هذه الأيام لتاريخ الانتهاء الحالي</p>
+
+      <div class="space-y-2">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">عدد أيام التمديد الإضافية</label>
+        <input v-model.number="form.days" type="number" min="1" class="filter-input font-mono text-center text-base" />
+        <p class="text-[10px] text-slate-400 font-bold text-center">سيتم إضافة هذه الأيام لتاريخ الانتهاء الحالي تلقائياً</p>
       </div>
+
       <template #footer>
-        <button @click="closeDialogs" class="flex-1 py-3 rounded-2xl border-2 border-slate-100 font-black text-slate-400 text-xs">إلغاء</button>
-        <button @click="submitExtend" :disabled="actionLoading || !form.days" class="flex-[2] py-3 rounded-2xl bg-amber-500 text-white font-black shadow-xl shadow-amber-100 hover:bg-amber-600 active:scale-95 transition-all">تأكيد التمديد</button>
+        <button @click="closeDialogs" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إلغاء</button>
+        <button 
+          @click="submitExtend" 
+          :disabled="actionLoading || !form.days" 
+          class="px-6 h-9 rounded-md bg-amber-500 text-white text-xs font-bold shadow-sm hover:bg-amber-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <BaseSpinner v-if="actionLoading" :size="14" color="#fff" />
+          <span>تأكيد التمديد</span>
+        </button>
       </template>
     </BaseModal>
 
     <!-- Security Modal -->
-    <BaseModal :show="dialogs.security" @close="closeDialogs" maxWidth="2xl" variant="modern">
+    <BaseModal :show="dialogs.security" @close="closeDialogs" maxWidth="2xl">
       <template #header>
-        <h3 class="text-xl font-black text-slate-800">التدقيق الأمني للاشتراك #{{ current?.id }}</h3>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-shield-halved"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">التدقيق الأمني للاشتراك #{{ current?.id }}</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">فحص مؤشرات المخاطر والمصادقة</p>
+          </div>
+        </div>
       </template>
-      <div class="space-y-8">
+
+      <div class="space-y-5">
         <div class="grid grid-cols-2 gap-4">
-          <div class="p-6 rounded-[1.5rem] bg-slate-50 border border-slate-100 flex flex-col justify-center items-center">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-2">مؤشر المخاطر</p>
-            <p :class="[riskBadgeClass(current?.risk_score), 'text-3xl font-black font-mono rounded-2xl px-6 py-2']">{{ current?.risk_score || 0 }}/10</p>
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">مؤشر المخاطر</p>
+            <span :class="['px-3 py-1 rounded text-lg font-bold font-mono inline-block border', riskBadgeClass(current?.risk_score)]">
+              {{ current?.risk_score || 0 }}/10
+            </span>
           </div>
-          <div class="p-6 rounded-[1.5rem] bg-slate-50 border border-slate-100 flex flex-col justify-center items-center">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-2">آخر فحص تلقائي</p>
-            <p class="text-xs font-black text-slate-800">{{ formatDate(current?.last_security_check) }}</p>
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">آخر فحص تلقائي</p>
+            <p class="text-xs font-bold text-slate-800 font-mono mt-2">{{ formatDate(current?.last_security_check) }}</p>
           </div>
         </div>
-        <div v-if="current?.security_flags" class="bg-amber-50 border-2 border-amber-100 p-6 rounded-[2rem] space-y-3 shadow-inner">
-          <h4 class="text-xs font-black text-amber-800 uppercase tracking-widest flex items-center gap-2"><i class="fas fa-triangle-exclamation"></i> تنبيهات رصدها النظام:</h4>
-          <p class="text-xs font-bold text-amber-700 leading-relaxed italic">{{ current.security_flags }}</p>
+
+        <div v-if="current?.security_flags" class="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-1">
+          <h4 class="text-xs font-bold text-amber-800 flex items-center gap-2">
+            <i class="fas fa-triangle-exclamation text-[11px]"></i> تنبيهات رصدها النظام:
+          </h4>
+          <p class="text-xs font-medium text-amber-700 leading-relaxed italic">{{ current.security_flags }}</p>
         </div>
-        <div class="flex flex-col gap-3">
-          <button @click="refreshSecurityData" :disabled="securityLoading" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3">
-            <BaseSpinner v-if="securityLoading" :size="16" color="#fff" />
-            <i v-else class="fas fa-shield-virus"></i> تشغيل فحص أمني فوري
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <button 
+            @click="refreshSecurityData" 
+            :disabled="securityLoading" 
+            class="h-9 px-4 bg-slate-900 text-white rounded-md font-bold text-xs hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+          >
+            <BaseSpinner v-if="securityLoading" :size="14" color="#fff" />
+            <i v-else class="fas fa-shield-virus text-[10px]"></i>
+            <span>تشغيل فحص فوري</span>
           </button>
-          <button @click="blockSubscription" :disabled="securityLoading" class="w-full py-4 bg-rose-50 text-rose-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-3">
-            <i class="fas fa-ban"></i> حظر هذا المستأجر نهائياً
+          <button 
+            @click="blockSubscription" 
+            :disabled="securityLoading" 
+            class="h-9 px-4 bg-rose-50 text-rose-600 border border-rose-200 rounded-md font-bold text-xs hover:bg-rose-600 hover:text-white transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+          >
+            <i class="fas fa-ban text-[10px]"></i>
+            <span>حظر المستأجر نهائياً</span>
           </button>
         </div>
       </div>
+
+      <template #footer>
+        <button @click="closeDialogs" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إغلاق</button>
+      </template>
     </BaseModal>
 
     <!-- Change Plan Modal -->
-    <BaseModal :show="dialogs.changePlan" @close="closeDialogs" maxWidth="md" variant="modern">
+    <BaseModal :show="dialogs.changePlan" @close="closeDialogs" maxWidth="md">
       <template #header>
-        <h3 class="text-xl font-black text-slate-800">تعديل باقة المستأجر #{{ current?.id }}</h3>
-      </template>
-      <div class="space-y-6">
-        <div class="p-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between">
-          <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest">الباقة الحالية:</p>
-          <span class="text-xs font-black text-blue-900 uppercase tracking-tight">{{ current?.plan_code }} — {{ current?.plan_name }}</span>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs">
+            <i class="fas fa-shuffle"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase">تعديل باقة المستأجر #{{ current?.id }}</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">ترقية أو تغيير نوع الخطة</p>
+          </div>
         </div>
-        <div class="space-y-2">
-          <label class="modal-label">اختر الباقة الجديدة</label>
-          <select v-model="form.newPlan" class="form-select-modern font-black" required>
+      </template>
+
+      <div class="space-y-4">
+        <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-between">
+          <p class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">الباقة الحالية</p>
+          <span class="text-xs font-bold text-blue-900 font-mono">{{ current?.plan_code }} — {{ current?.plan_name }}</span>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">اختر الباقة الجديدة</label>
+          <select v-model="form.newPlan" class="filter-input appearance-none" required>
             <option value="">-- اختر خطة --</option>
             <option value="trial">Trial (تجريبي)</option>
             <option value="monthly">Monthly (شهري)</option>
             <option value="yearly">Yearly (سنوي)</option>
           </select>
         </div>
-        <div class="grid grid-cols-1 gap-3 pt-2">
-          <label class="flex items-center gap-3 p-4 rounded-xl border border-slate-50 hover:bg-slate-50 transition-all cursor-pointer">
-            <input type="checkbox" v-model="form.prorate" class="w-5 h-5 rounded text-purple-600 border-slate-300 focus:ring-0" />
-            <span class="text-xs font-black text-slate-600 uppercase">احتساب تناسبي (Prorate)</span>
+
+        <div class="space-y-2 pt-2 border-t border-slate-50">
+          <label class="flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-all cursor-pointer">
+            <input type="checkbox" v-model="form.prorate" class="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4" />
+            <span class="text-xs font-bold text-slate-700">احتساب تناسبي (Prorate)</span>
           </label>
-          <label class="flex items-center gap-3 p-4 rounded-xl border border-slate-50 hover:bg-slate-50 transition-all cursor-pointer">
-            <input type="checkbox" v-model="form.extendPeriod" class="w-5 h-5 rounded text-purple-600 border-slate-300 focus:ring-0" />
-            <span class="text-xs font-black text-slate-600 uppercase">تمديد فترة الصلاحية آلياً</span>
+          <label class="flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-all cursor-pointer">
+            <input type="checkbox" v-model="form.extendPeriod" class="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4" />
+            <span class="text-xs font-bold text-slate-700">تمديد فترة الصلاحية آلياً</span>
           </label>
         </div>
       </div>
+
       <template #footer>
-        <button @click="closeDialogs" class="flex-1 py-3 rounded-2xl border-2 border-slate-100 font-black text-slate-400 text-xs">إلغاء</button>
-        <button @click="submitChangePlan" :disabled="actionLoading || !form.newPlan" class="flex-[2] py-3 rounded-2xl bg-purple-600 text-white font-black shadow-xl shadow-purple-100 hover:bg-purple-700 active:scale-95 transition-all flex items-center justify-center gap-3 text-xs">
-          <BaseSpinner v-if="actionLoading" :size="16" color="#fff" />
+        <button @click="closeDialogs" class="px-6 h-9 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إلغاء</button>
+        <button 
+          @click="submitChangePlan" 
+          :disabled="actionLoading || !form.newPlan" 
+          class="px-6 h-9 rounded-md bg-indigo-600 text-white text-xs font-bold shadow-sm hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <BaseSpinner v-if="actionLoading" :size="14" color="#fff" />
           <span>تحديث الباقة</span>
         </button>
       </template>
@@ -320,13 +489,18 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import BaseModal from '@/components/BaseModal.vue';
-import { useAdminStore } from '@/stores/admin/adminStore';
-import { useAuthStore } from '@/stores/auth';
-import BaseSpinner from '@/components/ui/BaseSpinner.vue';
-import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';;
+import BaseModal from '@/components/BaseModal.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import { useAdminStore } from '@/stores/admin/adminStore'
+import { useAuthStore } from '@/stores/auth'
+import { useBreadcrumb } from '@/composables/useBreadcrumb'
+import BaseSpinner from '@/components/ui/BaseSpinner.vue'
+import BaseSkeleton from '@/components/ui/BaseSkeleton.vue'
+import apiClient from '@/config/axios'
 
-const adminStore = useAdminStore();
+// --- State & Stores (Strictly Preserved) ---
+const adminStore = useAdminStore()
+const { breadcrumb } = useBreadcrumb()
 const rows = ref([])
 const loading = computed(() => adminStore.loading)
 const actionLoading = computed(() => adminStore.actionLoading)
@@ -340,16 +514,23 @@ const current = ref(null)
 const form = ref({ plan: '', days: 30, newPlan: '', prorate: false, extendPeriod: false })
 
 const pagedRows = computed(() => {
+  if (!Array.isArray(rows.value)) return []
   const start = (page.value - 1) * pageSize.value
   return rows.value.slice(start, start + pageSize.value)
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
+const totalPages = computed(() => {
+  if (!Array.isArray(rows.value)) return 1
+  return Math.max(1, Math.ceil(rows.value.length / pageSize.value))
+})
 
-const summary = computed(() => ({
-  active: rows.value.filter(r => r.status === 'active').length,
-  expired: rows.value.filter(r => r.status === 'expired').length,
-}))
+const summary = computed(() => {
+  if (!Array.isArray(rows.value)) return { active: 0, expired: 0 }
+  return {
+    active: rows.value.filter(r => r.status === 'active').length,
+    expired: rows.value.filter(r => r.status === 'expired').length,
+  }
+})
 
 function formatDate(d) {
   if (!d) return '-'
@@ -357,16 +538,16 @@ function formatDate(d) {
 }
 
 function badgeClass(status) {
-  if (status === 'active') return 'bg-emerald-100 text-emerald-700 border-emerald-50'
-  if (status === 'trial') return 'bg-blue-100 text-blue-700 border-blue-50'
-  if (status === 'expired') return 'bg-rose-100 text-rose-700 border-rose-50'
-  return 'bg-slate-100 text-slate-500'
+  if (status === 'active') return 'bg-emerald-50 text-emerald-600 border-emerald-100'
+  if (status === 'trial') return 'bg-blue-50 text-blue-600 border-blue-100'
+  if (status === 'expired') return 'bg-rose-50 text-rose-600 border-rose-100'
+  return 'bg-slate-50 text-slate-600 border-slate-200'
 }
 
 function riskBadgeClass(score) {
-  if (score >= 7) return 'bg-rose-100 text-rose-700'
-  if (score >= 4) return 'bg-amber-100 text-amber-700'
-  return 'bg-emerald-100 text-emerald-700'
+  if (score >= 7) return 'bg-rose-50 text-rose-600 border-rose-100'
+  if (score >= 4) return 'bg-amber-50 text-amber-600 border-amber-100'
+  return 'bg-emerald-50 text-emerald-600 border-emerald-100'
 }
 
 async function load() {
@@ -374,9 +555,11 @@ async function load() {
   if (!params.tenant_id) delete params.tenant_id
   const result = await adminStore.fetchSubscriptions(params)
   if (result.status === 'success') {
-    rows.value = result.data
+    // تأكد من أن البيانات هي array
+    rows.value = Array.isArray(result.data) ? result.data : []
     page.value = 1
   } else {
+    rows.value = []
     if (typeof window?.showToast === 'function') window.showToast(result.message, 'error')
   }
 }
@@ -401,7 +584,6 @@ async function refreshSecurityData() {
       if (typeof window?.showToast === 'function') window.showToast('تم تحديث البيانات الأمنية', 'success')
     }
   } catch (e) {
-    // ✅ مستعادة من النسخة القديمة: showToast في catch
     if (typeof window?.showToast === 'function') window.showToast(e?.message || 'فشل التحديث', 'error')
   } finally { securityLoading.value = false }
 }
@@ -421,7 +603,6 @@ async function blockSubscription() {
 
 async function submitActivate() {
   if (!current.value) return
-  const body = form.value.plan ? { plan: form.value.plan } : {}
   const result = await adminStore.activateSubscription(current.value.id, form.value.plan)
   if (result.status === 'success') {
     if (typeof window?.showToast === 'function') window.showToast(result.message, 'success')
@@ -470,7 +651,7 @@ async function submitExtend() {
 }
 
 function exportCsv() {
-  if (rows.value.length === 0) return
+  if (!Array.isArray(rows.value) || rows.value.length === 0) return
   const headers = ['id', 'tenant_id', 'plan_code', 'plan_name', 'status', 'start_date', 'end_date', 'payment_status']
   const csv = [headers.join(',')]
   rows.value.forEach(r => {
@@ -487,30 +668,26 @@ function exportCsv() {
   URL.revokeObjectURL(url)
 }
 
-onMounted(() => load());
+onMounted(() => load())
 </script>
 
 <style scoped>
+@keyframes loading {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
 
-.kpi-card { @apply bg-white p-7 rounded-[2rem] shadow-sm border border-slate-100 transition-all duration-300 hover:shadow-xl hover:-translate-y-1; }
-.kpi-icon { @apply w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm; }
-.kpi-label { @apply text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none; }
-.kpi-value { @apply text-2xl font-black leading-none tracking-tight; }
+.filter-input {
+  @apply h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all;
+}
 
-.form-input-modern, .form-select-modern { @apply w-full h-11 bg-white border border-slate-200 rounded-2xl px-4 outline-none transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm font-bold text-sm; }
-.filter-label { @apply block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1; }
-.modal-label { @apply block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 px-1; }
+.pagination-btn-v2 {
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+}
 
-.status-badge { @apply px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-tighter shadow-sm border border-transparent; }
-.action-btn-xs { @apply w-8 h-8 rounded-xl flex items-center justify-center text-[10px] transition-all hover:text-white active:scale-90 shadow-sm border border-white; }
-.pagination-btn { @apply w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all disabled:opacity-30; }
-
-.modal-overlay { /* removed - using BaseModal */ }
-.modal-content-modern { /* removed - using BaseModal */ }
-
-.custom-scroll::-webkit-scrollbar { width: 4px; }
+.custom-scroll::-webkit-scrollbar { width: 5px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
 
-.animate-fadeIn { animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fadeIn { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 </style>

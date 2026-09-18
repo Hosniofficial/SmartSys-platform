@@ -560,7 +560,7 @@ router.beforeEach(async (to, from, next) => {
   
   // Special routes that don't need menuConfig permission check
   const specialRoutes = ['/setup', '/profile', '/forbidden', '/upgrade', '/verify-email', '/reset-password']
-  const isSpecialRoute = specialRoutes.includes(to.path)
+  const isSpecialRoute = specialRoutes.includes(to.path) || to.name === 'NotFound'
   
   if (requiresGuest && authStore.isAuthenticated) {
     next(authStore.isAdmin ? '/admin-dashboard' : '/cashier-dashboard');
