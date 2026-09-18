@@ -47,22 +47,9 @@
         </template>
       </PageHeader>
 
-      <!-- Active Branch Filter Chip -->
-      <div v-if="hasExplicitBranchSelection" class="flex flex-wrap gap-2">
-        <div class="inline-flex items-center gap-2 px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-md text-[10px] font-bold text-amber-700">
-          {{ `الفرع: ${branches.find(b => b.id == selectedBranch)?.name || selectedBranch}` }}
-          <i @click="onBranchChange(null)" class="fas fa-times cursor-pointer hover:text-amber-900 opacity-60"></i>
-        </div>
-      </div>
-
       <!-- Main Content Card -->
       <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
         
-        <!-- Utility Toolbar -->
-        <div class="p-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-          <p class="text-[10px] font-medium text-slate-400 italic">يتم التحديث تلقائياً كل {{ POLL_INTERVAL / 1000 }} ثانية</p>
-        </div>
-
         <!-- Summary Cards (Total/Paid/Balance) -->
         <div v-if="rows.length > 0" class="grid grid-cols-3 gap-4 p-4 bg-white border-b border-slate-100">
           <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-center">
@@ -147,10 +134,18 @@
             إجمالي <span class="text-slate-900">{{ total }}</span> طلب معلق
           </div>
           <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1">
-              <button @click="page = Math.max(1, page - 1)" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-              <button @click="page = Math.min(totalPages, page + 1)" :disabled="page >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
-            </div>
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase">النتائج:</span>
+               <select v-model.number="limit" @change="page = 1; fetchPending({ silent: false })" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="page = Math.max(1, page - 1); fetchPending({ silent: false })" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="page = Math.min(totalPages, page + 1); fetchPending({ silent: false })" :disabled="page >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>

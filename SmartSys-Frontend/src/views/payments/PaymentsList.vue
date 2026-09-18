@@ -30,20 +30,20 @@
       </PageHeader>
 
       <!-- Advanced Filters Panel: Utility Grid -->
-      <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-visible relative z-50">
+      <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-visible relative z-10">
         <div class="p-6 space-y-6">
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="space-y-1.5">
               <label class="metadata-label">من تاريخ</label>
               <div class="relative group">
-                <input ref="dateFromRef" type="date" v-model="dateFrom" @change="page=1; load();" class="filter-input-v3" />
+                <input ref="dateFromRef" type="date" v-model="dateFrom" @change="page=1; load();" class="filter-input-v3" style="padding-left: 2rem;" />
                 <i class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-blue-500 transition-colors pointer-events-none text-[10px]"></i>
               </div>
             </div>
             <div class="space-y-1.5">
               <label class="metadata-label">إلى تاريخ</label>
               <div class="relative group">
-                <input ref="dateToRef" type="date" v-model="dateTo" @change="page=1; load();" class="filter-input-v3" />
+                <input ref="dateToRef" type="date" v-model="dateTo" @change="page=1; load();" class="filter-input-v3" style="padding-left: 2rem;" />
                 <i class="fas fa-calendar-check absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-blue-500 transition-colors pointer-events-none text-[10px]"></i>
               </div>
             </div>
@@ -83,9 +83,9 @@
             <div class="space-y-1.5 relative" ref="customerWrap">
               <label class="metadata-label">تصفية بالعميل</label>
               <div class="relative">
-                <input type="text" v-model="customerQuery" @focus="showCustomerList = true" @input="showCustomerList = true" class="filter-input-v3 pr-9" placeholder="ابحث بالاسم..." />
+                <input type="text" v-model="customerQuery" @focus="showCustomerList = true" @input="showCustomerList = true" class="filter-input-v3" placeholder="ابحث بالاسم..." style="padding-right: 2rem;" />
                 <i class="fas fa-user-tag absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
-                <div v-if="showCustomerList" class="absolute top-full right-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl z-[60] max-h-48 overflow-auto py-1">
+                <div v-if="showCustomerList" class="absolute top-full right-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl z-[40] max-h-48 overflow-auto py-1">
                   <div v-if="!filteredCustomers.length" class="px-4 py-2 text-[10px] text-slate-400 font-bold uppercase">لا نتائج</div>
                   <div v-for="c in filteredCustomers" :key="c.id" @mousedown.prevent="customerId = c.id; customerQuery = c.name; page = 1; load(); showCustomerList = false;" class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-[11px] font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0">{{ c.name }}</div>
                 </div>
@@ -95,9 +95,9 @@
             <div class="space-y-1.5 relative" ref="supplierWrap">
               <label class="metadata-label">تصفية بالمورد</label>
               <div class="relative">
-                <input type="text" v-model="supplierQuery" @focus="showSupplierList = true" @input="showSupplierList = true" class="filter-input-v3 pr-9" placeholder="ابحث بالمورد..." />
+                <input type="text" v-model="supplierQuery" @focus="showSupplierList = true" @input="showSupplierList = true" class="filter-input-v3" placeholder="ابحث بالمورد..." style="padding-right: 2rem;" />
                 <i class="fas fa-truck absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
-                <div v-if="showSupplierList" class="absolute top-full right-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl z-[60] max-h-48 overflow-auto py-1">
+                <div v-if="showSupplierList" class="absolute top-full right-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl z-[40] max-h-48 overflow-auto py-1">
                   <div v-for="s in filteredSuppliers" :key="s.id" @mousedown.prevent="supplierId = s.id; supplierQuery = s.name; page = 1; load(); showSupplierList = false;" class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-[11px] font-bold text-slate-700 border-b border-slate-50 last:border-0">{{ s.name }}</div>
                 </div>
               </div>
@@ -111,14 +111,14 @@
                        @focus="showUserList = true"
                        @input="showUserList = true"
                        @keydown.esc.prevent="showUserList = false"
-                       class="filter-input-v3 pr-9" placeholder="ابحث بالمستخدم..." />
+                       class="filter-input-v3" placeholder="ابحث بالمستخدم..." style="padding-right: 2rem;" />
                 <i class="fas fa-user-shield absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
                 <button v-if="userQuery || createdBy"
                         @mousedown.prevent="createdBy = ''; userQuery = ''; page = 1; load();"
                         class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 transition-colors">
                   <i class="fas fa-times-circle text-[10px]"></i>
                 </button>
-                <div v-if="showUserList" class="absolute top-full right-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl z-[60] max-h-48 overflow-auto py-1">
+                <div v-if="showUserList" class="absolute top-full right-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-2xl z-[40] max-h-48 overflow-auto py-1">
                   <div v-if="!filteredUsers.length" class="px-4 py-2 text-[10px] text-slate-400 font-bold uppercase">لا نتائج</div>
                   <div v-for="u in filteredUsers" :key="u.id"
                        @mousedown.prevent="createdBy = u.id; userQuery = u.name || String(u.id); page = 1; load(); showUserList = false;"
@@ -132,7 +132,7 @@
 
           <div class="flex items-center gap-3 pt-4 border-t border-slate-50">
             <button @click="resetFilters" class="h-9 px-4 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
-              <i class="fas fa-broom text-[10px]"></i> مسح الفلاتر
+              <i class="fas fa-broom text-[10px]"></i> إعادة تعيين الفلاتر
             </button>
             <select v-model.number="perPage" class="h-9 w-24 border border-slate-200 rounded-md px-2 text-[10px] font-bold outline-none bg-white">
               <option :value="10">10 / ص</option>

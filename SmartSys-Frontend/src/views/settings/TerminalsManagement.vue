@@ -56,7 +56,7 @@
           <div class="space-y-1.5 group">
             <label class="metadata-label">كود المحطة (Unique Code) <span class="text-rose-500">*</span></label>
             <div class="relative">
-              <input v-model="form.code" type="text" class="filter-input-v2 pr-9 font-mono font-bold text-blue-600 uppercase tracking-widest" placeholder="POS-01" />
+              <input v-model="form.code" type="text" class="filter-input-v2 font-mono font-bold text-blue-600 uppercase tracking-widest" placeholder="POS-01" style="padding-right: 2rem;" />
               <i class="fas fa-barcode absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
             </div>
           </div>
@@ -64,7 +64,7 @@
           <div class="space-y-1.5 group">
             <label class="metadata-label">اسم الجهاز المخصص</label>
             <div class="relative">
-              <input v-model="form.name" type="text" class="filter-input-v2 pr-9" placeholder="مثال: كاشير الواجهة" />
+              <input v-model="form.name" type="text" class="filter-input-v2" placeholder="مثال: كاشير الواجهة" style="padding-right: 2rem;" />
               <i class="fas fa-tag absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
             </div>
           </div>
@@ -146,7 +146,7 @@
                   </div>
                 </td>
                 <td class="px-4 py-4 text-slate-500 font-bold uppercase">
-                   <i class="fas fa-building text-[10px] ml-1.5 opacity-30"></i>
+                   <i class="fas fa-building text-[10px] ml-3 opacity-30"></i>
                    {{ branches.find(w => w.id === t.branch_id)?.name || t.branch_id }}
                 </td>
                 <td class="px-8 py-4 text-center">

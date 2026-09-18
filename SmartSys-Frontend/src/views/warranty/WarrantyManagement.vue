@@ -26,14 +26,6 @@
         </template>
       </PageHeader>
 
-      <!-- Active Branch Filter Chip -->
-      <div v-if="hasExplicitBranchSelection" class="flex flex-wrap gap-2">
-        <div class="inline-flex items-center gap-2 px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-md text-[10px] font-bold text-blue-700">
-          {{ `الفرع: ${branches.find(b => b.id == selectedBranch)?.name || selectedBranch}` }}
-          <i @click="onBranchChange(null)" class="fas fa-times cursor-pointer hover:text-blue-900 opacity-60"></i>
-        </div>
-      </div>
-
       <!-- Status Filter Tabs: Segmented Control Style -->
       <section class="flex items-center justify-center">
         <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200/50">
