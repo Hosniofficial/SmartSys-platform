@@ -73,7 +73,7 @@
         </div>
 
         <!-- Table Card -->
-        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
           
           <!-- Loading State -->
           <div v-if="isLoading" class="p-8 space-y-4">
@@ -116,7 +116,7 @@
                   <tr v-if="filteredProducts.length === 0" class="text-center">
                     <td colspan="6" class="py-24 text-slate-300">
                       <i class="fas fa-box-open text-3xl mb-4 opacity-20"></i>
-                      <p class="text-xs font-bold uppercase tracking-widest">لا توجد نتائج</p>
+                      <p class="text-xs font-bold uppercase tracking-widest">لا توجد منتجات مضافة</p>
                     </td>
                   </tr>
                   <tr v-for="product in paginatedProducts" :key="product.id" class="hover:bg-blue-50/20 transition-all group">
@@ -157,25 +157,26 @@
               </table>
             </div>
 
-            <!-- Pagination -->
+            <!-- Pagination Footer (Unified Standard) -->
             <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
               <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                عرض <span class="text-slate-900">{{ (currentPage - 1) * itemsPerPage + 1 }}</span> - <span class="text-slate-900">{{ Math.min(currentPage * itemsPerPage, filteredProducts.length) }}</span> من <span class="text-slate-900">{{ filteredProducts.length }}</span> صنف
+                صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+                <span class="mx-2 text-slate-200">|</span>
+                إجمالي <span class="text-slate-900">{{ filteredProducts.length }}</span> منتج
               </div>
-              
-              <div v-if="totalPages > 1" class="flex items-center gap-1">
-                <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-                <div class="flex items-center gap-1 mx-2">
-                  <template v-for="page in visiblePages" :key="page">
-                    <span v-if="page === '...'" class="px-2 text-slate-400 text-xs font-bold">...</span>
-                    <button v-else @click="goToPage(page)"
-                      :class="[currentPage === page ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 hover:bg-slate-100']"
-                      class="w-7 h-7 rounded text-[10px] font-bold transition-all">
-                      {{ page }}
-                    </button>
-                  </template>
-                </div>
-                <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+              <div class="flex items-center gap-3">
+                 <div class="flex items-center gap-2">
+                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+                   <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                     <option :value="10">10</option>
+                     <option :value="20">20</option>
+                     <option :value="50">50</option>
+                   </select>
+                 </div>
+                 <div class="flex items-center gap-1">
+                   <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+                   <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+                 </div>
               </div>
             </div>
           </template>
@@ -192,7 +193,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">{{ selectedProduct ? 'تحديث بيانات الصنف' : 'إضافة صنف جديد للمخزن' }}</h3>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">سجل البيانات التقنية والمالية</p>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">بيانات الصنف والتفاصيل المالية والمخزنية</p>
           </div>
         </div>
       </template>
@@ -224,6 +225,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import BaseModal from '@/components/BaseModal.vue';
 import BaseSpinner from '@/components/ui/BaseSpinner.vue';
 import { useToast } from '@/composables/useToast';
+import { useTableFilters } from '@/composables/useTableFilters';
 import getLocalDateISO from '@/utils/date';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
 import ProductForm from '../../components/ProductForm.vue';
@@ -257,8 +259,9 @@ const isLoading = ref(true);
 const error = ref(null);
 const searchQuery = ref('');
 const selectedCategory = ref('');
-const currentPage = ref(1);
-const itemsPerPage = ref(10);
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('products_filters');
 
 const handleBranchChange = () => { fetchAllData(true); };
 
@@ -305,26 +308,11 @@ const filteredProducts = computed(() => {
   return result;
 });
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredProducts.value.length / itemsPerPage.value)));
-
-const visiblePages = computed(() => {
-  const total = totalPages.value;
-  const current = currentPage.value;
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages = new Set([1, total]);
-  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) { pages.add(i); }
-  const sorted = [...pages].sort((a, b) => a - b);
-  const result = [];
-  for (let i = 0; i < sorted.length; i++) {
-    result.push(sorted[i]);
-    if (i < sorted.length - 1 && sorted[i + 1] - sorted[i] > 1) { result.push('...'); }
-  }
-  return result;
-});
 
 const paginatedProducts = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  return filteredProducts.value.slice(start, start + itemsPerPage.value);
+  filters.totalCount.value = filteredProducts.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  return filteredProducts.value.slice(start, start + filters.perPage.value);
 });
 
 watch(selectedBranch, async (newId, oldId) => {
@@ -335,12 +323,12 @@ watch(selectedBranch, async (newId, oldId) => {
     const [prodRes] = await Promise.all([productStore.fetchProducts({ branchId: newId }), catalogStore.fetchCategories(newId)]);
     if (prodRes && prodRes.status === 'success') { products.value = prodRes.data || []; }
     selectedCategory.value = '';
-    currentPage.value = 1;
+    filters.page.value = 1;
   } catch { showToast('فشل تحميل البيانات', 'error'); }
   finally { isLoading.value = false; }
 });
 
-watch([searchQuery, selectedCategory], () => currentPage.value = 1);
+watch([searchQuery, selectedCategory], () => filters.page.value = 1);
 
 const openAddModal = () => { selectedProduct.value = null; showFormModal.value = true; };
 const openEditModal = async (p) => { 
@@ -374,7 +362,7 @@ const openEditModal = async (p) => {
 };
 const handleFormSuccess = () => { showFormModal.value = false; fetchAllData(true); productStore.invalidateCache(); };
 const handleCategoryAdded = async () => { await catalogStore.fetchCategories(selectedBranch.value, { force: true }); };
-const goToPage = (p) => { if (p >= 1 && p <= totalPages.value) currentPage.value = p; };
+const goToPage = (p) => { if (p >= 1 && p <= filters.totalPages.value) filters.page.value = p; };
 const handleDelete = async (id) => {
   if (await AlertService.confirm('هل أنت متأكد من حذف هذا المنتج؟ سيتم إخفاؤه من نقاط البيع.', 'حذف المنتج')) {
     try {

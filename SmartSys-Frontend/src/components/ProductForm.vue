@@ -24,7 +24,7 @@
           </div>
 
           <div class="space-y-1.5 group">
-            <label class="metadata-label">الباركود العالمي (Barcode)</label>
+            <label class="metadata-label">الباركود (Barcode)</label>
             <div class="relative">
               <input type="text" v-model="form.barcode" class="form-input-v3 font-mono" style="padding-right: 2rem;" placeholder="0000000000" />
               <i class="fas fa-barcode absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>

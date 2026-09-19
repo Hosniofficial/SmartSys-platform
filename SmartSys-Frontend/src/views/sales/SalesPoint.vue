@@ -194,8 +194,8 @@
                   <tr v-if="!filteredSearchResults.length && !isSearchingProducts">
                     <td colspan="10" class="py-20 text-center text-slate-300">
                       <i class="fas fa-box-open text-3xl mb-3 opacity-20"></i>
-                      <p class="text-xs font-bold uppercase tracking-widest">لا توجد نتائج بحث مطابقة</p>
-                    </td>
+                      <p class="text-xs font-bold uppercase tracking-widest">لا توجد نتائج مطابقة</p>
+				    </td>
                   </tr>
 
                 </tbody>
@@ -654,6 +654,9 @@
       </template>
       
       <div class="space-y-4">
+        <!-- Branch Selection Modal (Admins/Managers only) -->
+        <!-- 📝 VALIDATION: authStore.isAdmin ensures only role_id in [1,2,3] can select branches
+             branches.length > 0 prevents showing empty selector if no branches exist -->
         <div v-if="authStore.isAdmin && branches.length > 0" class="space-y-1.5">
           <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">المخزن / الفرع المستهدف <span class="text-rose-500">*</span></label>
           <select v-model="selectedBranch" class="filter-input appearance-none" style="padding-right: 2rem;">
@@ -945,7 +948,6 @@ const userChoseBranch = ref(
   localStorage.getItem('selectedBranchId') !== null
   && localStorage.getItem('selectedBranchId') !== 'all'
 );
-const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branchStore.selectedBranchId !== null);
 
 // --- Debug ---
 const DEBUG = (import.meta?.env?.VITE_POS_DEBUG === '1') || (localStorage.getItem('pos_debug') === '1');
@@ -1733,6 +1735,9 @@ watch(finalTotal, (v) => { if (!requireApproval.value) { const pm = Number(selec
 watch(selectedPaymentMethod, (newVal) => { if (!newVal) return; const pm = Number(newVal); const method = (paymentMethods.value || []).find(m => Number(m.id) === pm); if (method?.kind === 'credit') actualPaidAmount.value = 0; else if (!requireApproval.value) actualPaidAmount.value = parseFloat(finalTotal.value.toFixed(2)); });
 watch(requireApproval, (v) => { actualPaidAmount.value = v ? 0 : parseFloat(finalTotal.value.toFixed(2)); });
 // ✅ معالج تغيير الفرع (متطابق مع SalesHistory pattern)
+// 📝 ARCHITECTURAL NOTE: في الإصدار السابق (v2)، كان يستخدم watch(selectedBranch, ...) تفاعليًا.
+// الآن يتم استدعاء handleBranchChange مباشرة عند تغيير الـ setter في الـ computed.
+// النتيجة النهائية متطابقة للمستخدم، لكن هذا نمط أنظف وأكثر صراحة.
 const handleBranchChange = async (newBranchId) => {
   if (!settingsLoaded.value || !newBranchId) return;
   

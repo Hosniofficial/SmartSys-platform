@@ -136,15 +136,7 @@
               </div>
             </div>
 
-            <!-- النتائج / صفحة -->
-            <div class="lg:col-span-2 space-y-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">النتائج / صفحة</label>
-              <select v-model.number="pageSize" class="filter-input-v2 appearance-none">
-                <option :value="10">10</option>
-                <option :value="20">20</option>
-                <option :value="50">50</option>
-              </select>
-            </div>
+
 
             <div class="lg:col-span-2">
               <button @click="loadReturns" class="h-9 w-full rounded-md border border-slate-200 bg-white text-slate-400 hover:text-blue-600 transition-colors shadow-sm">
@@ -176,7 +168,7 @@
               <tr v-else-if="!returns.length">
                 <td colspan="6" class="py-20 text-center text-slate-300">
                    <i class="fas fa-box-open text-3xl mb-4 opacity-20"></i>
-                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد سجلات مطابقة</p>
+                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير مرتجعات</p>
                 </td>
               </tr>
               <tr v-for="r in returns" :key="r.id" class="hover:bg-rose-50/10 transition-all group">
@@ -201,11 +193,22 @@
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             صفحة <span class="text-slate-900">{{ currentPage }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
-            <span class="mx-2 text-slate-200">|</span> إجمالي <span class="text-slate-900">{{ totalCount }}</span> عملية
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ totalCount }}</span> سجل
           </div>
-          <div class="flex items-center gap-2">
-            <button @click="previousPage()" :disabled="currentPage <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-            <button @click="nextPage(totalPages)" :disabled="currentPage >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="pageSize" @change="currentPage = 1; loadReturns();" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="previousPage()" :disabled="currentPage <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="nextPage(totalPages)" :disabled="currentPage >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>

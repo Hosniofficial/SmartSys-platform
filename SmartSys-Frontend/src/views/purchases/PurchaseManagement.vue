@@ -173,31 +173,7 @@
 
             </div>
 
-            <div class="lg:col-span-3 space-y-1.5">
 
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">النتائج / صفحة</label>
-
-              <select v-model.number="pageSize" class="filter-input-v2">
-
-                <option :value="10">10 سجلات</option>
-
-                <option :value="20">20 سجل</option>
-
-                <option :value="50">50 سجل</option>
-
-              </select>
-
-            </div>
-
-            <div class="lg:col-span-3">
-
-              <div class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase px-1 pb-2">
-
-                إجمالي النتائج: <span class="text-slate-900">{{ totalCount }}</span>
-
-              </div>
-
-            </div>
 
           </div>
 
@@ -308,23 +284,26 @@
         </div>
 
         <!-- Pagination -->
-
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
-
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-
             صفحة <span class="text-slate-900">{{ currentPage }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
-
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ totalCount }}</span> فاتورة
           </div>
-
-          <div class="flex items-center gap-2">
-
-            <button @click="previousPage()" :disabled="currentPage <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-
-            <button @click="nextPage(totalPages)" :disabled="currentPage >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
-
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="pageSize" @change="currentPage = 1; loadPurchases();" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="previousPage()" :disabled="currentPage <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="nextPage(totalPages)" :disabled="currentPage >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
-
         </div>
 
       </div>
@@ -914,7 +893,7 @@ onMounted(async () => {
 
 .filter-input-v2 { @apply h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all; }
 
-.pagination-btn-v2 { @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-40 transition-all; }
+.pagination-btn-v2 { @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all; }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }
 

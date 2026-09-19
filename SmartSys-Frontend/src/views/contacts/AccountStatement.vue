@@ -1810,7 +1810,7 @@ watch(() => route.query, (q) => {
 }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 transition-all;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }

@@ -134,17 +134,12 @@
             <button @click="resetFilters" class="h-9 px-4 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
               <i class="fas fa-broom text-[10px]"></i> إعادة تعيين الفلاتر
             </button>
-            <select v-model.number="perPage" class="h-9 w-24 border border-slate-200 rounded-md px-2 text-[10px] font-bold outline-none bg-white">
-              <option :value="10">10 / ص</option>
-              <option :value="20">20 / ص</option>
-              <option :value="50">50 / ص</option>
-            </select>
           </div>
         </div>
       </section>
 
       <!-- Main Data Table -->
-      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
         <div class="overflow-x-auto">
           <table class="w-full text-right border-collapse">
             <thead>
@@ -227,12 +222,23 @@
         <!-- Pagination -->
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            إجمالي العمليات: <span class="text-slate-900 font-mono">{{ meta.total }}</span>
+            صفحة <span class="text-slate-900">{{ page }}</span> من <span class="text-slate-900">{{ Math.max(1, Math.ceil(meta.total / perPage)) }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ meta.total }}</span> عملية
           </div>
-          <div class="flex items-center gap-2">
-            <button @click="prevPage" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-            <span class="px-3 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold font-mono">{{ page }} / {{ Math.max(1, Math.ceil(meta.total / perPage)) }}</span>
-            <button @click="nextPage" :disabled="page * perPage >= meta.total" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="perPage" @change="page = 1; load();" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="prevPage()" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="nextPage()" :disabled="page * perPage >= meta.total" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>
@@ -544,7 +550,7 @@ watch([perPage], () => { page.value = 1; load(); });
 .metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1; }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }

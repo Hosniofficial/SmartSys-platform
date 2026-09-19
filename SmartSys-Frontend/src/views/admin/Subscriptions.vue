@@ -504,7 +504,8 @@ const { breadcrumb } = useBreadcrumb()
 const rows = ref([])
 const loading = computed(() => adminStore.loading)
 const actionLoading = computed(() => adminStore.actionLoading)
-const securityLoading = computed(() => adminStore.securityLoading)
+// ✅ FIX: استخدام ref منفصل بدل الكتابة على computed للقراءة فقط
+const securityLoading = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 
@@ -574,6 +575,7 @@ function viewSecurityDetails(s) { current.value = s; dialogs.value.security = tr
 function openChangePlan(s) { current.value = s; form.value = { ...form.value, newPlan: '', prorate: false, extendPeriod: false }; dialogs.value.changePlan = true }
 function closeDialogs() { dialogs.value = { activate: false, expire: false, extend: false, security: false, changePlan: false }; current.value = null }
 
+// ✅ FIX: تحديث البيانات الأمنية - securityLoading.value الآن ref قابلة للكتابة
 async function refreshSecurityData() {
   if (!current.value) return
   securityLoading.value = true

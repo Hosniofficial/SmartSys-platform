@@ -188,7 +188,7 @@
                    <p class="text-xs font-bold uppercase tracking-widest">لا توجد حركات مسجلة للفترة</p>
                 </td>
               </tr>
-              <tr v-for="m in sortedMovements" :key="m.id" class="hover:bg-blue-50/20 transition-all group border-r-2 border-r-transparent hover:border-r-blue-500">
+              <tr v-for="m in paginatedMovements" :key="m.id" class="hover:bg-blue-50/20 transition-all group border-r-2 border-r-transparent hover:border-r-blue-500">
                 <td class="px-6 py-4 text-[10px] font-mono font-bold text-slate-400 group-hover:text-slate-900 transition-colors">{{ formatDate(m.date) }}</td>
                 <td class="px-4 py-4">
                   <router-link v-if="getReferenceRoute(m)" :to="getReferenceRoute(m)" class="text-blue-600 font-bold hover:underline decoration-blue-200">
@@ -211,6 +211,29 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Footer (Unified Standard) -->
+        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ sortedMovements.length }}</span> عملية
+          </div>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
+          </div>
+        </div>
       </section>
       </main>
     </div>
@@ -225,6 +248,7 @@ import { Chart as ChartJS, Title, Tooltip, Legend, LineElement, CategoryScale, L
 import BaseSpinner from '@/components/ui/BaseSpinner.vue';
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import { getLocalDateISO, getLocalTimestamp } from '@/utils/date';
+import { useTableFilters } from '@/composables/useTableFilters';
 import { useReportsStore } from '@/stores/reports';
 import { useBranchStore } from '@/stores/branch';
 import { useInventoryStore } from '@/stores/inventory/inventoryStore';
@@ -250,6 +274,10 @@ const movementType = ref('all');
 let debounceTimer = null;
 
 const movements = ref([]);
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('inventory_movements_filters');
+
 const openingBalance = ref(0);
 const branches = computed(() => branchStore.branches);
 const selectedBranch = computed({
@@ -287,6 +315,13 @@ const sortedMovements = computed(() => {
     if (vA > vB) return sortOrder.value === 'asc' ? 1 : -1;
     return 0;
   });
+});
+
+const paginatedMovements = computed(() => {
+  filters.totalCount.value = sortedMovements.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  const end = start + filters.perPage.value;
+  return sortedMovements.value.slice(start, end);
 });
 
 const chartData = computed(() => {
@@ -370,6 +405,10 @@ watch([startDate, endDate, movementType, selectedBranch], () => { clearTimeout(d
 .metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-1; }
 
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
+
+.pagination-btn-v2 {
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+}
 
 .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }

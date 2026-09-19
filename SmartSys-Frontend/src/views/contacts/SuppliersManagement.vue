@@ -121,7 +121,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 font-medium text-xs">
-                <tr v-for="contact in filteredContacts" :key="contact.id" class="hover:bg-indigo-50/20 transition-all group">
+                <tr v-for="contact in paginatedContacts" :key="contact.id" class="hover:bg-indigo-50/20 transition-all group">
                   <td class="px-6 py-4">
                     <div class="flex flex-col">
                       <span class="font-bold text-slate-900 leading-none group-hover:text-indigo-600 transition-colors">{{ contact.name }}</span>
@@ -146,6 +146,29 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- Pagination Footer -->
+          <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+              <span class="mx-2 text-slate-200">|</span>
+              إجمالي <span class="text-slate-900">{{ filteredContacts.length }}</span> مورد
+            </div>
+            <div class="flex items-center gap-3">
+               <div class="flex items-center gap-2">
+                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+                 <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                   <option :value="10">10</option>
+                   <option :value="20">20</option>
+                   <option :value="50">50</option>
+                 </select>
+               </div>
+               <div class="flex items-center gap-1">
+                 <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+                 <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+               </div>
+            </div>
           </div>
         </div>
       </div>
@@ -224,6 +247,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue';
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import AlertService from '@/services/AlertService';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
+import { useTableFilters } from '@/composables/useTableFilters';
 import { useSessionExemption } from '@/composables/useCashierSessionGuard';
 import { useBranchIsolation } from '@/composables/useBranchIsolation';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
@@ -284,6 +308,16 @@ const filteredContacts = computed(() => {
   if (!search.value) return contacts.value;
   const q = search.value.toLowerCase();
   return contacts.value.filter(c => (c.name && c.name.toLowerCase().includes(q)) || (c.phone && c.phone.includes(q)));
+});
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('suppliers_filters');
+
+const paginatedContacts = computed(() => {
+  filters.totalCount.value = filteredContacts.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  const end = start + filters.perPage.value;
+  return filteredContacts.value.slice(start, end);
 });
 
 // Logic: KPIs (Calculations Preserved)

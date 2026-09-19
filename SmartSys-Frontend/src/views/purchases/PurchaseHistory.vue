@@ -140,7 +140,7 @@
               <template v-if="isLoadingPurchases">
                 <tr v-for="n in 5" :key="n" class="animate-pulse"><td v-for="m in 7" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td></tr>
               </template>
-              <tr v-else-if="rows.length === 0"><td colspan="7" class="py-20 text-center text-slate-300"><i class="fas fa-box-open text-3xl mb-4 opacity-20"></i><p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير</p></td></tr>
+              <tr v-else-if="rows.length === 0"><td colspan="7" class="py-20 text-center text-slate-300"><i class="fas fa-box-open text-3xl mb-4 opacity-20"></i><p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير مشتريات حتى الآن</p></td></tr>
               <tr v-else v-for="purchase in rows" :key="purchase?.id" class="hover:bg-indigo-50/10 transition-all group">
                 <td class="px-6 py-4 text-xs font-bold text-slate-900 font-mono tracking-wider">{{ purchase.invoice_number || ('#' + purchase.id) }}</td>
                 <td class="px-4 py-4 text-[10px] font-mono text-slate-400">{{ formatDateTime(purchase.invoice_date) }}</td>
@@ -557,7 +557,7 @@ onUnmounted(() => { if (purchasesAbortCtrl) purchasesAbortCtrl.abort(); if (sear
 }
 
 .pagination-btn-v2 {
-  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-40 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }

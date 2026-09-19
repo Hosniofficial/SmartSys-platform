@@ -194,7 +194,7 @@
               <tr v-else-if="!sales.length">
                 <td colspan="8" class="py-20 text-center text-slate-300">
                    <i class="fas fa-receipt text-3xl mb-4 opacity-20"></i>
-                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد بيانات متاحة</p>
+                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير مبيعات حتى الآن</p>
                 </td>
               </tr>
               <tr v-for="sale in sales" :key="sale.id" class="hover:bg-blue-50/20 transition-all group">

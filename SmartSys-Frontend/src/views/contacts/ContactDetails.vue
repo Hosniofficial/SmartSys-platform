@@ -1096,7 +1096,7 @@ watch(activeTab, async (tab) => {
 }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 transition-all;
 }
 
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }

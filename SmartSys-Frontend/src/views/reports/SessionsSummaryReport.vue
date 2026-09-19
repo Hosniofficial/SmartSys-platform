@@ -100,7 +100,7 @@
       </section>
 
       <!-- Main Data Table: Professional Audit Grid -->
-      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
         <div class="overflow-x-auto">
           <table class="w-full text-right border-collapse">
             <thead>
@@ -169,27 +169,38 @@
                   </div>
                 </td>
               </tr>
-            </tbody>
-          </table>
-        </div>
 
-        <!-- Pagination -->
+              <!-- Empty State: لا توجد جلسات -->
+              <tr v-if="!paginatedSessions.length && !isLoading" class="text-center">
+                <td colspan="8" class="py-24 text-slate-300">
+                  <i class="fas fa-receipt text-3xl mb-4 opacity-20"></i>
+                  <p class="text-xs font-bold uppercase tracking-widest">لا توجد جلسات مسجلة لهذه الفترة</p>
+                </td>
+              </tr>
+            </tbody>
+            </table>
+          </div>
+
+        <!-- Pagination Footer (Unified Standard) -->
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            صفحة <span class="text-slate-900 font-mono">{{ currentPage }}</span> من <span class="text-slate-900 font-mono">{{ totalPages }}</span>
-            <span class="mx-3 text-slate-200">|</span> إجمالي <span class="text-slate-900 font-mono">{{ totalItems }}</span> سجل
+            صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ totalItems }}</span> جلسة
           </div>
-          <div v-if="totalPages > 1" class="flex items-center gap-2">
-            <button @click="onPageChange(currentPage - 1)" :disabled="currentPage === 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-            <div class="flex items-center gap-1 mx-1">
-               <button v-for="p in totalPages" :key="p" v-show="Math.abs(p - currentPage) < 3 || p === 1 || p === totalPages"
-                  @click="onPageChange(p)"
-                  :class="[p === currentPage ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200']"
-                  class="w-7 h-7 rounded text-[10px] font-bold transition-all">
-                  {{ p }}
-               </button>
-            </div>
-            <button @click="onPageChange(currentPage + 1)" :disabled="currentPage >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>
@@ -312,6 +323,7 @@ import { downloadCSV } from '@/utils/export';
 import { useToast } from 'vue-toastification';
 import { useBranchStore } from '@/stores/branch';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
+import { useTableFilters } from '@/composables/useTableFilters';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
 import PageHeader from '@/components/PageHeader.vue';
 
@@ -325,8 +337,10 @@ const isLoading = ref(true);
 const error = ref(null);
 const sessions = ref([]);
 const totalItems = ref(0);
-const currentPage = ref(1);
-const itemsPerPage = ref(25);
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('sessions_summary_filters');
+
 const selectedSession = ref(null);
 const showTransactionDetails = ref(false);
 const isExporting = ref(false);
@@ -344,8 +358,12 @@ const branches = computed(() => branchStore.branches);
 const cashiers = ref([]);
 const terminals = ref([]);
 
-const paginatedSessions = computed(() => sessions.value);
-const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value));
+const paginatedSessions = computed(() => {
+  filters.totalCount.value = sessions.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  const end = start + filters.perPage.value;
+  return sessions.value.slice(start, end);
+});
 
 const formatCurrency = (value) => { return utilFormatCurrency(value); };
 const formatDate = (dateString) => {
@@ -417,9 +435,9 @@ const fetchDropdownData = async () => {
   try { cashiers.value = []; terminals.value = []; } catch (err) { console.error(err); }
 };
 
-const onPageChange = (page) => { if (page >= 1 && page <= totalPages.value) { currentPage.value = page; fetchSessions(); } };
+const onPageChange = (page) => { if (page >= 1 && page <= filters.totalPages.value) { filters.page.value = page; fetchSessions(); } };
 
-const resetFilters = () => { fromDate.value = ''; toDate.value = ''; branchId.value = ''; cashierId.value = ''; terminalId.value = ''; hasVariance.value = ''; currentPage.value = 1; fetchSessions(); };
+const resetFilters = () => { fromDate.value = ''; toDate.value = ''; branchId.value = ''; cashierId.value = ''; terminalId.value = ''; hasVariance.value = ''; filters.page.value = 1; fetchSessions(); };
 
 onMounted(async () => {
   const endDate = new Date(); const startDate = new Date(); startDate.setDate(startDate.getDate() - 30);
@@ -440,7 +458,7 @@ onMounted(async () => {
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 transition-all;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }

@@ -48,7 +48,7 @@
       </PageHeader>
 
       <!-- Main Content Card -->
-      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
         
         <!-- Summary Cards (Total/Paid/Balance) -->
         <div v-if="rows.length > 0" class="grid grid-cols-3 gap-4 p-4 bg-white border-b border-slate-100">
@@ -66,86 +66,89 @@
           </div>
         </div>
 
-        <!-- High-Density Approvals Table -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-right border-collapse">
-            <thead>
-              <tr class="bg-slate-50/50 border-b border-slate-200">
-                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-20">الرقم</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">العميل</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الأصناف</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المبلغ</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الدفع</th>
-                <th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الإجراء</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 font-medium">
-              <!-- Loading Skeleton -->
-              <template v-if="isLoading">
-                <tr v-for="n in 5" :key="n" class="animate-pulse">
-                  <td v-for="m in 7" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+        <!-- High-Density Approvals Table Wrapper -->
+        <div>
+          <!-- High-Density Approvals Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-right border-collapse">
+              <thead>
+                <tr class="bg-slate-50/50 border-b border-slate-200">
+                  <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-20">الرقم</th>
+                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت</th>
+                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">العميل</th>
+                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الأصناف</th>
+                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المبلغ</th>
+                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الدفع</th>
+                  <th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الإجراء</th>
                 </tr>
-              </template>
-              
-              <!-- Empty State -->
-              <tr v-else-if="!rows.length">
-                <td colspan="7" class="py-24 text-center text-slate-300">
-                   <i class="fas fa-check-double text-3xl mb-4 opacity-20"></i>
-                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد طلبات معلقة</p>
-                </td>
-              </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 font-medium">
+                <!-- Loading Skeleton -->
+                <template v-if="isLoading">
+                  <tr v-for="n in 5" :key="n" class="animate-pulse">
+                    <td v-for="m in 7" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                  </tr>
+                </template>
+                
+                <!-- Empty State -->
+                <tr v-else-if="!rows.length">
+                  <td colspan="7" class="py-24 text-center text-slate-300">
+                     <i class="fas fa-check-double text-3xl mb-4 opacity-20"></i>
+                     <p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير معلقة</p>
+                  </td>
+                </tr>
 
-              <!-- Data Rows -->
-              <tr v-for="s in rows" :key="s.id" class="hover:bg-blue-50/20 transition-all group">
-                <td class="px-6 py-4 text-xs font-bold text-slate-900 font-mono">#{{ s.id }}</td>
-                <td class="px-4 py-4 text-[10px] font-mono text-slate-400">{{ formatDateTime(s.created_at || s.sale?.created_at) }}</td>
-                <td class="px-4 py-4 text-xs font-bold text-slate-700">{{ s.customer_name || s.sale?.customer_name || 'عميل نقدي' }}</td>
-                <td class="px-4 py-4 text-center">
-                  <span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-500">
-                    {{ s.total_items ?? s.items_count ?? s.sale?.items?.length ?? '-' }}
-                  </span>
-                </td>
-                <td class="px-4 py-4 text-xs font-bold text-blue-600 font-mono tracking-tighter">
-                  {{ formatPrice(s.net_total_amount ?? s.total_amount ?? s.sale?.net_total_amount) }}
-                </td>
-                <td class="px-4 py-4 text-center">
-                  <span :class="[kindClass(s.payment_method_kind ?? s.sale?.payment_method_kind ?? s.payment_method?.kind)]" class="px-2 py-0.5 rounded text-[9px] font-bold border">
-                    {{ kindLabel(s.payment_method_kind ?? s.sale?.payment_method_kind ?? s.payment_method?.kind) }}
-                  </span>
-                </td>
-                <td class="px-8 py-4 text-center">
-                  <div class="flex items-center justify-center gap-1.5">
-                    <button @click="viewDetails(s.id)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 transition-all flex items-center justify-center"><i class="fas fa-eye text-[10px]"></i></button>
-                    <button @click="openAction('approve', s.id)" class="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[9px] font-bold hover:bg-emerald-700 transition-all shadow-sm">اعتماد</button>
-                    <button @click="openAction('reject', s.id)" class="h-8 px-3 rounded-lg border border-rose-200 text-rose-600 text-[9px] font-bold hover:bg-rose-50 transition-all">رفض</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination -->
-        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            صفحة <span class="text-slate-900">{{ page }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
-            <span class="mx-2 text-slate-200">|</span>
-            إجمالي <span class="text-slate-900">{{ total }}</span> طلب معلق
+                <!-- Data Rows -->
+                <tr v-for="s in rows" :key="s.id" class="hover:bg-blue-50/20 transition-all group">
+                  <td class="px-6 py-4 text-xs font-bold text-slate-900 font-mono">#{{ s.id }}</td>
+                  <td class="px-4 py-4 text-[10px] font-mono text-slate-400">{{ formatDateTime(s.created_at || s.sale?.created_at) }}</td>
+                  <td class="px-4 py-4 text-xs font-bold text-slate-700">{{ s.customer_name || s.sale?.customer_name || 'عميل نقدي' }}</td>
+                  <td class="px-4 py-4 text-center">
+                    <span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-500">
+                      {{ s.total_items ?? s.items_count ?? s.sale?.items?.length ?? '-' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-4 text-xs font-bold text-blue-600 font-mono tracking-tighter">
+                    {{ formatPrice(s.net_total_amount ?? s.total_amount ?? s.sale?.net_total_amount) }}
+                  </td>
+                  <td class="px-4 py-4 text-center">
+                    <span :class="[kindClass(s.payment_method_kind ?? s.sale?.payment_method_kind ?? s.payment_method?.kind)]" class="px-2 py-0.5 rounded text-[9px] font-bold border">
+                      {{ kindLabel(s.payment_method_kind ?? s.sale?.payment_method_kind ?? s.payment_method?.kind) }}
+                    </span>
+                  </td>
+                  <td class="px-8 py-4 text-center">
+                    <div class="flex items-center justify-center gap-1.5">
+                      <button @click="viewDetails(s.id)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 transition-all flex items-center justify-center"><i class="fas fa-eye text-[10px]"></i></button>
+                      <button @click="openAction('approve', s.id)" class="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[9px] font-bold hover:bg-emerald-700 transition-all shadow-sm">اعتماد</button>
+                      <button @click="openAction('reject', s.id)" class="h-8 px-3 rounded-lg border border-rose-200 text-rose-600 text-[9px] font-bold hover:bg-rose-50 transition-all">رفض</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="flex items-center gap-3">
-             <div class="flex items-center gap-2">
-               <span class="text-[10px] font-bold text-slate-400 uppercase">النتائج:</span>
-               <select v-model.number="limit" @change="page = 1; fetchPending({ silent: false })" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
-                 <option :value="10">10</option>
-                 <option :value="20">20</option>
-                 <option :value="50">50</option>
-               </select>
-             </div>
-             <div class="flex items-center gap-1">
-               <button @click="page = Math.max(1, page - 1); fetchPending({ silent: false })" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-               <button @click="page = Math.min(totalPages, page + 1); fetchPending({ silent: false })" :disabled="page >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
-             </div>
+
+          <!-- Pagination -->
+          <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              صفحة <span class="text-slate-900">{{ page }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
+              <span class="mx-2 text-slate-200">|</span>
+              إجمالي <span class="text-slate-900">{{ total }}</span> طلب معلق
+            </div>
+            <div class="flex items-center gap-3">
+               <div class="flex items-center gap-2">
+                 <span class="text-[10px] font-bold text-slate-400 uppercase">النتائج:</span>
+                 <select v-model.number="limit" @change="page = 1; fetchPending({ silent: false })" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                   <option :value="10">10</option>
+                   <option :value="20">20</option>
+                   <option :value="50">50</option>
+                 </select>
+               </div>
+               <div class="flex items-center gap-1">
+                 <button @click="page = Math.max(1, page - 1); fetchPending({ silent: false })" :disabled="page <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+                 <button @click="page = Math.min(totalPages, page + 1); fetchPending({ silent: false })" :disabled="page >= totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+               </div>
+            </div>
           </div>
         </div>
       </div>

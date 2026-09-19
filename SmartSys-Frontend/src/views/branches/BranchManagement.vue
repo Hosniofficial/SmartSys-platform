@@ -60,7 +60,7 @@
       </section>
         
       <!-- Main Table Card -->
-      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
         
         <!-- 1. Loading State -->
         <div v-if="isLoading" class="p-8 space-y-4">
@@ -99,7 +99,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 font-medium">
-                <tr v-if="filteredBranches.length === 0" class="text-center">
+                <tr v-if="paginatedBranches.length === 0 && !isLoading" class="text-center">
                   <td colspan="4" class="py-24 text-slate-300">
                     <i class="fas fa-building text-3xl mb-4 opacity-20"></i>
                     <p class="text-xs font-bold uppercase tracking-widest">لا توجد فروع مسجلة</p>
@@ -147,22 +147,26 @@
             </table>
           </div>
           
-          <!-- Pagination Footer -->
+          <!-- Pagination Footer (Unified Standard) -->
           <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
             <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              عرض <span class="text-slate-900 font-mono">{{ (currentPage - 1) * itemsPerPage + 1 }}</span> - <span class="text-slate-900 font-mono">{{ Math.min(currentPage * itemsPerPage, filteredBranches.length) }}</span> من <span class="text-slate-900 font-mono">{{ filteredBranches.length }}</span> فرع
+              صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+              <span class="mx-2 text-slate-200">|</span>
+              إجمالي <span class="text-slate-900">{{ filteredBranches.length }}</span> فرع
             </div>
-            
-            <div v-if="totalPages > 1" class="flex items-center gap-1">
-              <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-              <div class="flex items-center gap-1 mx-2">
-                <button v-for="page in totalPages" :key="page" @click="goToPage(page)" 
-                  :class="[currentPage === page ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 hover:bg-slate-100']"
-                  class="w-7 h-7 rounded text-[10px] font-bold transition-all">
-                  {{ page }}
-                </button>
-              </div>
-              <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+            <div class="flex items-center gap-3">
+               <div class="flex items-center gap-2">
+                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+                 <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                   <option :value="10">10</option>
+                   <option :value="20">20</option>
+                   <option :value="50">50</option>
+                 </select>
+               </div>
+               <div class="flex items-center gap-1">
+                 <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+                 <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+               </div>
             </div>
           </div>
         </template>
@@ -196,6 +200,7 @@ import BranchForm from '../../components/BranchForm.vue';
 import { useBranchStore } from '@/stores/branch';
 import AlertService from '@/services/AlertService';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
+import { useTableFilters } from '@/composables/useTableFilters';
 import PageHeader from '@/components/PageHeader.vue';
 
 const { showToast } = useToast();
@@ -203,6 +208,10 @@ const { breadcrumb } = useBreadcrumb();
 const branchStore = useBranchStore();
 
 const branches = computed(() => branchStore.branches);
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('branches_filters');
+
 const showFormModal = ref(false);
 const selectedBranch = ref(null);
 const isLoading = ref(false);
@@ -240,21 +249,21 @@ const filteredBranches = computed(() => {
   return result;
 });
 
-const totalPages = computed(() => Math.ceil(filteredBranches.value.length / itemsPerPage.value));
 
 const paginatedBranches = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  const end = start + itemsPerPage.value;
+  filters.totalCount.value = filteredBranches.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  const end = start + filters.perPage.value;
   return filteredBranches.value.slice(start, end);
 });
 
-watch(searchQuery, () => currentPage.value = 1);
+watch(searchQuery, () => filters.page.value = 1);
 onMounted(() => fetchBranches());
 
 const openAddModal = () => { selectedBranch.value = null; showFormModal.value = true; };
 const openEditModal = (branch) => { selectedBranch.value = { ...branch }; showFormModal.value = true; };
 const handleFormSuccess = () => { showFormModal.value = false; fetchBranches(); };
-const goToPage = (page) => { if (page >= 1 && page <= totalPages.value) currentPage.value = page; };
+const goToPage = (page) => { if (page >= 1 && page <= filters.totalPages.value) filters.page.value = page; };
 
 const handleDelete = async (branchId) => {
   if (await AlertService.confirm('هل أنت متأكد من حذف هذا الفرع؟ سيتم تعطيله في النظام.', 'حذف الفرع')) {
@@ -276,7 +285,7 @@ const handleDelete = async (branchId) => {
 @keyframes loading { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
 }
 
 .animate-fadeIn { animation: fadeIn 0.4s ease-out; }

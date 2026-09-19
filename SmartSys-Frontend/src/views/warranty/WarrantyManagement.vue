@@ -82,19 +82,12 @@
             </button>
           </div>
 
-          <div class="lg:col-span-1 space-y-1.5">
-            <label class="metadata-label text-center">الصفحة</label>
-            <select v-model.number="perPage" class="filter-input-v3">
-              <option :value="10">10</option>
-              <option :value="20">20</option>
-              <option :value="50">50</option>
-            </select>
-          </div>
+
         </div>
       </section>
 
       <!-- Main Data Table -->
-      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
         <div class="overflow-x-auto">
           <table class="w-full text-right border-collapse">
             <thead>
@@ -153,12 +146,23 @@
         <!-- Pagination Footer -->
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            عرض <span class="text-slate-900 font-mono">{{ pageItems.length }}</span> من <span class="text-slate-900 font-mono">{{ filteredItems.length }}</span> طلب
+            صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ filteredItems.length }}</span> طلب ضمان
           </div>
-          <div v-if="totalPages > 1" class="flex items-center gap-2">
-            <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
-            <span class="px-3 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold font-mono">{{ currentPage }} / {{ totalPages }}</span>
-            <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>
@@ -407,6 +411,7 @@ import { useBranchStore } from '@/stores/branch';
 import { useCustomerStore } from '@/stores/customer/customerStore';
 import { useProductStore } from '@/stores/product/productStore';
 import { useToast } from '@/composables/useToast';
+import { useTableFilters } from '@/composables/useTableFilters';
 import AlertService from '@/services/AlertService';
 import BaseSpinner from '@/components/ui/BaseSpinner.vue';
 import BaseModal from '@/components/BaseModal.vue';
@@ -446,13 +451,14 @@ const hasExplicitBranchSelection = computed(() => userChoseBranch.value && branc
 const search = ref('');
 const statusFilter = ref('');
 const priorityFilter = ref('');
-const currentPage = ref(1);
-const perPage = ref(10);
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('warranty_filters');
 
 const onBranchChange = (newBranchId) => {
   branchStore.setSelectedBranch(newBranchId);
-  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId !== 'all');
-  currentPage.value = 1;
+  userChoseBranch.value = (newBranchId !== null && newBranchId !== '' && newBranchId === 'all');
+  filters.page.value = 1;
   fetchList(true);  // ✅ force=true
 };
 const dateFrom = ref('');
@@ -738,8 +744,8 @@ async function fetchList(forceRefresh = false) {
     priority: priorityFilter.value || undefined,
     date_from: dateFrom.value || undefined,
     date_to: dateTo.value || undefined,
-    page: currentPage.value,
-    per_page: perPage.value,
+    page: filters.page.value,
+    per_page: filters.perPage.value,
     branch_id: selectedBranch.value || undefined
   };
   // ✅ forceRefresh كـ argument ثانٍ مستقل — لأن warrantyStore.fetchWarranties(params, force)
@@ -982,14 +988,14 @@ const filteredItems = computed(() => {
   return arr;
 });
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / perPage.value)));
 const pageItems = computed(() => {
-  const start = (currentPage.value - 1) * perPage.value;
-  return filteredItems.value.slice(start, start + perPage.value);
+  filters.totalCount.value = filteredItems.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  return filteredItems.value.slice(start, start + filters.perPage.value);
 });
 
 function goToPage(p) {
-  if (p >= 1 && p <= totalPages.value) currentPage.value = p;
+  if (p >= 1 && p <= filters.totalPages.value) filters.page.value = p;
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -1012,7 +1018,7 @@ onMounted(async () => {
 
 // BUG 6 FIX: watcher now calls fetchList() so filters actually apply automatically
 watch([search, statusFilter, priorityFilter], () => {
-  currentPage.value = 1;
+  filters.page.value = 1;
   fetchList();
 });
 
@@ -1048,7 +1054,7 @@ function priorityClass(p) {
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
 }
 
 .dropdown-list { @apply absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto py-1; }

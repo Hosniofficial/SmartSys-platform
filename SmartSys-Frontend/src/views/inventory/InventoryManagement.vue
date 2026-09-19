@@ -98,7 +98,7 @@
         </div>
 
         <!-- Inventory Table: Professional High-Density Grid -->
-        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative min-h-[500px]">
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm relative">
           <div class="overflow-x-auto">
             <table class="w-full text-right border-collapse">
               <thead>
@@ -118,13 +118,13 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 font-medium">
-                <tr v-if="!filteredInventory.length" class="text-center">
+                <tr v-if="!paginatedInventory.length" class="text-center">
                   <td :colspan="selectedBranch ? 12 : 11" class="py-24 text-slate-300">
                     <i class="fas fa-box-open text-3xl mb-4 opacity-20"></i>
-                    <p class="text-xs font-bold uppercase tracking-widest">لا توجد بيانات متاحة</p>
+                    <p class="text-xs font-bold uppercase tracking-widest">لا توجد أصناف في المخزون</p>
                   </td>
                 </tr>
-                <tr v-for="item in filteredInventory" :key="item.id" class="hover:bg-blue-50/10 transition-all group">
+                <tr v-for="item in paginatedInventory" :key="item.id" class="hover:bg-blue-50/10 transition-all group">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
                       <div class="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100 group-hover:text-blue-600 transition-colors">
@@ -189,6 +189,30 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          </div>
+
+        <!-- Pagination Footer -->
+        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ filteredInventory.length }}</span> منتج
+          </div>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>
@@ -375,6 +399,7 @@ import { useRoute } from 'vue-router';
 import { useLoader } from '../../composables/useLoader';
 import { useCompanyCurrency } from '../../composables/useCompanyCurrency';
 import { useToast } from '@/composables/useToast';
+import { useTableFilters } from '@/composables/useTableFilters';
 import getLocalDateISO from '@/utils/date';
 import BaseSpinner from '../../components/ui/BaseSpinner.vue';
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
@@ -471,6 +496,9 @@ const openAdjustFromPicker = (item) => {
   adjustStock(item);
 };
 
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('inventory_filters');
+
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredInventory = computed(() => {
   let filtered = inventory.value;
@@ -509,6 +537,13 @@ const filteredInventory = computed(() => {
 const totalInventoryValue = computed(() =>
   inventory.value.reduce((sum, item) => sum + getPrice(item) * (parseInt(item.quantity) || 0), 0)
 );
+
+const paginatedInventory = computed(() => {
+  filters.totalCount.value = filteredInventory.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  const end = start + filters.perPage.value;
+  return filteredInventory.value.slice(start, end);
+});
 
 // ─── Summary Loader ───────────────────────────────────────────────────
 const loadSummary = async (force = false) => {
@@ -1022,6 +1057,10 @@ onUnmounted(() => {
 .metadata-label { @apply block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1; }
 
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border flex items-center justify-center gap-1.5 w-fit mx-auto; }
+
+.pagination-btn-v2 {
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+}
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }
 .custom-scroll::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }

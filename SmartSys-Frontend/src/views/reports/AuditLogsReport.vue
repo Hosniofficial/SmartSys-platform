@@ -147,10 +147,10 @@
               <tr v-else-if="!sortedLogs.length">
                 <td colspan="5" class="py-24 text-center text-slate-300">
                    <i class="fas fa-search text-3xl mb-4 opacity-20"></i>
-                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد سجلات مطابقة للبحث</p>
+                   <p class="text-xs font-bold uppercase tracking-widest">لا توجد سجلات مطابقة</p>
                 </td>
               </tr>
-              <tr v-for="log in sortedLogs" :key="log.id" class="hover:bg-slate-50 transition-colors group">
+              <tr v-for="log in paginatedLogs" :key="log.id" class="hover:bg-slate-50 transition-colors group">
                 <td class="px-6 py-4 text-[10px] font-mono font-bold text-slate-400 group-hover:text-slate-900 transition-colors">{{ formatDateTime(log.timestamp) }}</td>
                 <td class="px-4 py-4">
                    <div class="flex items-center gap-3">
@@ -178,6 +178,29 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Pagination Footer -->
+        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            صفحة <span class="text-slate-900">{{ filters.page.value }}</span> من <span class="text-slate-900">{{ filters.totalPages.value }}</span>
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ sortedLogs.length }}</span> عملية
+          </div>
+          <div class="flex items-center gap-3">
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="filters.perPage.value" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="filters.previousPage()" :disabled="filters.page.value <= 1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="filters.nextPage(filters.totalPages.value)" :disabled="filters.page.value >= filters.totalPages.value" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
+          </div>
         </div>
       </div>
     </div>
@@ -270,6 +293,7 @@ import { useSupplierStore } from '@/stores/supplier/supplierStore';
 import { useReportsStore } from '@/stores/reports';
 import { Bar as BarChart, Doughnut as DoughnutChart } from 'vue-chartjs';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
+import { useTableFilters } from '@/composables/useTableFilters';
 import PageHeader from '@/components/PageHeader.vue';
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement } from 'chart.js';
 import BaseSpinner from '@/components/ui/BaseSpinner.vue';
@@ -298,8 +322,15 @@ let debounceTimer = null;
 const logs = ref([]);
 const total = computed(() => logs.value.length);
 const users = ref([]);
-const currentPage = ref(1);
-const totalPages = ref(1);
+
+// ─── Pagination (using useTableFilters composable)
+const filters = useTableFilters('audit_logs_filters');
+const paginatedLogs = computed(() => {
+  filters.totalCount.value = sortedLogs.value.length;
+  const start = (filters.page.value - 1) * filters.perPage.value;
+  const end = start + filters.perPage.value;
+  return sortedLogs.value.slice(start, end);
+});
 const sortKey = ref('timestamp');
 const sortOrder = ref('desc');
 const showModal = ref(false);
@@ -423,11 +454,10 @@ const getActionTypeClass = (a) => ({
 const fetchLogs = async () => {
     isLoading.value = true; error.value = null;
     try {
-        const payload = await reportsStore.fetchAuditLogs({ startDate: startDate.value, endDate: endDate.value, actionType: actionType.value, userId: userId.value, page: currentPage.value });
+        const payload = await reportsStore.fetchAuditLogs({ startDate: startDate.value, endDate: endDate.value, actionType: actionType.value, userId: userId.value, page: filters.page.value });
         const items = Array.isArray(payload?.data) ? payload.data : (payload?.items || []);
         logs.value = items.map(it => ({ id: it.id, timestamp: it.timestamp || it.created_at, userName: it.userName || it.user_name || 'غير معروف', action: it.action, module: it.module, recordId: it.recordId || '-', ipAddress: it.ipAddress || '-', details: it.details || {} }));
         users.value = (payload?.users || []).map(u => ({ id: u.id, name: u.name }));
-        totalPages.value = payload?.pagination?.total_pages || 1;
     } catch { error.value = 'فشل في تحميل السجلات.'; } finally { isLoading.value = false; }
 };
 
@@ -497,7 +527,7 @@ watch([startDate, endDate, actionType, userId], () => { clearTimeout(debounceTim
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 
 .pagination-btn-v2 {
-  @apply w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 transition-all;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }

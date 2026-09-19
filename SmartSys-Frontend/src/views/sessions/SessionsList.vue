@@ -224,11 +224,22 @@
         <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             صفحة <span class="text-slate-900">{{ currentPage }}</span> من <span class="text-slate-900">{{ totalPages }}</span>
-            <span class="mx-2 text-slate-200">|</span> إجمالي <span class="text-slate-900">{{ total }}</span> جلسة
+            <span class="mx-2 text-slate-200">|</span>
+            إجمالي <span class="text-slate-900">{{ total }}</span> جلسة
           </div>
           <div class="flex items-center gap-3">
-             <div class="flex items-center gap-2"><span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span><select v-model.number="perPage" @change="applyFilters" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none"><option :value="10">10</option><option :value="20">20</option><option :value="50">50</option></select></div>
-             <div class="flex items-center gap-1"><button @click="goToPreviousPage()" :disabled="currentPage<=1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button><button @click="goToNextPage()" :disabled="currentPage>=totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button></div>
+             <div class="flex items-center gap-2">
+               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">النتائج:</span>
+               <select v-model.number="filters.perPage.value" @change="applyFilters" class="h-8 border border-slate-200 rounded px-2 text-[10px] font-bold outline-none">
+                 <option :value="10">10</option>
+                 <option :value="20">20</option>
+                 <option :value="50">50</option>
+               </select>
+             </div>
+             <div class="flex items-center gap-1">
+               <button @click="goToPreviousPage()" :disabled="currentPage<=1" class="pagination-btn-v2"><i class="fas fa-chevron-right"></i></button>
+               <button @click="goToNextPage()" :disabled="currentPage>=totalPages" class="pagination-btn-v2"><i class="fas fa-chevron-left"></i></button>
+             </div>
           </div>
         </div>
       </div>
