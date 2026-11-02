@@ -342,8 +342,16 @@ class SalesHandler extends BaseHandler
             }
 
             $stmt = $this->db->prepare("
-                SELECT si.*, p.name AS product_name, p.barcode, c.name AS category_name
+                SELECT si.*, p.name AS product_name, p.barcode, c.name AS category_name,
+                       ROUND(
+                           (CASE WHEN COALESCE(s.tax_inclusive, 0) = 1
+                                 THEN si.net_total - COALESCE(si.tax_amount, 0)
+                                 ELSE si.net_total
+                            END) - (si.purchase_price * si.quantity),
+                           4
+                       ) AS profit
                 FROM sales_items si
+                JOIN sales s ON s.id = si.sale_id AND s.tenant_id = si.tenant_id
                 JOIN products p ON si.product_id = p.id
                 LEFT JOIN categories c ON p.category_id = c.id
                 WHERE si.sale_id = ? AND si.tenant_id = ?

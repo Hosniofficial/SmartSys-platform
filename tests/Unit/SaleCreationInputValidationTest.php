@@ -111,6 +111,9 @@ final class SaleCreationInputValidationTest extends TestCase
         self::assertSame(14.0, (float) $db->query(
             'SELECT tax_amount FROM sales_items WHERE sale_id = 1'
         )->fetchColumn());
+        self::assertSame(100.0, (float) $db->query(
+            'SELECT profit FROM sales_items WHERE sale_id = 1'
+        )->fetchColumn());
     }
 
     private function createDatabase(): PDO
@@ -154,7 +157,7 @@ final class SaleCreationInputValidationTest extends TestCase
                 unit_id INTEGER, conversion_factor REAL, quantity REAL, sale_price REAL,
                 purchase_price REAL, discount_type TEXT, discount_value REAL, net_total REAL,
                 tax_amount REAL DEFAULT 0,
-                batch_number TEXT, expiry_date TEXT, serial TEXT, tenant_id INTEGER,
+                batch_number TEXT, expiry_date TEXT, serial TEXT, profit REAL DEFAULT 0, tenant_id INTEGER,
                 created_at TEXT, created_by INTEGER
             );
             CREATE TABLE sales_price_campaigns (
