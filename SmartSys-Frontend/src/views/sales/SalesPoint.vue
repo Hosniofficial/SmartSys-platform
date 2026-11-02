@@ -566,7 +566,9 @@
 
               <!-- Taxes -->
               <div class="flex justify-between text-xs">
-                <span class="text-slate-400 font-medium">ضريبة القيمة المضافة ({{ (taxValue || 0).toFixed(0) }}%):</span>
+                <span class="text-slate-400 font-medium">
+                  {{ showTaxInPrice && taxValue > 0 ? 'ضريبة القيمة المضافة (ضمن السعر)' : 'ضريبة القيمة المضافة' }} ({{ taxRateDisplay }}%):
+                </span>
                 <span class="font-mono font-bold text-slate-800">{{ formatPrice(taxAmount) }}</span>
               </div>
 
@@ -574,7 +576,9 @@
               <div class="pt-2.5 border-t border-slate-200 space-y-3">
                 <div class="flex justify-between items-center">
                   <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-900">المجموع الصافي</span>
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-900">
+                      {{ showTaxInPrice && taxValue > 0 ? 'الإجمالي شامل الضريبة' : 'الإجمالي النهائي' }}
+                    </span>
                     <span :class="['text-[9px] font-bold px-2 py-0.5 rounded-full border', saleStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : saleStatus === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200']">
                       {{ saleStatus === 'paid' ? 'مدفوعة' : saleStatus === 'partial' ? 'جزئي' : 'مستحقة' }}
                     </span>
@@ -1023,6 +1027,7 @@ import BaseModal from '@/components/BaseModal.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { getLocalDateISO, isSettingEnabled, printDocument } from '@/utils';
 import { getBuilderByTemplate } from '@/utils/printTemplates';
+import { resolvePrintOptions } from '@/utils/printTemplates/branchPrintSettings';
 import { useCashierSessionGuard } from '@/composables/useCashierSessionGuard';
 import { useToast } from '@/composables/useToast';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
@@ -1236,8 +1241,19 @@ const invoiceDiscountAmount = computed(() => {
 
 const discountAmount = computed(() => manualPriceDiscountAmount.value + invoiceDiscountAmount.value);
 
-const taxAmount = computed(() => (parseFloat(taxValue.value) || 0) / 100 * (enteredSubtotal.value - invoiceDiscountAmount.value));
-const finalTotal = computed(() => enteredSubtotal.value - invoiceDiscountAmount.value + taxAmount.value);
+const taxAmount = computed(() => {
+  const rate = Math.max(0, parseFloat(taxValue.value) || 0);
+  const amountAfterDiscount = Math.max(0, enteredSubtotal.value - invoiceDiscountAmount.value);
+  const tax = showTaxInPrice.value
+    ? amountAfterDiscount - amountAfterDiscount / (1 + rate / 100)
+    : amountAfterDiscount * rate / 100;
+  return Math.round((tax + Number.EPSILON) * 100) / 100;
+});
+const taxRateDisplay = computed(() => Number(taxValue.value || 0).toFixed(2).replace(/\.?0+$/, ''));
+const finalTotal = computed(() => {
+  const amountAfterDiscount = enteredSubtotal.value - invoiceDiscountAmount.value;
+  return showTaxInPrice.value ? amountAfterDiscount : amountAfterDiscount + taxAmount.value;
+});
 const quotationPricePolicyItems = computed(() => invoice.value.map(item => {
   const quantity = Number(item.selectedQuantity) || 0;
   const lineSubtotal = (Number(item.sale_price) || 0) * quantity;
@@ -1369,9 +1385,11 @@ const loadAllSettings = async () => {
     
     if (settings) {
       // ✅ Tax Settings
-      taxEnabled.value = settings['company.tax_enabled'] === '1';
-      taxRate.value = parseFloat(settings['company.tax_rate']) || 0;
-      showTaxInPrice.value = settings['invoice.show_tax_in_price'] !== '0';
+      taxEnabled.value = isSettingEnabled(settings['tax.tax_enabled'] ?? settings['company.tax_enabled']);
+      taxRate.value = parseFloat(settings['tax.tax_rate'] ?? settings['company.tax_rate']) || 0;
+      showTaxInPrice.value = settings['invoice.show_tax_in_price'] == null
+        ? true
+        : isSettingEnabled(settings['invoice.show_tax_in_price']);
       taxValue.value = taxEnabled.value ? taxRate.value : 0;
       requireApproval.value = settings['pos.require_approval'] === '1' || settings['pos.require_approval'] === 1 || settings['pos.require_approval'] === true;
       
@@ -1950,13 +1968,6 @@ const saveSale = async (options = {}) => {
   }
 };
 
-const getSelectedPrintTemplate = () => {
-  let t = (localStorage.getItem('pos_print_template') || '').toLowerCase();
-  if (t === 'thermal') t = 'thermal-compact';
-  if (t === 'a4') t = 'a4-simple';
-  return new Set(['thermal-compact', 'thermal-detailed', 'a4-simple', 'a4-professional']).has(t) ? t : 'thermal-compact';
-};
-
 const fetchSaleDetails = async (saleId) => { return await salesStore.fetchSaleDetails(saleId); };
 const fetchSaleDetailsWithRetry = async (saleId, retries = 3, delayMs = 500) => {
   let lastErr;
@@ -1987,7 +1998,14 @@ const saveAndPrint = async () => {
   isPrinting.value = true;
   let didSave = false;
   const invoiceSnapshot = JSON.parse(JSON.stringify(invoice.value || []));
-  const totals = { total_amount: parseFloat(totalAmount.value || 0), discount_value: parseFloat(discountAmount.value || 0), tax_amount: parseFloat(taxAmount.value || 0), net_total_amount: parseFloat((enteredSubtotal.value - invoiceDiscountAmount.value) || 0), paid_amount: parseFloat(actualPaidAmount.value || 0) };
+  const totals = {
+    total_amount: parseFloat(totalAmount.value || 0),
+    discount_value: parseFloat(discountAmount.value || 0),
+    tax_amount: parseFloat(taxAmount.value || 0),
+    net_total_amount: parseFloat((finalTotal.value - taxAmount.value) || 0),
+    tax_inclusive: showTaxInPrice.value && taxValue.value > 0,
+    paid_amount: parseFloat(actualPaidAmount.value || 0),
+  };
   const customerName = selectedCustomerData.value?.name || 'عميل نقدي';
   try {
     const result = await saveSale({ skipReset: true, returnResult: true, allowWhilePrinting: true });
@@ -2000,8 +2018,12 @@ const saveAndPrint = async () => {
     if (!sale || !Array.isArray(sale.items) || !sale.items.length) {
       sale = { id: saleId, invoice_number: result.invoice_number || saleId, sale_date: getLocalDateISO(), customer_name: customerName, items: invoiceSnapshot.map(it => ({ product_name: it.name, name: it.name, quantity: it.selectedQuantity, sale_price: it.sale_price, net_total: parseFloat((it.sale_price * it.selectedQuantity).toFixed(2)) })), ...totals };
     }
-    openPrintWindow(getBuilderByTemplate(getSelectedPrintTemplate())(sale), preOpened);
-  } catch { try { preOpened.close?.(); } catch {} }
+    const printOptions = await resolvePrintOptions(sale, getActivebranchId());
+    openPrintWindow(getBuilderByTemplate(printOptions.template)(sale, printOptions), preOpened);
+  } catch (error) {
+    try { preOpened.close?.(); } catch {}
+    showToast(error?.response?.data?.message || error.message || 'تعذر تحميل إعدادات الطباعة لهذا الفرع.', 'error');
+  }
   finally { if (didSave) resetInvoiceState(); isPrinting.value = false; }
 };
 const loadInitial = async () => {

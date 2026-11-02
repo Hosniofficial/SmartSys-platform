@@ -376,6 +376,7 @@ import PaginationControls from '@/components/ui/PaginationControls.vue';
 import BaseModal from '@/components/BaseModal.vue';
 import { getLocalDateISO, isSettingEnabled, printDocument } from '@/utils'
 import { buildPurchaseHtml } from '@/utils/printTemplates'
+import { resolvePrintOptions } from '@/utils/printTemplates/branchPrintSettings'
 import { useSessionExemption } from '@/composables/useCashierSessionGuard'
 import { useAuthStore } from '@/stores/auth/authStore'
 import { useBranchStore } from '@/stores/branch/branchStore'
@@ -679,7 +680,11 @@ const openPurchaseDetails = async (purchase) => {
 const printPurchaseDetails = async () => {
   if (!selectedPurchase.value) return;
   const p = { ...selectedPurchase.value, items: selectedPurchase.value.items || [] };
-  await printDocument(buildPurchaseHtml(p));
+  try {
+    await printDocument(buildPurchaseHtml(p, await resolvePrintOptions(p, branchStore.selectedBranchId)));
+  } catch (error) {
+    showToast(error?.response?.data?.message || error.message || 'تعذر تحميل إعدادات الطباعة لهذا الفرع.', 'error');
+  }
 };
 
 const closePurchaseDetails = () => {

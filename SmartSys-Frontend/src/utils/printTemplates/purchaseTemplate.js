@@ -7,8 +7,8 @@ const itemPurchaseTotal = (it) =>
 /**
  * Thermal template for purchase invoices (76mm roll)
  */
-const buildPurchaseThermalHtml = (doc) => {
-  const cfg     = getPrintConfig();
+const buildPurchaseThermalHtml = (doc, options = {}) => {
+  const cfg     = getPrintConfig(options.config);
   const company = getCompanyData(null);
   const docDate = doc.invoice_date || doc.created_at || new Date().toISOString();
   const remaining = (parseFloat(doc.total_amount) || 0) - (parseFloat(doc.paid_amount) || 0);
@@ -83,8 +83,8 @@ const buildPurchaseThermalHtml = (doc) => {
 /**
  * A4 template for purchase invoices
  */
-const buildPurchaseA4Html = (doc) => {
-  const cfg     = getPrintConfig();
+const buildPurchaseA4Html = (doc, options = {}) => {
+  const cfg     = getPrintConfig(options.config);
   const company = getCompanyData(null);
   const docDate = doc.invoice_date || doc.created_at || new Date().toISOString();
   const remaining = (parseFloat(doc.total_amount) || 0) - (parseFloat(doc.paid_amount) || 0);
@@ -169,8 +169,8 @@ const buildPurchaseA4Html = (doc) => {
 /**
  * Returns the appropriate builder based on template setting
  */
-export const buildPurchaseHtml = (doc) => {
-  const t = (localStorage.getItem('pos_print_template') || 'thermal-compact').toLowerCase();
+export const buildPurchaseHtml = (doc, options = {}) => {
+  const t = String(options.template || localStorage.getItem('pos_print_template') || 'thermal-compact').toLowerCase();
   const isA4 = t === 'a4-simple' || t === 'a4-professional' || t === 'a4';
-  return isA4 ? buildPurchaseA4Html(doc) : buildPurchaseThermalHtml(doc);
+  return isA4 ? buildPurchaseA4Html(doc, options) : buildPurchaseThermalHtml(doc, options);
 };

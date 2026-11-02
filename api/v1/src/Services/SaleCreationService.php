@@ -333,14 +333,14 @@ class SaleCreationService
             $stmt = $this->pdo->prepare("
                 INSERT INTO sales_items (
                     sale_id, product_id, unit_id, conversion_factor, quantity,
-                    sale_price, purchase_price, discount_type, discount_value, net_total,
+                    sale_price, purchase_price, discount_type, discount_value, net_total, tax_amount,
                     batch_number, expiry_date, serial,
                     tenant_id, created_at, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'amount', ?, ?, ?, ?, ?, ?, NOW(), ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'amount', ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
             ");
             $stmt->execute([
                 $saleId, $productId, $unitId, $conversionFactor, $quantity,
-                $salePrice, $purchasePrice, $discountValue, $netTotal,
+                $salePrice, $purchasePrice, $discountValue, $netTotal, (float) ($item['tax_amount'] ?? 0),
                 $item['batch_number'] ?? null, $item['expiry_date'] ?? null, $item['serial'] ?? null,
                 $tenantId, $this->userId,
             ]);
@@ -602,6 +602,22 @@ class SaleCreationService
                 $belowCostReason
             );
 
+            $taxEnabledSetting = $this->settingsRepo->get($tenantId, 'tax.tax_enabled')
+                ?? $this->settingsRepo->get($tenantId, 'company.tax_enabled');
+            $configuredTaxRate = $this->settingsRepo->get($tenantId, 'tax.tax_rate')
+                ?? $this->settingsRepo->get($tenantId, 'company.tax_rate');
+            $taxEnabled = $taxEnabledSetting === null
+                ? (float) ($data['tax_rate'] ?? 0) > 0
+                : in_array(strtolower(trim($taxEnabledSetting)), ['1', 'true', 'yes', 'on'], true);
+            $taxRate = $taxEnabled
+                ? (float) ($configuredTaxRate ?? $data['tax_rate'] ?? 0)
+                : 0.0;
+            if (!is_finite($taxRate) || $taxRate < 0 || $taxRate > 100) {
+                throw new \DomainException('نسبة الضريبة المحفوظة غير صالحة.');
+            }
+            $taxInclusive = $taxEnabled
+                && $this->settingsRepo->getBool($tenantId, 'invoice.show_tax_in_price', false);
+
             foreach ($data['items'] as $item) {
                 $quantity      = (float)$item['quantity'];
                 $salePrice     = (float)$item['sale_price'];
@@ -619,7 +635,10 @@ class SaleCreationService
                 $itemDiscount  = $manualPriceDiscount + $allocatedInvoiceDiscount;
                 $itemNetTotal  = $itemTotal - $itemDiscount;
                 $itemNetPrice  = ($quantity > 0) ? $itemNetTotal / $quantity : 0;
-                $itemProfit    = $itemNetTotal - ($purchasePrice * $quantity);
+                $itemRevenue   = $taxInclusive
+                    ? $this->financialCalcService->calculateTaxInclusivePrice($itemNetTotal, (float) $taxRate)
+                    : $itemNetTotal;
+                $itemProfit    = $itemRevenue - ($purchasePrice * $quantity);
                 $totalProfit  += $itemProfit;
 
                 $saleItemsForDb[] = [
@@ -644,8 +663,35 @@ class SaleCreationService
 
             $netTotalAmount      = $totalAmount - $manualPriceDiscountTotal - $totalDiscountAmount;
             $recordedDiscountAmount = $manualPriceDiscountTotal + $totalDiscountAmount;
-            $taxRate             = $data['tax_rate'] ?? 0;
-            $taxAmount           = ($taxRate / 100) * $netTotalAmount;
+            if ($taxInclusive && $taxRate > 0) {
+                $grossTotal = round($netTotalAmount, 2);
+                $netTotalAmount = $this->financialCalcService->calculateTaxInclusivePrice($grossTotal, (float) $taxRate);
+                $taxAmount = round($grossTotal - $netTotalAmount, 2);
+            } else {
+                $taxAmount = round(($taxRate / 100) * $netTotalAmount, 2);
+            }
+            $allocatedTax = 0.0;
+            $taxAdjustmentItemIndex = null;
+            $largestTaxableLine = -1.0;
+            foreach ($saleItemsForDb as $index => &$saleItem) {
+                $lineAmount = (float) $saleItem['net_total'];
+                $lineTax = $taxInclusive && $taxRate > 0
+                    ? round($lineAmount - $this->financialCalcService->calculateTaxInclusivePrice($lineAmount, (float) $taxRate), 2)
+                    : round($lineAmount * (float) $taxRate / 100, 2);
+                $saleItem['tax_amount'] = $lineTax;
+                $allocatedTax += $lineTax;
+                if ($lineAmount > $largestTaxableLine) {
+                    $largestTaxableLine = $lineAmount;
+                    $taxAdjustmentItemIndex = $index;
+                }
+            }
+            unset($saleItem);
+            if ($taxAdjustmentItemIndex !== null) {
+                $saleItemsForDb[$taxAdjustmentItemIndex]['tax_amount'] = round(
+                    $saleItemsForDb[$taxAdjustmentItemIndex]['tax_amount'] + $taxAmount - $allocatedTax,
+                    2
+                );
+            }
             $paidAmount          = (float)($data['paid_amount'] ?? 0);
             $grossAmountForStatus = $netTotalAmount + $taxAmount;
 
@@ -723,8 +769,8 @@ class SaleCreationService
                     tenant_id, customer_id, sale_date, total_amount, net_total_amount, paid_amount,
                     discount_type, discount_value, status, user_id, notes, total_items, total_profit,
                     branch_id, invoice_number, payment_method_id, tax_rate, tax_amount,
-                    session_id, cost_center_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    tax_inclusive, session_id, cost_center_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $notes = trim((string) ($data['notes'] ?? ''));
@@ -738,7 +784,7 @@ class SaleCreationService
                 $totalAmount, $netTotalAmount, $paidAmount, 'fixed', $recordedDiscountAmount,
                 $status, $this->userId, $notes !== '' ? $notes : null, count($data['items']),
                 $totalProfit, $branchId, $invoiceNumber, $paymentMethodId,
-                $taxRate, $taxAmount, $sessionIdForSale, $resolvedCostCenter,
+                $taxRate, $taxAmount, $taxInclusive ? 1 : 0, $sessionIdForSale, $resolvedCostCenter,
             ];
 
             $maxAttempts = 5;

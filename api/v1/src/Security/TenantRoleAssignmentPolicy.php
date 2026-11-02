@@ -45,10 +45,14 @@ final class TenantRoleAssignmentPolicy
         }
 
         $placeholders = implode(',', array_fill(0, count($normalized), '?'));
+        $activeRoleFilter = self::hasActiveColumn($db)
+            ? 'AND COALESCE(is_active, 1) = 1'
+            : '';
         $stmt = $db->prepare(
             "SELECT id FROM roles
              WHERE id IN ({$placeholders})
                AND LOWER(name) NOT IN ('admin', 'super_admin', 'administrator')
+               {$activeRoleFilter}
                AND (
                    tenant_id = ?
                    OR (
@@ -70,5 +74,20 @@ final class TenantRoleAssignmentPolicy
         sort($assignableIds);
 
         return $expectedIds === $assignableIds ? $normalized : null;
+    }
+
+    private static function hasActiveColumn(PDO $db): bool
+    {
+        if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+            $columns = $db->query('PRAGMA table_info(roles)')->fetchAll(PDO::FETCH_COLUMN, 1) ?: [];
+            return in_array('is_active', $columns, true);
+        }
+
+        $stmt = $db->prepare(
+            'SELECT 1 FROM information_schema.columns
+             WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+        );
+        $stmt->execute(['roles', 'is_active']);
+        return $stmt->fetchColumn() !== false;
     }
 }

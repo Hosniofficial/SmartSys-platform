@@ -74,6 +74,15 @@ final class TenantRoleAssignmentPolicyTest extends TestCase
         self::assertNull(TenantRoleAssignmentPolicy::validate($this->db, [21], 7));
     }
 
+    public function testRejectsInactiveTenantRoles(): void
+    {
+        $this->db->exec('ALTER TABLE roles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1');
+        $this->db->exec('UPDATE roles SET is_active = 0 WHERE id = 20');
+
+        self::assertNull(TenantRoleAssignmentPolicy::validate($this->db, [20], 7));
+        self::assertSame([23], TenantRoleAssignmentPolicy::validate($this->db, [23], 7));
+    }
+
     public function testRejectsUnscopedNonSystemRoles(): void
     {
         self::assertNull(TenantRoleAssignmentPolicy::validate($this->db, [11], 7));

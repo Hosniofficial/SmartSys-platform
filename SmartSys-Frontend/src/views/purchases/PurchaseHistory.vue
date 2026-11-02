@@ -346,6 +346,7 @@ import { usePurchaseStore } from '@/stores/purchase/purchaseStore';
 import { useBootstrapStore } from '@/stores/bootstrap/bootstrapStore';
 import { getLocalDateISO, isSettingEnabled, printDocument } from '@/utils';
 import { buildPurchaseHtml } from '@/utils/printTemplates';
+import { resolvePrintOptions } from '@/utils/printTemplates/branchPrintSettings';
 import PageHeader from '@/components/PageHeader.vue';
 import PaginationControls from '@/components/ui/PaginationControls.vue';
 
@@ -638,7 +639,11 @@ const submitPayment = async () => {
 const printPurchaseDetails = async () => {
   if (!selectedPurchase.value) return;
   const p = { ...selectedPurchase.value, items: selectedPurchase.value.items || selectedPurchase.value.purchase?.items || [] };
-  await printDocument(buildPurchaseHtml(p));
+  try {
+    await printDocument(buildPurchaseHtml(p, await resolvePrintOptions(p, branchStore.selectedBranchId)));
+  } catch (error) {
+    showToast(error?.response?.data?.message || error.message || 'تعذر تحميل إعدادات الطباعة لهذا الفرع.', 'error');
+  }
 };
 
 let searchDebounceTimer = null;

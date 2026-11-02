@@ -99,8 +99,10 @@
             <span class="font-mono text-rose-500">- {{ formatPrice(selectedInvoice.discount_value || 0) }}</span>
           </div>
           <div v-if="Number(selectedInvoice.tax_amount) > 0" class="flex justify-between text-xs font-bold text-slate-500">
-            <span>الضريبة</span>
-            <span class="font-mono text-indigo-600">+ {{ formatPrice(selectedInvoice.tax_amount || 0) }}</span>
+            <span>الضريبة{{ isTaxInclusiveSale ? ' (ضمن السعر)' : '' }}</span>
+            <span class="font-mono text-indigo-600">
+              {{ isTaxInclusiveSale ? formatPrice(selectedInvoice.tax_amount || 0) : `+ ${formatPrice(selectedInvoice.tax_amount || 0)}` }}
+            </span>
           </div>
           <div class="flex justify-between text-xs font-bold text-slate-500">
             <span>صافي المدفوع فعلياً</span>
@@ -449,6 +451,10 @@ onBeforeUnmount(() => {
 // تطبيع النوع ليطابق ما يتوقعه الـ backend
 const normalizedType = computed(() => props.type === 'sales' ? 'sale' : (props.type === 'purchases' ? 'purchase' : props.type));
 const isSale = computed(() => normalizedType.value === 'sale');
+const isTaxInclusiveSale = computed(() => {
+  const value = selectedInvoice.value?.tax_inclusive;
+  return isSale.value && (value === true || value === 1 || ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase()));
+});
 const outstanding = computed(() => {
   if (!selectedInvoice.value) return 0;
   if (selectedInvoice.value.net_outstanding !== undefined && selectedInvoice.value.net_outstanding !== null) {
@@ -547,7 +553,7 @@ watch([returnItems, isFullReturn, refundMode, selectedInvoice], () => {
   } else if (refundMode.value === 'credit_note') {
     paidAmount.value = 0;
   }
-});
+}, { deep: true });
 
 // مفاتيح حسب النوع
 const quantityKey = computed(() => 'quantity');
@@ -573,12 +579,24 @@ const totalReturnNet = computed(() =>
 );
 const totalReturnTax = computed(() => {
   if (isSale.value) {
-    return totalReturnNet.value * (Number(selectedInvoice.value?.tax_rate || 0) / 100);
+    const taxRate = Number(selectedInvoice.value?.tax_rate || 0);
+    return returnItems.value.reduce((total, item) => {
+      const quantity = Number(item.returnQuantity || 0);
+      if (item.return_tax_unit_amount !== null && item.return_tax_unit_amount !== undefined) {
+        return total + Number(item.return_tax_unit_amount || 0) * quantity;
+      }
+      const amount = Number(item[displayPriceKey.value] || 0) * quantity;
+      return total + (isTaxInclusiveSale.value
+        ? amount - (amount / (1 + taxRate / 100))
+        : amount * taxRate / 100);
+    }, 0);
   }
   return returnItems.value.reduce((total, item) =>
     total + Number(item.return_tax_unit_amount || 0) * Number(item.returnQuantity || 0), 0);
 });
-const totalReturnAmount = computed(() => totalReturnNet.value + totalReturnTax.value);
+const totalReturnAmount = computed(() =>
+  isTaxInclusiveSale.value ? totalReturnNet.value : totalReturnNet.value + totalReturnTax.value
+);
 
 watch(refundMode, (mode) => {
   if (isSale.value && ['refund_excess', 'cash'].includes(mode) && refundPaymentMethods.value.length) {
@@ -724,6 +742,7 @@ async function selectInvoice(invoice) {
         paymentMethodId.value = invoiceDetails.payment_method_id;
       }
     }
+    items = [...items].sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
     // استخدام API الجديد الذي يعيد item_id
     let availableItemsMap = {};
     try {
@@ -750,18 +769,6 @@ async function selectInvoice(invoice) {
     const returnedRemainingByGroup = Object.fromEntries(
       Object.entries(availableItemsMap).map(([key, value]) => [key, value.returned_qty])
     );
-    const sourceGroupPrices = items.reduce((groups, item) => {
-      const key = `${item.product_id}:${item.unit_id || 0}`;
-      const quantity = Number(item[quantityKey.value] || 0);
-      const netAmount = props.type === 'sales'
-        ? Number(item.net_total || 0)
-        : Number(item.subtotal || 0) - Number(item.tax_amount || 0);
-      groups[key] ||= { quantity: 0, netAmount: 0, taxAmount: 0 };
-      groups[key].quantity += quantity;
-      groups[key].netAmount += netAmount;
-      groups[key].taxAmount += Number(item.tax_amount || 0);
-      return groups;
-    }, {});
     selectedInvoice.value = {
       ...invoice,
       ...invoiceDetails,
@@ -776,13 +783,18 @@ async function selectInvoice(invoice) {
           : 0;
         if (s) returnedRemainingByGroup[groupKey] = Math.max(0, Number(returnedRemainingByGroup[groupKey] || 0) - prev);
         const remaining = Math.max(0, quantity - prev);
-        const sourceGroup = sourceGroupPrices[groupKey];
+        const sourceAmount = props.type === 'sales'
+          ? Number(item.net_total || 0)
+          : Math.max(0, Number(item.subtotal || 0) - Number(item.tax_amount || 0));
+        const sourceTax = item.tax_amount !== null && item.tax_amount !== undefined
+          ? Number(item.tax_amount)
+          : null;
 
         return {
           ...item,
           item_id: itemId,           // حفظ item_id
-          return_unit_price: sourceGroup?.quantity > 0 ? sourceGroup.netAmount / sourceGroup.quantity : 0,
-          return_tax_unit_amount: sourceGroup?.quantity > 0 ? sourceGroup.taxAmount / sourceGroup.quantity : 0,
+          return_unit_price: quantity > 0 ? sourceAmount / quantity : 0,
+          return_tax_unit_amount: sourceTax !== null && quantity > 0 ? sourceTax / quantity : null,
           prevReturned: prev,
           remainingQty: remaining,
           returnQuantity: 0

@@ -18,21 +18,28 @@
     <!-- Sticky Floating Save Bar: The "Stripe" Action Anchor -->
     <Transition name="slide-up">
       <div v-if="isDirty" class="fixed bottom-8 inset-x-0 flex justify-center z-[100] px-4">
-        <div class="bg-slate-900 border border-white/10 shadow-2xl rounded-full px-6 py-3 flex items-center gap-8 max-w-2xl w-full backdrop-blur-md bg-opacity-95">
-          <div class="flex items-center gap-3 border-l border-white/10 pl-6">
+        <div class="bg-slate-900 border border-white/10 shadow-2xl rounded-2xl sm:rounded-full px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-8 max-w-2xl w-full backdrop-blur-md bg-opacity-95">
+          <div class="flex items-center gap-3 border-b sm:border-b-0 sm:border-l border-white/10 pb-2 sm:pb-0 sm:pl-6">
             <div class="w-2 h-2 bg-amber-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(251,191,36,0.5)]"></div>
-            <span class="text-xs font-bold text-white uppercase tracking-wider">تعديلات غير محفوظة</span>
+            <div class="text-right">
+              <span class="block text-xs font-bold text-white">تعديلات غير محفوظة</span>
+              <span class="block mt-1 text-[10px] text-slate-400">{{ dirtySectionSummary }}</span>
+            </div>
           </div>
-          <div class="flex gap-3 mr-auto">
-            <button @click="discardActiveTab" class="px-4 py-1.5 rounded-md text-[10px] font-bold text-slate-400 hover:text-white transition-colors">تجاهل</button>
+          <div class="flex justify-between sm:justify-normal gap-2 sm:gap-3 sm:mr-auto">
+            <button
+              @click="discardActiveTab"
+              :disabled="!activeSectionDirty"
+              class="px-4 py-1.5 rounded-md text-[10px] font-bold text-slate-400 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >تجاهل {{ activeSectionDirty ? activeSectionLabel : 'القسم الحالي' }}</button>
             <LoadingButton
-              text="حفظ الإعدادات"
+              :text="activeSectionDirty ? `حفظ ${activeSectionLabel}` : 'اذهب إلى القسم المعدّل'"
               :isLoading="isSaving"
               loadingText="جاري الحفظ..."
               icon="fas fa-save"
               variant="primary"
               loaderType="dots"
-              @click="saveActiveTab"
+              @click="activeSectionDirty ? saveActiveTab() : goToFirstDirtySection()"
               class="px-6 py-1.5 bg-blue-600 text-white rounded-md text-[10px] font-bold shadow-lg shadow-blue-900/20 hover:bg-blue-500"
             />
           </div>
@@ -249,7 +256,7 @@
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <label v-for="role in filteredPosRoleOptions" :key="role.id" class="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 cursor-pointer hover:bg-white hover:border-blue-500 transition-all has-[:checked]:bg-blue-50 has-[:checked]:border-blue-200">
                     <input type="checkbox" :value="Number(role.id)" v-model="posSession.enforceForRoles" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
-                    <span class="text-[11px] font-bold text-slate-700 truncate">{{ translateRole(role.name) }}</span>
+                    <span class="text-[11px] font-bold text-slate-700 truncate">{{ role.display_name || role.name || role.role_code }}</span>
                   </label>
                 </div>
               </div>
@@ -338,17 +345,22 @@
                     <div class="space-y-1.5"><label class="metadata-label">رقم السجل الضريبي</label><input v-model="invoice.taxNumber" class="filter-input-v2 h-10 font-mono tracking-widest" /></div>
                     <div class="grid grid-cols-2 gap-4">
                       <div class="space-y-1.5"><label class="metadata-label">المُسمى</label><input v-model="invoice.taxName" class="filter-input-v2 h-10" /></div>
-                      <div class="space-y-1.5"><label class="metadata-label">النسبة (%)</label><input v-model.number="invoice.taxRate" type="number" class="filter-input-v2 h-10 font-bold" /></div>
+                      <div class="space-y-1.5"><label class="metadata-label">النسبة (%)</label><input v-model.number="invoice.taxRate" type="number" min="0" max="100" step="0.01" class="filter-input-v2 h-10 font-bold" /></div>
                     </div>
                     <div class="pt-4 flex flex-col gap-3 border-t border-slate-200/50">
                       <label class="setting-toggle-row bg-white rounded-md border border-slate-100 px-3 h-10">
                         <span class="text-[11px] font-bold text-slate-700">تفعيل احتساب الضريبة</span>
                         <input type="checkbox" v-model="invoice.taxEnabled" class="ios-toggle" />
                       </label>
-                      <label class="setting-toggle-row bg-white rounded-md border border-slate-100 px-3 h-10">
-                        <span class="text-[11px] font-bold text-slate-700">تضمين الضريبة في السعر المعروض</span>
-                        <input type="checkbox" v-model="invoice.showTaxInPrice" class="ios-toggle" />
-                      </label>
+                      <div class="space-y-1">
+                        <label class="setting-toggle-row bg-white rounded-md border border-slate-100 px-3 h-10">
+                          <span class="text-[11px] font-bold text-slate-700">أسعار البيع تشمل الضريبة</span>
+                          <input type="checkbox" v-model="invoice.showTaxInPrice" class="ios-toggle" />
+                        </label>
+                        <p class="px-1 text-[10px] leading-relaxed text-slate-500">
+                          عند التفعيل تُستخرج الضريبة من السعر ولا تُضاف فوقه. أوقفه إذا كانت أسعارك قبل الضريبة.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -381,8 +393,8 @@
               <div class="flex items-start gap-5 p-6 bg-slate-900 rounded-xl text-white shadow-xl">
                  <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center text-blue-400 shrink-0"><i class="fas fa-chart-line text-lg"></i></div>
                  <div class="space-y-1">
-                   <h4 class="text-sm font-bold uppercase tracking-widest text-blue-400">سياسة تقييم المخزون: WAC</h4>
-                   <p class="text-[11px] text-slate-400 font-medium leading-relaxed">يستخدم النظام حالياً سياسة **متوسط التكلفة المرجّح (WAC)** لتقييم تكلفة البضاعة المباعة وقيمة المخزون تلقائياً وفقاً للقيود المسجلة.</p>
+                   <h4 class="text-sm font-bold uppercase tracking-widest text-blue-400">سياسة تقييم المخزون: متوسط التكلفة المرجّح</h4>
+                   <p class="text-[11px] text-slate-400 font-medium leading-relaxed">يحسب النظام تكلفة المخزون والبضاعة المباعة بمتوسط تكلفة المشتريات، ثم يستخدم الحسابات المحددة أدناه في قيود دفتر الأستاذ.</p>
                  </div>
               </div>
 
@@ -390,13 +402,13 @@
               <div v-if="accountingMissingKeys.length" class="rounded-xl bg-amber-50 border border-amber-200 p-6 text-amber-900">
                 <div class="font-bold text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
                   <i class="fas fa-exclamation-triangle text-amber-500"></i>
-                  إعدادات الحسابات الأساسية غير مكتملة
+                  لم تُحدَّد بعض الحسابات يدويًا
                 </div>
                 <ul class="list-disc pr-5 text-[11px] font-bold space-y-1 text-amber-800">
                   <li v-for="key in accountingMissingKeys" :key="key">لم يتم ضبط: {{ accountingKeyLabels[key] }}</li>
                 </ul>
                 <p class="text-[10px] text-amber-700 mt-3 font-bold italic">
-                  قم بتعيين هذه الحسابات ثم اضغط حفظ لضمان إنشاء القيود المحاسبية بشكل صحيح.
+                  سيستخدم النظام الحساب الافتراضي المقابل إن كان متاحًا؛ وإلا فقد يتعذر ترحيل قيد البيع أو تسوية المخزون. راجع هذه الحسابات قبل اعتماد العمليات.
                 </p>
               </div>
 
@@ -407,7 +419,7 @@
                   <div class="space-y-1.5">
                     <label class="metadata-label">حساب تكلفة البضاعة (COGS)</label>
                     <select v-model="accounting.cogsAccountId" class="filter-input-v2 h-10 font-bold">
-                      <option :value="null">-- اختر حساب --</option>
+                      <option value="">-- اختر حساب --</option>
                       <optgroup v-if="accounts.tenant.length" label="حسابات المنشأة">
                         <option v-for="acc in accounts.tenant" :key="'cogs-t-'+acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                       </optgroup>
@@ -415,12 +427,12 @@
                         <option v-for="acc in accounts.global" :key="'cogs-g-'+acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                       </optgroup>
                     </select>
-                    <p class="text-[9px] font-bold text-slate-400 italic">يستخدم عند بيع المنتجات</p>
+                    <p class="text-[9px] font-bold text-slate-400 italic">مدين تكلفة البضاعة المباعة عند البيع؛ ويستخدم الافتراضي 5103 إن لم تحدد حسابًا.</p>
                   </div>
                   <div class="space-y-1.5">
                     <label class="metadata-label">حساب المخزون (Inventory Asset)</label>
                     <select v-model="accounting.inventoryAccountId" class="filter-input-v2 h-10 font-bold">
-                      <option :value="null">-- اختر حساب --</option>
+                      <option value="">-- اختر حساب --</option>
                       <optgroup v-if="accounts.tenant.length" label="حسابات المنشأة">
                         <option v-for="acc in accounts.tenant" :key="'inv-t-'+acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                       </optgroup>
@@ -428,12 +440,12 @@
                         <option v-for="acc in accounts.global" :key="'inv-g-'+acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                       </optgroup>
                     </select>
-                    <p class="text-[9px] font-bold text-slate-400 italic">يستخدم لتسجيل قيمة المخزون</p>
+                    <p class="text-[9px] font-bold text-slate-400 italic">دائن المخزون عند البيع ومدينه عند الشراء؛ يُراعى حساب الفرع إن كان معيّنًا.</p>
                   </div>
                   <div class="space-y-1.5 md:col-span-2">
                     <label class="metadata-label">حساب تسويات المخزون (Adjustments)</label>
                     <select v-model="accounting.inventoryAdjustmentAccountId" class="filter-input-v2 h-10 font-bold">
-                      <option :value="null">-- اختر حساب --</option>
+                      <option value="">-- اختر حساب --</option>
                       <optgroup v-if="accounts.tenant.length" label="حسابات المنشأة">
                         <option v-for="acc in accounts.tenant" :key="'adj-t-'+acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                       </optgroup>
@@ -441,7 +453,7 @@
                         <option v-for="acc in accounts.global" :key="'adj-g-'+acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                       </optgroup>
                     </select>
-                    <p class="text-[9px] font-bold text-slate-400 italic">يستخدم عند تسوية فروق المخزون</p>
+                    <p class="text-[9px] font-bold text-slate-400 italic">الحساب المقابل لزيادة أو نقص الجرد؛ يستخدم الافتراضي 5104 عند توفره.</p>
                   </div>
                 </div>
               </div>
@@ -460,8 +472,34 @@
               <!-- Design Config -->
               <div class="xl:col-span-7 space-y-8">
                 <div class="bg-white border border-slate-200 rounded-xl p-8 space-y-8 shadow-sm">
+                  <div class="space-y-2">
+                    <label class="metadata-label">نطاق إعدادات الطباعة</label>
+                    <select
+                      :value="printSettingsBranchId"
+                      class="filter-input-v2 h-10 w-full font-bold"
+                      :disabled="branchesLoading || isLoading"
+                      @change="handlePrintBranchChange($event.target.value)"
+                    >
+                      <option value="">الإعدادات العامة لجميع الفروع</option>
+                      <option v-for="branch in branchOptions" :key="branch.id" :value="String(branch.id)">
+                        {{ branch.name }}
+                      </option>
+                    </select>
+                    <p class="text-[10px] text-slate-400">
+                      {{ printSettingsBranchId ? 'تخصيصات الطباعة هنا تطبق على هذا الفرع فقط، ويمكنك استعادة الإعدادات العامة في أي وقت.' : 'تُطبَّق هذه الإعدادات على جميع الفروع افتراضيًا. ويمكنك اختيار فرع وحفظ إعدادات طباعة خاصة به.' }}
+                    </p>
+                    <button
+                      v-if="printSettingsBranchId && branchPrintOverrides.length"
+                      type="button"
+                      class="text-[10px] font-bold text-rose-600 hover:text-rose-700"
+                      :disabled="isSaving"
+                      @click="resetBranchPrinterSettings"
+                    >
+                      استعادة إعدادات المنشأة لهذا الفرع
+                    </button>
+                  </div>
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="space-y-1.5"><label class="metadata-label">قالب الفاتورة</label><select v-model="printTemplate" class="filter-input-v2 h-10 font-bold"><option value="thermal-compact">حراري مختصر (80mm)</option><option value="a4-professional">A4 احترافي</option></select></div>
+                    <div class="space-y-1.5"><label class="metadata-label">قالب الفاتورة</label><select v-model="printTemplate" class="filter-input-v2 h-10 font-bold"><option value="thermal-compact">حراري مختصر (80mm)</option><option value="thermal-detailed">حراري تفصيلي (80mm)</option><option value="a4-simple">A4 بسيط</option><option value="a4-professional">A4 احترافي</option></select></div>
                   </div>
 
                   <!-- ✅ RESTORED: إظهار الترويسة/التذييل -->
@@ -489,7 +527,7 @@
                    <div class="flex items-center justify-between mb-6">
                       <span class="text-[9px] font-bold text-white/30 uppercase tracking-[0.3em]">معاينة حية للمخرجات</span>
                       <div class="flex gap-1.5 p-1 bg-white/5 rounded-lg border border-white/5">
-                        <button v-for="pt in ['sale','return','purchase']" :key="pt" @click="previewType = pt" :class="[previewType === pt ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:bg-white/5']" class="px-3 py-1 rounded-md text-[9px] font-bold uppercase transition-all">{{ pt }}</button>
+                        <button v-for="pt in previewTypes" :key="pt.id" @click="previewType = pt.id" :class="[previewType === pt.id ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:bg-white/5']" class="px-3 py-1 rounded-md text-[9px] font-bold transition-all">{{ pt.label }}</button>
                       </div>
                    </div>
                    <div class="bg-white rounded-lg overflow-hidden shadow-inner border border-black/20" style="height: 480px">
@@ -517,9 +555,11 @@ import { useBranchStore } from '@/stores/branch/branchStore';
 import { useRoleStore } from '@/stores/role/roleStore';
 import { useAccountStore } from '@/stores/account/accountStore';
 import { useSettingsStore } from '@/stores/settings/settingsStore'
+import { settingsService } from '@/services/settings'
 import { printDocument } from '@/utils';
 import { getBuilderByTemplate, buildReturnHtml, buildPurchaseHtml } from '@/utils/printTemplates';
 import { clearPrintConfigCache } from '@/utils/printTemplates/printConfig';
+import { clearBranchPrintSettingsCache } from '@/utils/printTemplates/branchPrintSettings';
 import { getImageUrl } from '@/utils';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency'
 import { useToast } from '@/composables/useToast'
@@ -564,6 +604,18 @@ const tabs = [
   { id: 'accounting-settings', label: 'الحسابات المحاسبية', icon: 'fas fa-balance-scale' },
   { id: 'printers-settings', label: 'إعدادات الطابعات',      icon: 'fas fa-print' },
 ]
+const sectionLabels = {
+  general: 'الإعدادات العامة',
+  invoice: 'الفواتير والضرائب',
+  pos: 'نقطة البيع',
+  printers: 'إعدادات الطباعة',
+  accounting: 'الحسابات المحاسبية',
+}
+const previewTypes = [
+  { id: 'sale', label: 'بيع' },
+  { id: 'return', label: 'مرتجع' },
+  { id: 'purchase', label: 'شراء' },
+]
 
 const filteredTabs = computed(() => {
   const q = (searchTerm.value || '').trim()
@@ -597,11 +649,22 @@ const posSession = ref({
 })
 
 const printers = ref({
-  printHeader: true, printFooter: true,
+  printHeader: true, printFooter: true, template: localStorage.getItem('pos_print_template') || 'thermal-compact',
 })
 
-const printTemplate = ref(localStorage.getItem('pos_print_template') || 'thermal-compact')
+const printTemplate = computed({
+  get: () => printers.value.template,
+  set: (value) => { printers.value.template = value },
+})
+const printSettingsBranchId = ref('')
+const loadedPrintSettingsBranchId = ref('')
+const branchPrintOverrides = ref([])
+const tenantPrinterSettings = ref(null)
 const previewType   = ref('sale')
+const selectedPrintBranchName = computed(() => {
+  const selected = branchOptions.value.find(branch => String(branch.id) === String(printSettingsBranchId.value))
+  return selected?.name || ''
+})
 
 const printTexts = ref({
   headerText: localStorage.getItem('pos_print_header_text') || '',
@@ -637,13 +700,44 @@ const accountingKeyLabels = {
 }
 
 const rolesLoading = ref(false);
-const branchOptions = computed(() => branchStore.branches.map(w => ({ id: w.id, name: w.name })))
+const branchOptions = computed(() => {
+  const user = authStore.user?.user || authStore.user || {}
+  const role = String(user.role || '').toLowerCase()
+  const canManageAllBranches = authStore.isSuperAdmin
+    || role === 'super_admin'
+    || role === 'admin'
+    || Number(user.is_owner) === 1
+  const branchId = Number(user.branch_id || 0)
+  return branchStore.branches
+    .filter(branch => canManageAllBranches || (branchId > 0 && Number(branch.id) === branchId))
+    .map(branch => ({ id: branch.id, name: branch.name }))
+})
 const branchesLoading = ref(false)
 
 // ─── Dirty Tracking ───────────────────────────────────────────────────────────
-const { isDirty, isSectionDirty, setSnapshotsFromCurrent, resetSectionToSnapshot } = useDirtyTracking({
-  general, invoice, pos: posSession, printers, accounting,
+const printerSettingsForTracking = computed({
+  get: () => ({
+    ...printers.value,
+    texts: { ...printTexts.value },
+  }),
+  set: (settings) => {
+    const { texts, ...printerOptions } = settings
+    printers.value = printerOptions
+    printTexts.value = texts
+  },
 })
+const { isDirty, isSectionDirty, setSnapshotsFromCurrent, setSectionSnapshot, resetSectionToSnapshot } = useDirtyTracking({
+  general, invoice, pos: posSession, printers: printerSettingsForTracking, accounting,
+})
+const dirtySections = computed(() => Object.keys(sectionLabels).filter(isSectionDirty))
+const activeSectionKey = computed(() => sectionKeyFromTab(activeTab.value))
+const activeSectionDirty = computed(() => activeSectionKey.value
+  ? isSectionDirty(activeSectionKey.value)
+  : false)
+const activeSectionLabel = computed(() => sectionLabels[activeSectionKey.value] || 'الإعدادات')
+const dirtySectionSummary = computed(() => dirtySections.value
+  .map(key => sectionLabels[key])
+  .join('، '))
 
 // ─── Role Filters ─────────────────────────────────────────────────────────────
 const excludedPosRoleNames = ['super_admin', 'مدير النظام']
@@ -662,25 +756,13 @@ watch(() => posSession.value.enforceForRoles, (vals) => {
   try {
     const excludedIds = new Set(
       (roleOptions.value || [])
-        .filter(r => excludedPosRoleNames.map(x => x.toLowerCase()).includes(String(r.name || '').trim().toLowerCase()))
+        .filter(r => excludedPosRoleNames.map(x => x.toLowerCase()).includes(String(r.role_code || r.name || '').trim().toLowerCase()))
         .map(r => Number(r.id))
     )
     const cleaned = (vals || []).filter(v => !excludedIds.has(Number(v)))
     if (cleaned.length !== (vals || []).length) posSession.value.enforceForRoles = cleaned
   } catch (_) { /* ignore */ }
 }, { deep: true })
-
-// ─── Role Translations ────────────────────────────────────────────────────────
-const roleTranslations = {
-  super_admin: 'مدير النظام', admin: 'مسؤول المنشأة', manager: 'مدير الفرع',
-  user: 'مستخدم', cashier: 'كاشير', finance_officer: 'مسؤول مالي',
-  inventory_clerk: 'مسؤول المخزون', accountant: 'محاسب',
-  inventory: 'مخزون', client: 'عميل',
-}
-const translateRole = (role) => {
-  if (!role) return role
-  return roleTranslations[String(role).toLowerCase().trim()] || role
-}
 
 // ─── Tab Navigation ───────────────────────────────────────────────────────────
 function sectionKeyFromTab(tabId) {
@@ -702,6 +784,7 @@ async function setActiveTab(tabId) {
       { confirmText: 'المتابعة دون حفظ', cancelText: 'البقاء في القسم' }
     )
     if (!ok) return
+    resetSectionToSnapshot(currentKey)
   }
   activeTab.value = tabId
 }
@@ -712,7 +795,7 @@ watch(() => route.query.tab, (newTab) => {
     router.replace({ name: 'UserManagement' })
     return
   }
-  if (newTab && newTab !== activeTab.value) activeTab.value = String(newTab)
+  if (newTab && newTab !== activeTab.value) void setActiveTab(String(newTab))
 })
 
 watch(activeTab, (tab) => {
@@ -745,6 +828,19 @@ async function discardActiveTab() {
   )
   if (!ok) return
   resetSectionToSnapshot(key)
+}
+
+function goToFirstDirtySection() {
+  const firstDirtyKey = dirtySections.value[0]
+  if (!firstDirtyKey) return
+  const tab = Object.entries({
+    'general-settings': 'general',
+    'invoice-settings': 'invoice',
+    'pos-settings': 'pos',
+    'printers-settings': 'printers',
+    'accounting-settings': 'accounting',
+  }).find(([, sectionKey]) => sectionKey === firstDirtyKey)?.[0]
+  if (tab) void setActiveTab(tab)
 }
 
 // ─── Toast Helpers ────────────────────────────────────────────────────────────
@@ -851,6 +947,97 @@ async function fetchBranchOptions() {
   }
 }
 
+function applyBranchPrintPayload(payload) {
+  const settings = payload?.settings || {}
+  const hasBranchTemplate = Array.isArray(payload?.overrides)
+    && payload.overrides.includes('print.template')
+  const template = hasBranchTemplate || payload?.tenant_template_configured
+    ? settings['print.template']
+    : tenantPrinterSettings.value?.printers?.template
+  printers.value = {
+    printHeader: String(settings['printer.print_header'] ?? '1') !== '0',
+    printFooter: String(settings['printer.print_footer'] ?? '1') !== '0',
+    template: template || 'thermal-compact',
+  }
+  printTexts.value = {
+    headerText: settings['print.header_text'] ?? tenantPrinterSettings.value?.texts?.headerText ?? '',
+    footerText: settings['print.footer_text'] ?? tenantPrinterSettings.value?.texts?.footerText ?? 'شكراً لتعاملكم معنا',
+    termsText: settings['print.terms_text'] ?? tenantPrinterSettings.value?.texts?.termsText ?? '',
+  }
+  branchPrintOverrides.value = Array.isArray(payload?.overrides) ? payload.overrides : []
+}
+
+async function handlePrintBranchChange(nextBranchId) {
+  const previousBranchId = loadedPrintSettingsBranchId.value
+  if (isSectionDirty('printers')) {
+    const confirmed = await AlertService.confirm(
+      'هناك تغييرات غير محفوظة في إعدادات الطباعة. هل تريد المتابعة دون حفظ؟',
+      'تغييرات غير محفوظة',
+      { confirmText: 'المتابعة دون حفظ', cancelText: 'البقاء في الإعدادات الحالية' }
+    )
+    if (!confirmed) {
+      printSettingsBranchId.value = previousBranchId
+      return
+    }
+  }
+
+  isLoading.value = true
+  try {
+    if (!nextBranchId) {
+      printers.value = { ...tenantPrinterSettings.value.printers }
+      printTexts.value = { ...tenantPrinterSettings.value.texts }
+      branchPrintOverrides.value = []
+    } else {
+      const response = await settingsService.getBranchPrintSettings(Number(nextBranchId))
+      const payload = response?.data?.data ?? response?.data
+      if (response?.data?.status !== 'success' || !payload?.settings) {
+        throw new Error(response?.data?.message || 'تعذر تحميل إعدادات الطباعة للفرع.')
+      }
+      applyBranchPrintPayload(payload)
+    }
+    printSettingsBranchId.value = nextBranchId
+    loadedPrintSettingsBranchId.value = nextBranchId
+    setSectionSnapshot('printers')
+  } catch (error) {
+    printSettingsBranchId.value = previousBranchId
+    showError(error.response?.data?.message || error.message || 'تعذر تحميل إعدادات الطباعة للفرع.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function resetBranchPrinterSettings() {
+  if (!printSettingsBranchId.value) return
+  const confirmed = await AlertService.confirm(
+    'سيتم حذف تخصيصات الطباعة لهذا الفرع واستخدام إعدادات المنشأة الافتراضية. هل تريد المتابعة؟',
+    'استعادة الإعدادات الافتراضية',
+    { confirmText: 'استعادة الافتراضي', cancelText: 'إلغاء' }
+  )
+  if (!confirmed) return
+
+  isSaving.value = true
+  try {
+    const branchId = Number(printSettingsBranchId.value)
+    const response = await settingsService.resetBranchPrintSettings(branchId)
+    if (response?.data?.status !== 'success') {
+      throw new Error(response?.data?.message || 'تعذر استعادة إعدادات الطباعة.')
+    }
+    clearBranchPrintSettingsCache(branchId)
+    if (!tenantPrinterSettings.value) {
+      throw new Error('تعذر تحميل إعدادات الطباعة الافتراضية للمنشأة.')
+    }
+    printers.value = { ...tenantPrinterSettings.value.printers }
+    printTexts.value = { ...tenantPrinterSettings.value.texts }
+    branchPrintOverrides.value = []
+    setSectionSnapshot('printers')
+    showSuccess('تمت استعادة إعدادات المنشأة لهذا الفرع')
+  } catch (error) {
+    showError(error.response?.data?.message || error.message || 'تعذر استعادة إعدادات الطباعة.')
+  } finally {
+    isSaving.value = false
+  }
+}
+
 // ─── Settings Fetch ───────────────────────────────────────────────────────────
 async function fetchSettings() {
   if (!hasSettingsAccess.value) return
@@ -876,18 +1063,23 @@ async function fetchSettings() {
 
       invoice.value = {
         taxNumber:         s['tax.tax_number'] || '',
-        taxRate:           parseFloat(s['tax.tax_rate']) || 15,
+        taxRate:           s['tax.tax_rate'] == null || s['tax.tax_rate'] === ''
+          ? 15
+          : parseFloat(s['tax.tax_rate']),
         taxName:           s['tax.tax_name'] || 'ضريبة القيمة المضافة',
-        taxEnabled:        s['tax.tax_enabled'] === '1',
+        taxEnabled:        isSettingEnabled(s['tax.tax_enabled'] ?? s['company.tax_enabled']),
         footerText:        s['invoice.footer_text'] || 'شكراً لتعاملكم معنا',
         invoicePrefix:     s['invoice.prefix'] || 'INV-',
         nextInvoiceNumber: Number(s['invoice.next_number']) || 1001,
-        showTaxInPrice:    s['invoice.show_tax_in_price'] !== '0',
+        showTaxInPrice:    s['invoice.show_tax_in_price'] == null
+          ? true
+          : isSettingEnabled(s['invoice.show_tax_in_price']),
       }
 
       printers.value = {
         printHeader: s['printer.print_header'] !== '0',
         printFooter: s['printer.print_footer'] !== '0',
+        template: s['print.template'] || localStorage.getItem('pos_print_template') || 'thermal-compact',
       }
 
       // POS sessions enforcement — handles JSON array or comma-separated string
@@ -926,9 +1118,13 @@ async function fetchSettings() {
       }
 
       printTexts.value = {
-        headerText: s['print.header_text'] || printTexts.value.headerText,
-        footerText: s['print.footer_text'] || printTexts.value.footerText,
-        termsText:  s['print.terms_text']  || printTexts.value.termsText,
+        headerText: s['print.header_text'] ?? printTexts.value.headerText,
+        footerText: s['print.footer_text'] ?? printTexts.value.footerText,
+        termsText:  s['print.terms_text']  ?? printTexts.value.termsText,
+      }
+      tenantPrinterSettings.value = {
+        printers: { ...printers.value },
+        texts: { ...printTexts.value },
       }
 
       // Sync key values to localStorage for POS print headers
@@ -1112,27 +1308,44 @@ async function savePrinterSettings() {
   isSaving.value = true
   try {
     const settings = {
+      'print.template':        printTemplate.value,
       'printer.print_header':   printers.value.printHeader ? '1' : '0',
       'printer.print_footer': printers.value.printFooter ? '1' : '0',
       'print.header_text':    printTexts.value.headerText,
       'print.footer_text':    printTexts.value.footerText,
       'print.terms_text':     printTexts.value.termsText,
     }
-    const response = await settingsStore.updateSettings(settings)
-    if (response.status === 'success') {
-      localStorage.setItem('pos_print_template',         printTemplate.value)
-      localStorage.setItem('pos_print_header_enabled',   printers.value.printHeader ? '1' : '0')
-      localStorage.setItem('pos_print_footer_enabled',   printers.value.printFooter ? '1' : '0')
-      localStorage.setItem('pos_print_header_text',      printTexts.value.headerText || '')
-      localStorage.setItem('pos_print_footer_text',      printTexts.value.footerText || '')
-      localStorage.setItem('pos_print_terms_text',       printTexts.value.termsText  || '')
-      showSuccess('تم حفظ إعدادات الطابعات بنجاح')
-      const { refreshSettings } = useCompanyCurrency()
-      await refreshSettings()
-      await fetchSettings()
-      setSnapshotsFromCurrent()
+    const response = printSettingsBranchId.value
+      ? await settingsService.updateBranchPrintSettings(Number(printSettingsBranchId.value), settings)
+      : await settingsStore.updateSettings(settings)
+    if (response?.status === 'success' || response?.data?.status === 'success') {
+      clearPrintConfigCache()
+      if (printSettingsBranchId.value) {
+        const branchId = Number(printSettingsBranchId.value)
+        clearBranchPrintSettingsCache(branchId)
+        const payload = response?.data?.data
+        if (!payload?.settings) {
+          throw new Error(response?.data?.message || 'تم الحفظ لكن تعذر تحديث إعدادات الفرع.')
+        }
+        applyBranchPrintPayload(payload)
+        setSectionSnapshot('printers')
+        showSuccess('تم حفظ إعدادات الطباعة للفرع بنجاح')
+      } else {
+        localStorage.setItem('pos_print_template',         printTemplate.value)
+        localStorage.setItem('pos_print_header_enabled',   printers.value.printHeader ? '1' : '0')
+        localStorage.setItem('pos_print_footer_enabled',   printers.value.printFooter ? '1' : '0')
+        localStorage.setItem('pos_print_header_text',      printTexts.value.headerText || '')
+        localStorage.setItem('pos_print_footer_text',      printTexts.value.footerText || '')
+        localStorage.setItem('pos_print_terms_text',       printTexts.value.termsText  || '')
+        clearBranchPrintSettingsCache()
+        showSuccess('تم حفظ إعدادات الطباعة الافتراضية للمنشأة')
+        const { refreshSettings } = useCompanyCurrency()
+        await refreshSettings()
+        await fetchSettings()
+        setSnapshotsFromCurrent()
+      }
     } else {
-  showError(response?.message || 'حدث خطأ أثناء حفظ إعدادات الطابعة.')
+      showError(response?.message || response?.data?.message || 'حدث خطأ أثناء حفظ إعدادات الطابعة.')
   }
   } catch (error) {
     console.error('Error saving printer settings:', error)
@@ -1143,6 +1356,15 @@ async function savePrinterSettings() {
 }
 
 async function saveAccountingSettings() {
+  if (accountingMissingKeys.value.length) {
+    const confirmed = await AlertService.confirm(
+      'لم تُحدَّد بعض الحسابات يدويًا. قد يستخدم النظام الحسابات الافتراضية إن كانت متاحة، وإلا فقد يتعذر ترحيل بعض القيود. هل تريد حفظ الإعدادات الحالية؟',
+      'حسابات دفتر الأستاذ غير مكتملة',
+      { confirmText: 'حفظ على أي حال', cancelText: 'مراجعة الحسابات' }
+    )
+    if (!confirmed) return
+  }
+
   isSaving.value = true
   try {
     const settings = {
@@ -1207,37 +1429,25 @@ function withFormLS(fn) {
 }
 
 // ─── Print Test ───────────────────────────────────────────────────────────────
+function getPreviewPrintOptions() {
+  return {
+    template: printTemplate.value,
+    config: {
+      headerEnabled: printers.value.printHeader,
+      footerEnabled: printers.value.printFooter,
+      headerText: printTexts.value.headerText,
+      footerText: printTexts.value.footerText,
+      termsText: printTexts.value.termsText,
+    },
+  }
+}
+
 async function testPrint() {
-  const taxR = Number(invoice.value.taxRate || 15)
-  const sub  = 50
-  const tax  = +(sub * taxR / 100).toFixed(2)
-  const html = withFormLS(() => {
-    const sampleSale = {
-      invoice_number: `${invoice.value.invoicePrefix || 'INV-'}DEMO`,
-      sale_date:      new Date().toISOString(),
-      customer_name:  'عميل تجريبي',
-      payment_method: 'نقداً',
-      discount_type:  'fixed',
-      discount_value: 5,
-      tax_rate:       taxR,
-      tax_amount:     tax,
-      total_amount:   sub,
-      net_total_amount: +(sub - 5 + tax).toFixed(2),
-      paid_amount:    +(sub - 5 + tax).toFixed(2),
-      change_amount:  0,
-      items: [
-        { product_name: 'منتج تجريبي أ', quantity: 1, sale_price: 25, net_price: 25, net_total: 25 },
-        { product_name: 'منتج تجريبي ب', quantity: 2, sale_price: 12.5, net_price: 12.5, net_total: 25 },
-      ],
-    }
-    return getBuilderByTemplate(printTemplate.value || 'thermal-compact')(sampleSale)
-  })
-  await printDocument(html)
+  await printDocument(buildPreviewHtml())
 }
 
 // ─── Live Print Preview ───────────────────────────────────────────────────────
-const previewHtml = computed(() => {
-  const type = previewType.value
+function buildPreviewHtml(type = previewType.value) {
   const taxR = Number(invoice.value.taxRate || 15)
   const sub  = 50
   const tax  = +(sub * taxR / 100).toFixed(2)
@@ -1248,6 +1458,9 @@ const previewHtml = computed(() => {
       html = buildReturnHtml({
         return_number:  'RET-001',
         return_date:    '2025-08-20T15:30:00',
+        ...(selectedPrintBranchName.value
+          ? { branch_id: printSettingsBranchId.value, branch_name: selectedPrintBranchName.value }
+          : {}),
         customer_name:  'أحمد محمد',
         return_reason:  'منتج تالف',
         grand_total:    80,
@@ -1256,11 +1469,13 @@ const previewHtml = computed(() => {
           { product_name: 'منتج مرتجع أ', quantity: 1, unit_price: 50, net_total: 50 },
           { product_name: 'منتج مرتجع ب', quantity: 2, unit_price: 15, net_total: 30 },
         ],
-      })
+      }, getPreviewPrintOptions())
     } else if (type === 'purchase') {
       html = buildPurchaseHtml({
         invoice_number: 'PUR-001',
         invoice_date:   '2025-08-20T15:30:00',
+        branch_id:      printSettingsBranchId.value || null,
+        branch_name:    selectedPrintBranchName.value || '-',
         supplier_name:  'المورد الرئيسي',
         status:         'partial',
         total_amount:   350,
@@ -1269,10 +1484,13 @@ const previewHtml = computed(() => {
           { product_name: 'مادة خام أ', quantity: 10, price: 20, unit_price: 20 },
           { product_name: 'مادة خام ب', quantity: 5,  price: 30, unit_price: 30 },
         ],
-      })
+      }, getPreviewPrintOptions())
     } else {
       html = getBuilderByTemplate(printTemplate.value || 'thermal-compact')({
         invoice_number:    `${invoice.value.invoicePrefix || 'INV-'}12345`,
+        ...(selectedPrintBranchName.value
+          ? { branch_id: printSettingsBranchId.value, branch_name: selectedPrintBranchName.value }
+          : {}),
         sale_date:         '2025-08-20T15:30:00',
         customer_name:     'أحمد محمد',
         payment_method:    'نقداً',
@@ -1288,11 +1506,13 @@ const previewHtml = computed(() => {
           { product_name: 'منتج أ', quantity: 1, sale_price: 25,   net_price: 25,   net_total: 25 },
           { product_name: 'منتج ب', quantity: 2, sale_price: 12.5, net_price: 12.5, net_total: 25 },
         ],
-      })
+      }, getPreviewPrintOptions())
     }
-    return html.replace(/<script[\s\S]*?<\/script>/gi, '')
+    return html
   })
-})
+}
+
+const previewHtml = computed(() => buildPreviewHtml().replace(/<script[\s\S]*?<\/script>/gi, ''))
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onBeforeRouteLeave(async () => {

@@ -91,6 +91,10 @@ $migrations = [
     '044_remove_redundant_product_active_flag',
     '045_drop_confirmed_unused_tables',
     '046_add_role_codes_and_sort_order',
+    '047_add_custom_role_metadata',
+    '048_clarify_core_role_metadata',
+    '049_create_branch_print_settings',
+    '050_add_tax_inclusive_invoice_mode',
 ];
 
 // ──────────────────────────────────────────────────────────

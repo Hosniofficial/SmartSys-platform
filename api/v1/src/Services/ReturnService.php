@@ -66,15 +66,16 @@ class ReturnService
         return $this->settingsRepo->get($this->tenantId, 'company.currency', 'EGP') ?: 'EGP';
     }
 
-    private function getSaleActualPaidAmount(int $saleId, int $tenantId): float
+    private function getSalePaymentsAppliedToInvoice(int $saleId, int $tenantId): float
     {
         $stmt = $this->db->prepare("
             SELECT
                 COALESCE((
-                    SELECT SUM(CASE WHEN p.type = 'return_payment' THEN -p.amount ELSE p.amount END)
+                    SELECT SUM(p.amount)
                     FROM payments p
                     WHERE p.sale_id = ? AND p.tenant_id = ?
                       AND COALESCE(p.is_draft, 0) = 0 AND p.status = 'completed'
+                      AND COALESCE(p.type, '') <> 'return_payment'
                 ), 0)
                 + COALESCE((
                     SELECT SUM(cpa.allocated_amount)
@@ -425,7 +426,7 @@ class ReturnService
                     $rcRow = $rcStmt->fetch(\PDO::FETCH_ASSOC);
                     $returnCredits = (float) ($rcRow['return_credits'] ?? 0.0);
 
-                    $actualPaid = $this->getSaleActualPaidAmount((int) $originalSaleId, $tenantId);
+                    $actualPaid = $this->getSalePaymentsAppliedToInvoice((int) $originalSaleId, $tenantId);
                     $outstanding = max(0, (float) $row['grand_total'] - $actualPaid - $returnCredits);
 
                     // For returns (returnId !== null), allocate to the original invoice
@@ -494,7 +495,7 @@ class ReturnService
                     $rcStmt->execute([$r['id'], $tenantId]);
                     $rcRow = $rcStmt->fetch(\PDO::FETCH_ASSOC);
                     $returnCredits = (float) ($rcRow['return_credits'] ?? 0.0);
-                    $actualPaid = $this->getSaleActualPaidAmount((int) $r['id'], $tenantId);
+                    $actualPaid = $this->getSalePaymentsAppliedToInvoice((int) $r['id'], $tenantId);
                     $outstanding = max(0, (float) $r['grand_total'] - $actualPaid - $returnCredits);
                     if ($outstanding <= 0) {
                         continue;
@@ -628,7 +629,7 @@ class ReturnService
 
         if ($returnType === 'sale') {
             $sourceStmt = $this->db->prepare(
-                "SELECT id, customer_id, status, tax_rate
+                "SELECT id, customer_id, status, tax_rate, tax_inclusive
                  FROM sales WHERE id = ? AND tenant_id = ? FOR UPDATE"
             );
             $sourceStmt->execute([$invoiceId, $tenantId]);
@@ -639,8 +640,8 @@ class ReturnService
             \App\Security\SaleWorkflowPolicy::assertReturnAllowed((string) $sourceInvoice['status']);
             $data['party_id'] = !empty($sourceInvoice['customer_id']) ? (int) $sourceInvoice['customer_id'] : null;
             $sourceItemsStmt = $this->db->prepare(
-                'SELECT id, product_id, unit_id, quantity, net_total, batch_number, expiry_date, serial
-                 FROM sales_items WHERE sale_id = ? AND tenant_id = ?'
+                'SELECT id, product_id, unit_id, quantity, net_total, tax_amount, batch_number, expiry_date, serial
+                 FROM sales_items WHERE sale_id = ? AND tenant_id = ? ORDER BY id'
             );
             $sourceItemsStmt->execute([$invoiceId, $tenantId]);
             $sourceItems = $sourceItemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -649,6 +650,7 @@ class ReturnService
                  FROM return_items ri
                  INNER JOIN returns r ON r.id = ri.return_id
                  WHERE r.tenant_id = ? AND r.return_type = 'sale' AND r.sale_id = ?
+                   AND LOWER(COALESCE(r.status, '')) NOT IN ('canceled', 'cancelled', 'rejected')
                  GROUP BY ri.product_id, ri.unit_id"
             );
             $previousStmt->execute([$tenantId, $invoiceId]);
@@ -665,7 +667,8 @@ class ReturnService
                 $data['items'],
                 $sourceItems,
                 $previousQuantities,
-                (float) ($sourceInvoice['tax_rate'] ?? 0)
+                (float) ($sourceInvoice['tax_rate'] ?? 0),
+                (bool) ($sourceInvoice['tax_inclusive'] ?? false)
             );
         } else {
             $sourceStmt = $this->db->prepare(
@@ -685,7 +688,7 @@ class ReturnService
                 'SELECT id, product_id, unit_id, quantity,
                         COALESCE(subtotal, total - COALESCE(discount_amount, 0) + COALESCE(tax_amount, 0)) AS subtotal,
                         tax_amount, batch_number, expiry_date, serial
-                 FROM purchase_items WHERE purchase_id = ? AND tenant_id = ?'
+                 FROM purchase_items WHERE purchase_id = ? AND tenant_id = ? ORDER BY id'
             );
             $sourceItemsStmt->execute([$invoiceId, $tenantId]);
             $sourceItems = $sourceItemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -694,6 +697,7 @@ class ReturnService
                  FROM return_items ri
                  INNER JOIN returns r ON r.id = ri.return_id
                  WHERE r.tenant_id = ? AND r.return_type = 'purchase' AND r.purchase_id = ?
+                   AND LOWER(COALESCE(r.status, '')) NOT IN ('canceled', 'cancelled', 'rejected')
                  GROUP BY ri.product_id, ri.unit_id"
             );
             $previousStmt->execute([$tenantId, $invoiceId]);
@@ -782,7 +786,7 @@ class ReturnService
                        total_amount AS original_total_amount,
                        discount_type AS original_discount_type,
                        discount_value AS original_discount_value,
-                       net_total_amount, paid_amount, tax_rate, tax_amount
+                       net_total_amount, paid_amount, tax_rate, tax_amount, tax_inclusive
                 FROM sales WHERE id = ? AND tenant_id = ?
             ");
             $stmt->execute([$data['invoice_id'], $tenantId]);
@@ -802,7 +806,7 @@ class ReturnService
                 $data['party_id'] = $sale['customer_id'] ?: null;
 
                 $saleGrandTotal = (float) $sale['net_total_amount'] + (float) ($sale['tax_amount'] ?? 0);
-                $salePaidAmount = $this->getSaleActualPaidAmount((int) $sale['id'], $tenantId);
+                $salePaidAmount = $this->getSalePaymentsAppliedToInvoice((int) $sale['id'], $tenantId);
                 $saleCreditsStmt = $this->db->prepare(
                     'SELECT COALESCE(SUM(allocated_amount), 0)
                      FROM return_credit_allocations WHERE sale_id = ? AND tenant_id = ?'
@@ -858,7 +862,7 @@ class ReturnService
                 }
 
                 // إعادة حساب الضريبة إذا لم تُمرَّ
-                if ($taxTotal <= 0) {
+                if ($taxTotal <= 0 && empty($sale['tax_inclusive'])) {
                     $effectiveTaxRate = isset($data['tax_rate']) ? (float) $data['tax_rate']
                         : (isset($sale['tax_rate']) ? (float) $sale['tax_rate'] : null);
                     if ($effectiveTaxRate && $effectiveTaxRate > 0) {
@@ -1261,10 +1265,11 @@ class ReturnService
                 0,
                 (s.net_total_amount + IFNULL(s.tax_amount, 0))
                 - COALESCE((
-                    SELECT SUM(CASE WHEN p.type = 'return_payment' THEN -p.amount ELSE p.amount END)
+                    SELECT SUM(p.amount)
                     FROM payments p
                     WHERE p.sale_id = s.id AND p.tenant_id = s.tenant_id
                       AND p.is_draft = 0 AND p.status = 'completed'
+                      AND COALESCE(p.type, '') <> 'return_payment'
                 ), 0)
                 - COALESCE((
                     SELECT SUM(cpa.allocated_amount)

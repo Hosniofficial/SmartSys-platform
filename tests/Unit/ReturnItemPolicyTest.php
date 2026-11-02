@@ -36,6 +36,135 @@ final class ReturnItemPolicyTest extends TestCase
         self::assertSame(102.6, $result['subtotal'] + $result['tax']);
     }
 
+    public function testRecalculatesSaleReturnWithoutTax(): void
+    {
+        $result = ReturnItemPolicy::normalize(
+            'sale',
+            [[
+                'sale_item_id' => 12,
+                'product_id' => 4,
+                'unit_id' => 2,
+                'quantity' => 1,
+            ]],
+            [[
+                'id' => 12,
+                'product_id' => 4,
+                'unit_id' => 2,
+                'quantity' => 2,
+                'net_total' => 180,
+                'tax_amount' => 0,
+            ]],
+            [],
+            0
+        );
+
+        self::assertSame(90.0, $result['items'][0]['unit_price']);
+        self::assertSame(90.0, $result['subtotal']);
+        self::assertSame(0.0, $result['tax']);
+        self::assertSame(90.0, $result['subtotal'] + $result['tax']);
+    }
+
+    public function testRecalculatesTaxInclusiveSaleReturnFromOriginalGrossLineAmount(): void
+    {
+        $result = ReturnItemPolicy::normalize(
+            'sale',
+            [[
+                'sale_item_id' => 13,
+                'product_id' => 5,
+                'unit_id' => 1,
+                'quantity' => 1,
+            ]],
+            [[
+                'id' => 13,
+                'product_id' => 5,
+                'unit_id' => 1,
+                'quantity' => 2,
+                'net_total' => 228,
+                'tax_amount' => 28,
+            ]],
+            [],
+            14,
+            true
+        );
+
+        self::assertSame(100.0, $result['items'][0]['unit_price']);
+        self::assertSame(100.0, $result['subtotal']);
+        self::assertSame(14.0, $result['tax']);
+        self::assertSame(114.0, $result['subtotal'] + $result['tax']);
+    }
+
+    public function testUsesSelectedOriginalLinePriceWhenDuplicateProductsHaveDifferentPrices(): void
+    {
+        $result = ReturnItemPolicy::normalize(
+            'sale',
+            [[
+                'sale_item_id' => 13,
+                'product_id' => 5,
+                'unit_id' => 1,
+                'quantity' => 1,
+            ]],
+            [
+                [
+                    'id' => 13,
+                    'product_id' => 5,
+                    'unit_id' => 1,
+                    'quantity' => 1,
+                    'net_total' => 114,
+                    'tax_amount' => 14,
+                ],
+                [
+                    'id' => 14,
+                    'product_id' => 5,
+                    'unit_id' => 1,
+                    'quantity' => 1,
+                    'net_total' => 228,
+                    'tax_amount' => 28,
+                ],
+            ],
+            [],
+            14,
+            true
+        );
+
+        self::assertSame(100.0, $result['items'][0]['unit_price']);
+        self::assertSame(100.0, $result['subtotal']);
+        self::assertSame(14.0, $result['tax']);
+        self::assertSame(114.0, $result['subtotal'] + $result['tax']);
+    }
+
+    public function testRejectsReturningMoreThanTheRemainingQuantityOfSelectedDuplicateLine(): void
+    {
+        $this->expectException(DomainException::class);
+        ReturnItemPolicy::normalize(
+            'sale',
+            [[
+                'sale_item_id' => 13,
+                'product_id' => 5,
+                'unit_id' => 1,
+                'quantity' => 1,
+            ]],
+            [
+                [
+                    'id' => 13,
+                    'product_id' => 5,
+                    'unit_id' => 1,
+                    'quantity' => 1,
+                    'net_total' => 114,
+                    'tax_amount' => 14,
+                ],
+                [
+                    'id' => 14,
+                    'product_id' => 5,
+                    'unit_id' => 1,
+                    'quantity' => 2,
+                    'net_total' => 228,
+                    'tax_amount' => 28,
+                ],
+            ],
+            [ReturnItemPolicy::groupKey(5, 1) => 1]
+        );
+    }
+
     public function testRecalculatesPurchaseReturnAmountsIncludingOriginalTax(): void
     {
         $result = ReturnItemPolicy::normalize(

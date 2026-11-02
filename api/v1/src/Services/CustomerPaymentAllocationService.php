@@ -63,12 +63,13 @@ final class CustomerPaymentAllocationService
                 s.net_total_amount,
                 COALESCE(s.tax_amount, 0) AS tax_amount,
                 COALESCE((
-                    SELECT SUM(CASE WHEN p.type = 'return_payment' THEN -p.amount ELSE p.amount END)
+                    SELECT SUM(p.amount)
                     FROM payments p
                     WHERE p.sale_id = s.id
                       AND p.tenant_id = s.tenant_id
                       AND p.is_draft = 0
                       AND p.status = 'completed'
+                      AND COALESCE(p.type, '') <> 'return_payment'
                 ), 0) AS direct_paid,
                 COALESCE((
                     SELECT SUM(cpa.allocated_amount)

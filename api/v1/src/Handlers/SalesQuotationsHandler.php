@@ -9,6 +9,7 @@ use App\Utils\SuperAdminHelper;
 use App\Security\Permissions;
 use App\Security\PermissionResolver;
 use App\Security\SaleDiscountPolicy;
+use App\Repositories\SettingsRepository;
 use DateTimeImmutable;
 use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -66,7 +67,7 @@ final class SalesQuotationsHandler extends BaseHandler
                 "SELECT q.id, q.quote_number, q.branch_id, q.customer_id, c.name AS customer_name,
                         CASE WHEN q.status = 'active' AND q.valid_until < CURRENT_DATE THEN 'expired' ELSE q.status END AS status,
                         q.valid_until, q.subtotal, q.discount_amount, q.tax_amount,
-                        q.total_amount, q.currency_code, q.notes, q.created_at
+                        q.total_amount, q.tax_inclusive, q.currency_code, q.notes, q.created_at
                  FROM sales_quotations q
                  LEFT JOIN customers c ON c.id = q.customer_id AND c.tenant_id = q.tenant_id
                  WHERE {$where}
@@ -225,11 +226,26 @@ final class SalesQuotationsHandler extends BaseHandler
 
             $discountType = $data['discount_type'] ?? 'fixed';
             $discountValue = $data['discount_value'] ?? 0;
-            $taxRate = $data['tax_rate'] ?? 0;
+            $requestedTaxRate = $data['tax_rate'] ?? 0;
             if (!in_array($discountType, ['fixed', 'percentage'], true)
                 || !is_numeric($discountValue) || !is_finite((float) $discountValue) || (float) $discountValue < 0
-                || !is_numeric($taxRate) || !is_finite((float) $taxRate) || (float) $taxRate < 0 || (float) $taxRate > 100) {
+                || !is_numeric($requestedTaxRate) || !is_finite((float) $requestedTaxRate)
+                || (float) $requestedTaxRate < 0 || (float) $requestedTaxRate > 100) {
                 return $this->errorResponse($response, 'بيانات الخصم أو الضريبة غير صالحة.');
+            }
+            $settings = new SettingsRepository($this->db);
+            $taxEnabledSetting = $settings->get((int) $tenantId, 'tax.tax_enabled')
+                ?? $settings->get((int) $tenantId, 'company.tax_enabled');
+            $configuredTaxRate = $settings->get((int) $tenantId, 'tax.tax_rate')
+                ?? $settings->get((int) $tenantId, 'company.tax_rate');
+            $taxEnabled = $taxEnabledSetting === null
+                ? (float) $requestedTaxRate > 0
+                : in_array(strtolower(trim($taxEnabledSetting)), ['1', 'true', 'yes', 'on'], true);
+            $taxRate = $taxEnabled
+                ? (float) ($configuredTaxRate ?? $requestedTaxRate)
+                : 0.0;
+            if (!is_finite($taxRate) || $taxRate < 0 || $taxRate > 100) {
+                return $this->errorResponse($response, 'نسبة الضريبة المحفوظة غير صالحة.');
             }
             $discountValue = (float) $discountValue;
             $discountAmount = $discountType === 'percentage'
@@ -251,8 +267,16 @@ final class SalesQuotationsHandler extends BaseHandler
                 $privilegedSaleUser,
                 $belowCostReason
             );
-            $taxAmount = ($subtotal - $discountAmount) * (float) $taxRate / 100;
-            $totalAmount = $subtotal - $discountAmount + $taxAmount;
+            $taxInclusive = $taxEnabled && $settings->getBool((int) $tenantId, 'invoice.show_tax_in_price', false);
+            $grossAfterDiscount = round($subtotal - $discountAmount, 2);
+            if ($taxInclusive && (float) $taxRate > 0) {
+                $netAfterDiscount = round($grossAfterDiscount / (1 + ((float) $taxRate / 100)), 2);
+                $taxAmount = round($grossAfterDiscount - $netAfterDiscount, 2);
+                $totalAmount = $grossAfterDiscount;
+            } else {
+                $taxAmount = round($grossAfterDiscount * (float) $taxRate / 100, 2);
+                $totalAmount = round($grossAfterDiscount + $taxAmount, 2);
+            }
             $currencyCode = strtoupper(trim((string) ($data['currency_code'] ?? 'EGP')));
             if (!preg_match('/^[A-Z]{3}$/', $currencyCode)) {
                 return $this->errorResponse($response, 'رمز العملة غير صالح.');
@@ -267,8 +291,8 @@ final class SalesQuotationsHandler extends BaseHandler
                 'INSERT INTO sales_quotations
                     (tenant_id, branch_id, customer_id, quote_number, status, valid_until,
                      items_json, discount_type, discount_value, subtotal, discount_amount,
-                     tax_rate, tax_amount, total_amount, currency_code, notes, created_by)
-                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                     tax_rate, tax_amount, total_amount, tax_inclusive, currency_code, notes, created_by)
+                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $insert->execute([
                 (int) $tenantId,
@@ -284,6 +308,7 @@ final class SalesQuotationsHandler extends BaseHandler
                 (float) $taxRate,
                 round($taxAmount, 2),
                 round($totalAmount, 2),
+                $taxInclusive ? 1 : 0,
                 $currencyCode,
                 $notes !== '' ? $notes : null,
                 (int) $userId,
@@ -306,6 +331,7 @@ final class SalesQuotationsHandler extends BaseHandler
                 'discount_amount' => round($discountAmount, 2),
                 'tax_amount' => round($taxAmount, 2),
                 'total_amount' => round($totalAmount, 2),
+                'tax_inclusive' => $taxInclusive,
                 'currency_code' => $currencyCode,
                 'notes' => $notes,
             ], 201);

@@ -1,10 +1,11 @@
 import { getPrintConfig } from './printConfig';
-import { esc, fmt, itemTotal, getCompanyData } from './printHelpers';
+import { esc, fmt, itemTotal, getCompanyData, isSaleTaxInclusive, saleGrandTotal } from './printHelpers';
 import { getLocalDateISO } from '@/utils';
 
-export const buildThermalDetailedHtml = (sale) => {
-  const cfg     = getPrintConfig();
+export const buildThermalDetailedHtml = (sale, options = {}) => {
+  const cfg     = getPrintConfig(options.config);
   const company = getCompanyData(sale);
+  const taxInclusive = isSaleTaxInclusive(sale);
   const saleDate = sale.sale_date || sale.created_at || getLocalDateISO();
   const taxRate  = parseFloat(sale.tax_rate ?? 0);
 
@@ -94,12 +95,12 @@ export const buildThermalDetailedHtml = (sale) => {
   <!-- ④ الإجماليات التفصيلية -->
   <div class="row"><span>الإجمالي الفرعي:</span><span>${fmt(sale.total_amount)}</span></div>
   ${discountAmt > 0 ? `<div class="row" style="color:#c0392b;"><span>${discountLabel}</span><span>${fmt(discountAmt)}</span></div>` : ''}
-  ${parseFloat(sale.tax_amount) > 0 ? `<div class="row"><span>الضريبة${taxRate > 0 ? ` (${taxRate}%)` : ''}:</span><span>${fmt(sale.tax_amount)}</span></div>` : ''}
+  ${parseFloat(sale.tax_amount) > 0 ? `<div class="row"><span>الضريبة${taxInclusive ? ' (ضمن الإجمالي)' : ''}${taxRate > 0 ? ` (${taxRate}%)` : ''}:</span><span>${fmt(sale.tax_amount)}</span></div>` : ''}
 
   <!-- الصافي النهائي البارز -->
   <div class="grand-box">
     <span class="g-lbl">الصافي النهائي</span>
-    <span class="g-val">${fmt(sale.net_total_amount)}</span>
+    <span class="g-val">${fmt(saleGrandTotal(sale))}</span>
   </div>
 
   <div class="row" style="color:#555;font-size:11px;"><span>المبلغ المدفوع:</span><span>${fmt(sale.paid_amount)}</span></div>

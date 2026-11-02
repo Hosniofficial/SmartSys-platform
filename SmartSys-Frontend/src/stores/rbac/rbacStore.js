@@ -48,6 +48,9 @@ export const useRbacStore = defineStore('rbac', () => {
 
   const updateRolePermissions = async (roleId, payload) =>
     rbacService.updateRolePermissions(roleId, payload);
+  const createRole = async (payload) => rbacService.createRole(payload);
+  const updateRole = async (roleId, payload) => rbacService.updateRole(roleId, payload);
+  const deleteRole = async (roleId, payload) => rbacService.deleteRole(roleId, payload);
 
   return {
     listUsers,
@@ -59,5 +62,8 @@ export const useRbacStore = defineStore('rbac', () => {
     listPermissions,
     getRolePermissions,
     updateRolePermissions,
+    createRole,
+    updateRole,
+    deleteRole,
   };
 });

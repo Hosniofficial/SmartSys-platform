@@ -135,6 +135,7 @@ class ReturnsHandler extends BaseHandler
                 WHERE r.tenant_id = ?
                   AND r.return_type = 'sale'
                   AND r.sale_id = ?
+                  AND LOWER(COALESCE(r.status, '')) NOT IN ('canceled', 'cancelled', 'rejected')
                   AND ri.product_id = ?
                   AND COALESCE(ri.unit_id, 0) = COALESCE(?, 0)
             ");
@@ -146,6 +147,7 @@ class ReturnsHandler extends BaseHandler
                 WHERE r.tenant_id = ?
                   AND r.return_type = 'purchase'
                   AND r.purchase_id = ?
+                  AND LOWER(COALESCE(r.status, '')) NOT IN ('canceled', 'cancelled', 'rejected')
                   AND ri.product_id = ?
                   AND COALESCE(ri.unit_id, 0) = COALESCE(?, 0)
             ");
@@ -781,6 +783,9 @@ class ReturnsHandler extends BaseHandler
 
         if ($isSale) {
             $actualPaidAmount = '(COALESCE(spt.direct_paid_amount, 0) + COALESCE(apt.allocated_paid_amount, 0))';
+            $cashRefundAmount = "COALESCE((SELECT SUM(r.paid_amount) FROM returns r
+                                  WHERE r.sale_id = i.id AND r.tenant_id = i.tenant_id
+                                    AND r.return_type = 'sale'), 0)";
             $selectFields = "
             i.total_amount,
             i.discount_type,
@@ -790,15 +795,16 @@ class ReturnsHandler extends BaseHandler
             {$actualPaidAmount} AS paid_amount,
             {$actualPaidAmount} AS actual_paid_amount,
             (i.net_total_amount + IFNULL(i.tax_amount, 0)) AS grand_total,
+            {$cashRefundAmount} AS cash_refund_amount,
             COALESCE(SUM(rca.allocated_amount), 0) AS return_credits_applied,
-            ((i.net_total_amount + IFNULL(i.tax_amount, 0)) - {$actualPaidAmount}) AS outstanding,
-            ((i.net_total_amount + IFNULL(i.tax_amount, 0)) - {$actualPaidAmount}) AS outstanding_amount,
-            GREATEST(0, (i.net_total_amount + IFNULL(i.tax_amount, 0)) - {$actualPaidAmount} - COALESCE(SUM(rca.allocated_amount), 0)) AS net_outstanding,
+            GREATEST(0, (i.net_total_amount + IFNULL(i.tax_amount, 0)) - {$actualPaidAmount} - {$cashRefundAmount}) AS outstanding,
+            GREATEST(0, (i.net_total_amount + IFNULL(i.tax_amount, 0)) - {$actualPaidAmount} - {$cashRefundAmount}) AS outstanding_amount,
+            GREATEST(0, (i.net_total_amount + IFNULL(i.tax_amount, 0)) - {$actualPaidAmount} - {$cashRefundAmount} - COALESCE(SUM(rca.allocated_amount), 0)) AS net_outstanding,
             CASE
                 WHEN {$actualPaidAmount} <= 0 AND COALESCE(SUM(rca.allocated_amount), 0) > 0 THEN 'credit'
-                WHEN {$actualPaidAmount} >= (i.net_total_amount + IFNULL(i.tax_amount, 0)) THEN 'cash'
-                WHEN {$actualPaidAmount} > 0
-                     AND {$actualPaidAmount} < (i.net_total_amount + IFNULL(i.tax_amount, 0)) THEN 'partial'
+                WHEN ({$actualPaidAmount} + {$cashRefundAmount}) >= (i.net_total_amount + IFNULL(i.tax_amount, 0)) THEN 'cash'
+                WHEN ({$actualPaidAmount} + {$cashRefundAmount}) > 0
+                     AND ({$actualPaidAmount} + {$cashRefundAmount}) < (i.net_total_amount + IFNULL(i.tax_amount, 0)) THEN 'partial'
                 ELSE 'unknown'
             END AS payment_status,
             CASE
@@ -823,10 +829,11 @@ class ReturnsHandler extends BaseHandler
                     0,
                     cs.net_total_amount + IFNULL(cs.tax_amount, 0)
                     - COALESCE((
-                        SELECT SUM(CASE WHEN cp.type = 'return_payment' THEN -cp.amount ELSE cp.amount END)
+                        SELECT SUM(cp.amount)
                         FROM payments cp
                         WHERE cp.sale_id = cs.id AND cp.tenant_id = cs.tenant_id
                           AND cp.is_draft = 0 AND cp.status = 'completed'
+                          AND COALESCE(cp.type, '') <> 'return_payment'
                     ), 0)
                     - COALESCE((
                         SELECT SUM(cpa.allocated_amount)
@@ -857,6 +864,7 @@ class ReturnsHandler extends BaseHandler
             (i.total_amount - IFNULL(i.discount_value, 0)) AS net_total_amount,
             IFNULL(i.paid_amount, 0) AS paid_amount,
             (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0)) AS grand_total,
+            0 AS cash_refund_amount,
             0 AS return_credits_applied,
             (
                 (i.total_amount + IFNULL(i.tax_amount, 0) - IFNULL(i.discount_value, 0))

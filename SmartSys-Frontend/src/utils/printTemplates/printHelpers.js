@@ -65,3 +65,14 @@ export const getCompanyData = (sale = null) => {
  */
 export const itemTotal = (it) =>
   parseFloat(it.net_total || it.total || (it.quantity * (it.sale_price || it.net_price || 0)) || 0);
+
+export const isSaleTaxInclusive = (sale) =>
+  [true, 1, '1', 'true', 'yes', 'on'].includes(
+    typeof sale?.tax_inclusive === 'string' ? sale.tax_inclusive.trim().toLowerCase() : sale?.tax_inclusive
+  );
+
+export const saleGrandTotal = (sale) =>
+  Number((
+    (parseFloat(sale?.net_total_amount ?? sale?.total_amount) || 0)
+    + (parseFloat(sale?.tax_amount) || 0)
+  ).toFixed(2));

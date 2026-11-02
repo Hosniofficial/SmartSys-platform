@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/database/migrations/037_create_sales_quotations.php';
+require_once dirname(__DIR__, 2) . '/database/migrations/050_add_tax_inclusive_invoice_mode.php';
 require_once dirname(__DIR__, 2) . '/api/v1/src/Handlers/BaseHandler.php';
 require_once dirname(__DIR__, 2) . '/api/v1/src/Utils/PaginationHelper.php';
 require_once dirname(__DIR__, 2) . '/api/v1/src/Utils/SuperAdminHelper.php';
@@ -24,6 +25,7 @@ final class SalesQuotationsHandlerTest extends TestCase
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->db->exec('CREATE TABLE branches (id INTEGER PRIMARY KEY, tenant_id INTEGER NOT NULL)');
         $this->db->exec('CREATE TABLE sales (id INTEGER PRIMARY KEY AUTOINCREMENT)');
+        $this->db->exec('CREATE TABLE sales_items (id INTEGER PRIMARY KEY AUTOINCREMENT)');
         $this->db->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, tenant_id INTEGER NOT NULL, branch_id INTEGER)');
         $this->db->exec('CREATE TABLE customers (id INTEGER PRIMARY KEY, tenant_id INTEGER NOT NULL, name TEXT)');
         $this->db->exec('CREATE TABLE products (
@@ -34,6 +36,10 @@ final class SalesQuotationsHandlerTest extends TestCase
         $this->db->exec('CREATE TABLE units (id INTEGER PRIMARY KEY, name TEXT, tenant_id INTEGER)');
         $this->db->exec('CREATE TABLE product_units (product_id INTEGER, unit_id INTEGER, tenant_id INTEGER, conversion_factor NUMERIC)');
         (new CreateSalesQuotations($this->db))->up();
+        (new AddTaxInclusiveInvoiceMode($this->db))->up();
+        $this->db->exec('CREATE TABLE settings (
+            tenant_id INTEGER NOT NULL, key_name TEXT NOT NULL, value TEXT, updated_at TEXT
+        )');
         $this->db->exec("INSERT INTO branches (id, tenant_id) VALUES (5, 2)");
         $this->db->exec("INSERT INTO users (id, tenant_id, branch_id) VALUES (10, 2, 5)");
         $this->db->exec("INSERT INTO customers (id, tenant_id, name) VALUES (20, 2, 'Test Customer')");
@@ -124,6 +130,28 @@ final class SalesQuotationsHandlerTest extends TestCase
         $detail = json_decode((string) $detailResponse->getBody(), true, 512, JSON_THROW_ON_ERROR)['data'];
         self::assertSame($created['quote_number'], $detail['quote_number']);
         self::assertSame(3.0, (float) $detail['items'][0]['quantity']);
+    }
+
+    public function testInclusiveTaxQuoteExtractsTaxWithoutIncreasingDisplayedPrice(): void
+    {
+        $this->db->exec("INSERT INTO settings (tenant_id, key_name, value) VALUES (2, 'invoice.show_tax_in_price', '1')");
+        $response = $this->invoke('create', [
+            'branch_id' => 5,
+            'valid_until' => date('Y-m-d', strtotime('+7 days')),
+            'items' => [[
+                'product_id' => 30,
+                'unit_id' => 40,
+                'quantity' => 1,
+                'sale_price' => 114,
+            ]],
+            'tax_rate' => 14,
+        ]);
+
+        self::assertSame(201, $response->getStatusCode());
+        $data = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR)['data'];
+        self::assertSame(14.0, (float) $data['tax_amount']);
+        self::assertSame(114.0, (float) $data['total_amount']);
+        self::assertTrue($data['tax_inclusive']);
     }
 
     private function invoke(string $method, array $body): Response

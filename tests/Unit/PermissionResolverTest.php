@@ -187,6 +187,19 @@ final class PermissionResolverTest extends TestCase
         self::assertSame([], PermissionResolver::getGrantedPermissionNames($this->db, 4));
     }
 
+    public function testInactiveRolesDoNotGrantPermissionsOrResolveAsIdentity(): void
+    {
+        $this->db->exec('ALTER TABLE roles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1');
+        $this->db->exec('UPDATE roles SET is_active = 0 WHERE id = 4');
+
+        self::assertSame([], PermissionResolver::getGrantedPermissionNames($this->db, 1));
+        self::assertNull(PermissionResolver::getEffectiveRole($this->db, 1));
+
+        $this->db->exec('DELETE FROM users_role WHERE user_id = 1');
+        self::assertSame([], PermissionResolver::getGrantedPermissionNames($this->db, 1));
+        self::assertNull(PermissionResolver::getEffectiveRole($this->db, 1));
+    }
+
     public function testHasPermissionUsesTheSameTenantScopedResolution(): void
     {
         self::assertTrue(PermissionResolver::hasPermission($this->db, 1, 'sale.view'));

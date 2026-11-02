@@ -24,6 +24,9 @@
                   <span class="identity-chip"><i class="fas fa-at"></i>{{ authUser?.username || 'بدون اسم مستخدم' }}</span>
                   <span class="identity-chip"><i class="fas fa-calendar-check"></i>ملف مستخدم موثّق</span>
                 </div>
+                <p v-if="authUser?.role_description" class="text-xs text-slate-500">
+                  {{ authUser.role_description }}
+                </p>
               </div>
             </div>
             <div class="text-center sm:text-left">
@@ -298,7 +301,7 @@ const userInitials = computed(() => {
 })
 
 const roleLabel = computed(() => {
-  const role = authUser.value?.role_name || authUser.value?.role_display_name || authUser.value?.role || authUser.value?.role_code
+  const role = authUser.value?.role_display_name || authUser.value?.role_name || authUser.value?.role || authUser.value?.role_code
   return role || 'مستخدم النظام'
 })
 

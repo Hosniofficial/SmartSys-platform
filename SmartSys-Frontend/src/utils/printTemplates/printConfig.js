@@ -8,17 +8,20 @@
 
 let _cfg = null;
 
-export const getPrintConfig = () => {
+const fromStorage = () => ({
+  printMode:     localStorage.getItem('print.mode') || 'browser',
+  headerEnabled: (localStorage.getItem('pos_print_header_enabled') || '1') === '1',
+  footerEnabled: (localStorage.getItem('pos_print_footer_enabled') || '1') === '1',
+  headerText:    localStorage.getItem('pos_print_header_text') || '',
+  footerText:    localStorage.getItem('pos_print_footer_text') || 'شكراً لتعاملكم معنا',
+  termsText:     localStorage.getItem('pos_print_terms_text') || '',
+});
+
+export const getPrintConfig = (override = null) => {
+  if (override) return { ...override };
   if (_cfg) return _cfg;
 
-  _cfg = {
-    printMode:     localStorage.getItem('print.mode') || 'browser',
-    headerEnabled: (localStorage.getItem('pos_print_header_enabled') || '1') === '1',
-    footerEnabled: (localStorage.getItem('pos_print_footer_enabled') || '1') === '1',
-    headerText:    localStorage.getItem('pos_print_header_text')  || '',
-    footerText:    localStorage.getItem('pos_print_footer_text')  || 'شكراً لتعاملكم معنا',
-    termsText:     localStorage.getItem('pos_print_terms_text')   || '',
-  };
+  _cfg = fromStorage();
 
   return _cfg;
 };

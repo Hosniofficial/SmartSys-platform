@@ -37,6 +37,7 @@ final class PermissionResolver
         $assignmentScope = $hasExplicitRoles
             ? 'AND (ur.tenant_id IS NULL OR ur.tenant_id = u.tenant_id)'
             : '';
+        $activeRoleFilter = self::roleActiveFilter($db);
 
         $stmt = $db->prepare(
             "SELECT DISTINCT p.name, r.id AS role_id
@@ -65,6 +66,7 @@ final class PermissionResolver
                        )
                    )
                )
+               {$activeRoleFilter}
                AND COALESCE(p.is_active, 1) = 1
                AND (rp.tenant_id IS NULL OR rp.tenant_id = u.tenant_id)
                AND (p.tenant_id IS NULL OR p.tenant_id = u.tenant_id)"
@@ -101,7 +103,8 @@ final class PermissionResolver
                            )
                        )
                    )
-               )"
+               )
+               {$activeRoleFilter}"
         );
         $assignedRoles->execute([$userId]);
         $roleIds = array_map('intval', $assignedRoles->fetchAll(PDO::FETCH_COLUMN) ?: []);
@@ -223,6 +226,7 @@ final class PermissionResolver
 
         $tenantId = (int) ($user['tenant_id'] ?? 0);
         $primaryRoleId = (int) ($user['role_id'] ?? 0);
+        $activeRoleFilter = self::roleActiveFilter($db);
 
         if ($tenantId > 0) {
             $assignment = $db->prepare('SELECT 1 FROM users_role WHERE user_id = ? LIMIT 1');
@@ -231,13 +235,14 @@ final class PermissionResolver
 
             if ($hasExplicitRoles) {
                 $roleStmt = $db->prepare(
-                    "SELECT r.id, r.name
+                    "SELECT r.id, r.name, " . self::roleMetadataSelect($db) . "
                      FROM users_role ur
                      JOIN roles r ON r.id = ur.role_id
                      WHERE ur.user_id = ?
                        AND (ur.tenant_id IS NULL OR ur.tenant_id = ?)
                        AND (r.tenant_id IS NULL OR r.tenant_id = ?)
                        AND LOWER(r.name) NOT IN ('super_admin', 'administrator')
+                       {$activeRoleFilter}
                      ORDER BY
                        CASE
                            WHEN ? = 1 AND LOWER(r.name) = 'admin' THEN 0
@@ -257,16 +262,17 @@ final class PermissionResolver
                 $role = $roleStmt->fetch(PDO::FETCH_ASSOC);
 
                 return $role
-                    ? ['id' => (int) $role['id'], 'name' => (string) $role['name']]
+                    ? self::roleIdentity($role)
                     : null;
             }
 
             $roleStmt = $db->prepare(
-                "SELECT r.id, r.name
+                "SELECT r.id, r.name, " . self::roleMetadataSelect($db) . "
                  FROM roles r
                  WHERE r.id = ?
                    AND (r.tenant_id IS NULL OR r.tenant_id = ?)
                    AND LOWER(r.name) NOT IN ('super_admin', 'administrator')
+                   {$activeRoleFilter}
                  LIMIT 1"
             );
             $roleStmt->execute([$primaryRoleId, $tenantId]);
@@ -283,9 +289,60 @@ final class PermissionResolver
         }
 
         $role = $roleStmt->fetch(PDO::FETCH_ASSOC);
-        return $role
-            ? ['id' => (int) $role['id'], 'name' => (string) $role['name']]
-            : null;
+        return $role ? self::roleIdentity($role) : null;
+    }
+
+    /** Normalize role metadata shared by authentication and frontend consumers. */
+    private static function roleIdentity(array $role): array
+    {
+        $identity = [
+            'id' => (int) $role['id'],
+            'name' => (string) $role['name'],
+        ];
+        if (array_key_exists('role_code', $role)) {
+            $identity['role_code'] = (string) ($role['role_code'] ?? $role['name']);
+            $identity['display_name'] = (string) ($role['display_name'] ?? $role['name']);
+            $identity['description'] = (string) ($role['description'] ?? '');
+            $identity['sort_order'] = isset($role['sort_order']) ? (int) $role['sort_order'] : null;
+        }
+        return $identity;
+    }
+
+    private static function roleMetadataSelect(PDO $db): string
+    {
+        $available = array_fill_keys(self::roleColumns($db), true);
+        $select = [];
+        foreach (['role_code', 'display_name', 'description', 'sort_order'] as $column) {
+            if (isset($available[$column])) {
+                $select[] = 'r.' . $column;
+            }
+        }
+        return $select ? implode(', ', $select) : 'NULL AS role_metadata_placeholder';
+    }
+
+    private static function roleActiveFilter(PDO $db): string
+    {
+        return in_array('is_active', self::roleColumns($db), true)
+            ? 'AND COALESCE(r.is_active, 1) = 1'
+            : '';
+    }
+
+    /** @return string[] */
+    private static function roleColumns(PDO $db): array
+    {
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'sqlite') {
+            return array_map(
+                'strval',
+                $db->query('PRAGMA table_info(roles)')->fetchAll(PDO::FETCH_COLUMN, 1) ?: []
+            );
+        }
+
+        $stmt = $db->query(
+            "SELECT column_name FROM information_schema.columns
+             WHERE table_schema = DATABASE() AND table_name = 'roles'"
+        );
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
     /** Check whether the resolved roles grant this exact permission name. */

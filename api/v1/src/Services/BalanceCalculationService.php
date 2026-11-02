@@ -201,18 +201,17 @@ class BalanceCalculationService
     }
 
     /**
-     * Build the net completed-payment expression for a sales row, including allocated receipts and refunds.
+     * Build the completed customer-payment expression for a sales row.
      */
     private function salePaidAmountSubquery(string $tableAlias): string
     {
-        return "((SELECT COALESCE(SUM(
-                     CASE WHEN pm.type = 'return_payment' THEN -pm.amount ELSE pm.amount END
-                 ), 0)
+        return "((SELECT COALESCE(SUM(pm.amount), 0)
                  FROM payments pm
                  WHERE pm.sale_id = {$tableAlias}.id
                    AND pm.tenant_id = {$tableAlias}.tenant_id
                    AND pm.is_draft = 0
-                   AND pm.status = 'completed')
+                   AND pm.status = 'completed'
+                   AND COALESCE(pm.type, '') <> 'return_payment')
                  + (SELECT COALESCE(SUM(cpa.allocated_amount), 0)
                     FROM customer_payment_allocations cpa
                     JOIN payments ap ON ap.id = cpa.payment_id AND ap.tenant_id = cpa.tenant_id

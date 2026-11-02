@@ -424,11 +424,19 @@ class SetupHandler extends BaseHandler
     /** Persist the supported tax fields with their database types. */
     private function saveTaxSettings(int $tenantId, array $tax): void
     {
+        if (isset($tax['tax_rate'])
+            && (!is_numeric($tax['tax_rate'])
+                || !is_finite((float) $tax['tax_rate'])
+                || (float) $tax['tax_rate'] < 0
+                || (float) $tax['tax_rate'] > 100)) {
+            throw new \InvalidArgumentException('نسبة الضريبة يجب أن تكون بين 0 و100.');
+        }
+
         $fields = [
             'tax_enabled' => ['key' => 'tax.tax_enabled', 'type' => 'boolean'],
             'tax_name' => ['key' => 'tax.tax_name', 'type' => 'string'],
             'tax_number' => ['key' => 'tax.tax_number', 'type' => 'string'],
-            'tax_rate' => ['key' => 'tax.tax_rate', 'type' => 'integer']
+            'tax_rate' => ['key' => 'tax.tax_rate', 'type' => 'float']
         ];
 
         foreach ($fields as $field => $config) {
@@ -439,6 +447,8 @@ class SetupHandler extends BaseHandler
                     $value = $value ? 1 : 0;
                 } elseif ($config['type'] === 'integer') {
                     $value = (int) $value;
+                } elseif ($config['type'] === 'float') {
+                    $value = (float) $value;
                 }
 
                 $this->saveSetting($tenantId, $config['key'], $value, $config['type']);

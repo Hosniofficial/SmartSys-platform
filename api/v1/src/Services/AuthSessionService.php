@@ -54,6 +54,10 @@ final class AuthSessionService
 
         $user['identity_role_id'] = (int) ($role['id'] ?? 0);
         $user['identity_role_name'] = (string) ($role['name'] ?? 'user');
+        $user['role_code'] = (string) ($role['role_code'] ?? $user['identity_role_name']);
+        $user['role_display_name'] = (string) ($role['display_name'] ?? $user['identity_role_name']);
+        $user['role_description'] = (string) ($role['description'] ?? '');
+        $user['role_sort_order'] = $role['sort_order'] ?? null;
         $user['role_id'] = $user['identity_role_id'];
         $user['role'] = $user['identity_role_name'];
         $user['isAdmin'] = SuperAdminHelper::isAdminOrAbove($user);
@@ -104,6 +108,9 @@ final class AuthSessionService
             'username' => $user['username'],
             'role_id' => (int) $user['identity_role_id'],
             'role' => (string) $user['identity_role_name'],
+            'role_code' => (string) ($user['role_code'] ?? $user['identity_role_name']),
+            'role_display_name' => (string) ($user['role_display_name'] ?? $user['identity_role_name']),
+            'role_description' => (string) ($user['role_description'] ?? ''),
             'isAdmin' => (bool) $user['isAdmin'],
             'tenant_id' => (int) $user['tenant_id'],
             'branch_id' => isset($user['branch_id']) ? (int) $user['branch_id'] : null,

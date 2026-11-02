@@ -384,20 +384,11 @@ const notificationsPosition = computed(() => calcDropdownRight(notificationsRef,
 const profilePosition       = computed(() => calcDropdownRight(profileRef, 208)) // w-52 = 208px
 
 const userRoleDisplay = computed(() => {
-  const rawRole = authStore.user?.role
-  const role = Number(authStore.user?.tenant_id) > 0 && rawRole === 'super_admin'
-    ? (authStore.isOwner ? 'admin' : 'employee')
-    : rawRole
-  const roleNames = {
-    'super_admin': 'مالك النظام',
-    'admin': 'مسؤول المنشأة',
-    'manager': 'مدير الفرع',
-    'cashier': 'كاشير',
-    'inventory_clerk': 'مسؤول المخزون',
-    'finance_officer': 'مسؤول مالي',
-    'employee': 'موظف'
+  const user = authStore.user || {}
+  if (Number(user.tenant_id) > 0 && user.role === 'super_admin') {
+    return user.role_display_name || (authStore.isOwner ? 'مسؤول المنشأة' : 'موظف')
   }
-  return roleNames[role] || role
+  return user.role_display_name || user.role || user.role_code || 'موظف'
 })
 
 const menuItems = computed(() => {

@@ -74,6 +74,45 @@ final class SaleCreationInputValidationTest extends TestCase
         )->fetchColumn());
     }
 
+    public function testCreatesInclusiveTaxSaleWithoutAddingTaxToCustomerPrice(): void
+    {
+        $db = $this->createDatabase();
+        $db->sqliteCreateFunction('NOW', static fn (): string => date('Y-m-d H:i:s'));
+        $db->exec("INSERT INTO payment_methods (id, tenant_id, kind) VALUES (1, 1, 'cash')");
+        $db->exec("INSERT INTO settings (tenant_id, key_name, value) VALUES
+            (1, 'pos.require_approval', '1'),
+            (1, 'tax.tax_enabled', '1'),
+            (1, 'tax.tax_rate', '14'),
+            (1, 'invoice.show_tax_in_price', '1')");
+        $db->exec('INSERT INTO accounts (id, tenant_id, code) VALUES (1, 1, \'2202\')');
+        $db->exec('INSERT INTO cost_centers (id, tenant_id) VALUES (10, 1)');
+        $db->exec("INSERT INTO products (id, tenant_id, sale_price, purchase_price, product_type, active)
+                   VALUES (20, 1, 114, 60, 'service', 1)");
+        $db->exec('INSERT INTO product_units (product_id, unit_id, conversion_factor, tenant_id)
+                   VALUES (20, 30, 1, 1)');
+
+        (new SaleCreationService($db, 1))->createSale($this->saleData([
+            'invoice_number' => 'UNIT-TAX-INCLUSIVE',
+            'items' => [[
+                'product_id' => 20,
+                'unit_id' => 30,
+                'quantity' => 1,
+                'sale_price' => 114,
+            ]],
+        ]));
+
+        $sale = $db->query(
+            'SELECT total_amount, net_total_amount, tax_amount, tax_inclusive FROM sales WHERE id = 1'
+        )->fetch(PDO::FETCH_ASSOC);
+        self::assertSame(114.0, (float) $sale['total_amount']);
+        self::assertSame(100.0, (float) $sale['net_total_amount']);
+        self::assertSame(14.0, (float) $sale['tax_amount']);
+        self::assertSame(1, (int) $sale['tax_inclusive']);
+        self::assertSame(14.0, (float) $db->query(
+            'SELECT tax_amount FROM sales_items WHERE sale_id = 1'
+        )->fetchColumn());
+    }
+
     private function createDatabase(): PDO
     {
         $db = new PDO('sqlite::memory:');
@@ -89,6 +128,7 @@ final class SaleCreationInputValidationTest extends TestCase
                 tenant_id INTEGER, key_name TEXT, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE cost_centers (id INTEGER PRIMARY KEY, tenant_id INTEGER);
+            CREATE TABLE accounts (id INTEGER PRIMARY KEY, tenant_id INTEGER, code TEXT);
             CREATE TABLE branches (id INTEGER, tenant_id INTEGER, cost_center_id INTEGER);
             CREATE TABLE products (
                 id INTEGER, tenant_id INTEGER, sale_price REAL, purchase_price REAL,
@@ -107,12 +147,13 @@ final class SaleCreationInputValidationTest extends TestCase
                 discount_type TEXT, discount_value REAL, status TEXT, user_id INTEGER, notes TEXT,
                 total_items INTEGER, total_profit REAL, branch_id INTEGER, invoice_number TEXT,
                 payment_method_id INTEGER, tax_rate REAL, tax_amount REAL, session_id INTEGER,
-                cost_center_id INTEGER, updated_at TEXT
+                cost_center_id INTEGER, updated_at TEXT, tax_inclusive INTEGER DEFAULT 0
             );
             CREATE TABLE sales_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, sale_id INTEGER, product_id INTEGER,
                 unit_id INTEGER, conversion_factor REAL, quantity REAL, sale_price REAL,
                 purchase_price REAL, discount_type TEXT, discount_value REAL, net_total REAL,
+                tax_amount REAL DEFAULT 0,
                 batch_number TEXT, expiry_date TEXT, serial TEXT, tenant_id INTEGER,
                 created_at TEXT, created_by INTEGER
             );

@@ -33,6 +33,15 @@ return function (RouteCollectorProxy $group, Container $container): void {
         $group->get('/roles', [$handler, 'getRoles'])
             ->add(PermissionMiddleware::require(Permissions::ROLE_VIEW, $db));
 
+        $group->post('/roles', [$handler, 'createCustomRole'])
+            ->add(PermissionMiddleware::require(Permissions::ROLE_CREATE, $db));
+
+        $group->put('/roles/{id:[0-9]+}', [$handler, 'updateCustomRole'])
+            ->add(PermissionMiddleware::require(Permissions::ROLE_EDIT, $db));
+
+        $group->delete('/roles/{id:[0-9]+}', [$handler, 'deactivateCustomRole'])
+            ->add(PermissionMiddleware::require(Permissions::ROLE_DELETE, $db));
+
         $group->get('/permissions', [$handler, 'getPermissionCatalog'])
             ->add(PermissionMiddleware::require(Permissions::PERMISSION_VIEW, $db));
 

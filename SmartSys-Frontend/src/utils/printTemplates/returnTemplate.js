@@ -2,7 +2,7 @@ import { getPrintConfig, clearPrintConfigCache } from './printConfig';
 import { esc, fmt, getCompanyData } from './printHelpers';
 
 const itemReturnTotal = (it) =>
-  parseFloat(it.net_total || it.total || (it.quantity * (it.unit_price || it.sale_price || 0)) || 0);
+  parseFloat(it.subtotal ?? it.net_total ?? it.total ?? (it.quantity * (it.unit_price || it.sale_price || 0)) ?? 0);
 
 const isPurchaseReturn = (doc) => String(doc.return_type || '').toLowerCase() === 'purchase';
 const returnTypeLabel = (doc) => doc.return_type_label || (isPurchaseReturn(doc) ? 'مرتجع مشتريات' : 'مرتجع مبيعات');
@@ -17,12 +17,15 @@ const returnSettlementRows = (doc, rowClass) => {
     ${cashRefund > 0 ? `<div class="${rowClass}"><span>${cashLabel}</span><span>${fmt(cashRefund)}</span></div>` : ''}
     <div class="${rowClass}"><span>صافي التسوية:</span><span>${fmt(net)}</span></div>`;
 };
+const returnTaxRow = (doc, rowClass) => Number(doc.tax_amount) > 0
+  ? `<div class="${rowClass}"><span>الضريبة (ضمن إجمالي المرتجع):</span><span>${fmt(doc.tax_amount)}</span></div>`
+  : '';
 
 /**
  * Thermal template for return documents (76mm roll)
  */
-const buildReturnThermalHtml = (doc) => {
-  const cfg     = getPrintConfig();
+const buildReturnThermalHtml = (doc, options = {}) => {
+  const cfg     = getPrintConfig(options.config);
   const company = getCompanyData(doc);
   const returnDate = doc.return_date || doc.created_at || new Date().toISOString();
   const createdAt = doc.created_at || returnDate;
@@ -80,10 +83,12 @@ const buildReturnThermalHtml = (doc) => {
       ? `<div class="text-center" style="font-size:12px;margin-bottom:10px;">${esc(cfg.headerText)}</div>`
       : ''}
 
+    <div style="font-size:10px;color:#666;margin:6px 0;">مبالغ الأصناف قبل الضريبة؛ إجمالي المرتجع أدناه هو المبلغ النهائي شامل الضريبة.</div>
     <div>${itemsHtml}</div>
 
     <div class="totals-area">
-      <div class="total-row"><span>إجمالي المرتجع:</span><span>${fmt(doc.grand_total || doc.total_amount)}</span></div>
+      <div class="total-row"><span>إجمالي المرتجع (شامل الضريبة):</span><span>${fmt(doc.grand_total || doc.total_amount)}</span></div>
+      ${returnTaxRow(doc, 'total-row')}
       ${returnSettlementRows(doc, 'total-row')}
       ${(doc.notes || doc.return_reason) ? `<div class="total-row" style="color:#666;font-size:11px;"><span>سبب الإرجاع:</span><span>${esc(doc.notes || doc.return_reason)}</span></div>` : ''}
     </div>
@@ -100,8 +105,8 @@ const buildReturnThermalHtml = (doc) => {
 /**
  * A4 template for return documents
  */
-const buildReturnA4Html = (doc) => {
-  const cfg     = getPrintConfig();
+const buildReturnA4Html = (doc, options = {}) => {
+  const cfg     = getPrintConfig(options.config);
   const company = getCompanyData(doc);
   const returnDate = doc.return_date || doc.created_at || new Date().toISOString();
   const createdAt = doc.created_at || returnDate;
@@ -161,13 +166,15 @@ const buildReturnA4Html = (doc) => {
       <div class="info-box"><label>تاريخ ووقت الإنشاء</label>${new Date(createdAt).toLocaleString('ar-EG')}</div>
     </div>
 
+    <p style="font-size:11px;color:#64748b;">مبالغ الأصناف قبل الضريبة؛ إجمالي المرتجع أدناه هو المبلغ النهائي شامل الضريبة.</p>
     <table>
-      <thead><tr><th>#</th><th>المنتج</th><th style="text-align:center">الكمية</th><th style="text-align:center">سعر الوحدة</th><th style="text-align:center">الإجمالي</th></tr></thead>
+      <thead><tr><th>#</th><th>المنتج</th><th style="text-align:center">الكمية</th><th style="text-align:center">سعر الوحدة قبل الضريبة</th><th style="text-align:center">صافي الصنف قبل الضريبة</th></tr></thead>
       <tbody>${itemsHtml}</tbody>
     </table>
 
     <div class="totals">
-      <div class="totals-row"><span>إجمالي المرتجع:</span><span>${fmt(doc.grand_total || doc.total_amount)}</span></div>
+      <div class="totals-row"><span>إجمالي المرتجع (شامل الضريبة):</span><span>${fmt(doc.grand_total || doc.total_amount)}</span></div>
+      ${returnTaxRow(doc, 'totals-row')}
       ${returnSettlementRows(doc, 'totals-row')}
       ${(doc.notes || doc.return_reason) ? `<div class="totals-row" style="color:#666"><span>سبب الإرجاع:</span><span>${esc(doc.notes || doc.return_reason)}</span></div>` : ''}
     </div>
@@ -182,8 +189,8 @@ const buildReturnA4Html = (doc) => {
 /**
  * Returns the appropriate builder based on template setting
  */
-export const buildReturnHtml = (doc) => {
-  const t = (localStorage.getItem('pos_print_template') || 'thermal-compact').toLowerCase();
+export const buildReturnHtml = (doc, options = {}) => {
+  const t = String(options.template || localStorage.getItem('pos_print_template') || 'thermal-compact').toLowerCase();
   const isA4 = t === 'a4-simple' || t === 'a4-professional' || t === 'a4';
-  return isA4 ? buildReturnA4Html(doc) : buildReturnThermalHtml(doc);
+  return isA4 ? buildReturnA4Html(doc, options) : buildReturnThermalHtml(doc, options);
 };

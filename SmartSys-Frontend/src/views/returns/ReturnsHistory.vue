@@ -197,8 +197,8 @@
               <tr class="bg-slate-50 border-b border-slate-100">
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الصنف</th>
                 <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">الكمية</th>
-                <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">سعر الوحدة</th>
-                <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الإجمالي</th>
+                <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">سعر الوحدة قبل الضريبة</th>
+                <th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">صافي الصنف قبل الضريبة</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-50">
@@ -214,6 +214,9 @@
             </tbody>
           </table>
         </div>
+        <p class="-mt-4 text-[10px] leading-relaxed text-slate-500">
+          مبالغ الأصناف أعلاه قبل الضريبة. إجمالي المرتجع هو المبلغ النهائي شاملًا الضريبة.
+        </p>
 
         <div class="flex flex-col md:flex-row gap-6">
           <div v-if="selectedReturn?.notes || selectedReturn?.remarks" class="flex-1 p-4 bg-amber-50 border border-amber-100 rounded-xl">
@@ -222,11 +225,11 @@
           </div>
           <div class="w-full md:w-72 space-y-2.5 bg-slate-50 border border-slate-200 p-5 rounded-xl">
             <div class="flex justify-between text-[11px] font-medium text-slate-500">
-              <span>إجمالي المرتجع</span>
+              <span>إجمالي المرتجع (شامل الضريبة)</span>
               <span class="font-mono font-bold text-slate-700">{{ formatPrice(selectedReturn?.grand_total ?? selectedReturn?.total_amount ?? selectedReturn?.total ?? 0) }}</span>
             </div>
             <div v-if="Number(selectedReturn?.tax_amount) > 0" class="flex justify-between text-[11px] font-medium text-slate-500">
-              <span>الضريبة</span>
+              <span>الضريبة (ضمن إجمالي المرتجع)</span>
               <span class="font-mono font-bold text-indigo-600">{{ formatPrice(selectedReturn?.tax_amount) }}</span>
             </div>
             <div v-if="Number(selectedReturn?.discount_value ?? selectedReturn?.discount_amount) > 0" class="flex justify-between text-[11px] font-medium text-slate-500 pb-2.5 border-b border-slate-200">
@@ -279,6 +282,7 @@ import { useBootstrapStore } from '@/stores/bootstrap/bootstrapStore';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
 import { printDocument } from '@/utils';
 import { buildReturnHtml } from '@/utils/printTemplates';
+import { resolvePrintOptions } from '@/utils/printTemplates/branchPrintSettings';
 
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import PageHeader from '@/components/PageHeader.vue';
@@ -547,7 +551,11 @@ const closeReturnDetails = async () => {
 
 const printReturnDetails = async () => {
   if (!selectedReturn.value) return;
-  await printDocument(buildReturnHtml(selectedReturn.value));
+  try {
+    await printDocument(buildReturnHtml(selectedReturn.value, await resolvePrintOptions(selectedReturn.value, branchStore.selectedBranchId)));
+  } catch (error) {
+    showToast(error?.response?.data?.message || error.message || 'تعذر تحميل إعدادات الطباعة لهذا الفرع.', 'error');
+  }
 };
 
 let searchDebounceTimer = null;

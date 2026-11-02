@@ -13,7 +13,57 @@
         description="تحديد صلاحيات كل دور بما يتوافق مع متطلبات العمل داخل المنشأة."
         :branches="[]"
         :selected-branch="null"
-      />
+      >
+        <template #controls>
+          <button
+            v-if="canCreateRole"
+            type="button"
+            class="h-9 px-4 rounded-md bg-blue-600 text-white text-[11px] font-bold hover:bg-blue-700 transition-all"
+            @click="openCreateRole"
+          >
+            <i class="fas fa-plus ml-1"></i> دور مخصص جديد
+          </button>
+        </template>
+      </PageHeader>
+
+      <div v-if="isCreateRoleOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4">
+        <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
+          <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div>
+              <h2 class="text-sm font-bold text-slate-800">إنشاء دور مخصص</h2>
+              <p class="mt-1 text-[10px] text-slate-500">الدور سيظهر داخل المنشأة الحالية فقط.</p>
+            </div>
+            <button type="button" class="text-slate-400 hover:text-slate-700" @click="closeCreateRole"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div class="space-y-4 p-6">
+            <div class="grid gap-4 md:grid-cols-2">
+              <label class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-500">اسم الدور *</span>
+                <input v-model.trim="newRole.display_name" class="filter-input" maxlength="120" placeholder="مثال: مسؤول المبيعات والمخزون">
+              </label>
+              <label class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-500">الوصف</span>
+                <input v-model.trim="newRole.description" class="filter-input" maxlength="500" placeholder="وصف مختصر للدور">
+              </label>
+            </div>
+            <label class="space-y-1 block">
+              <span class="text-[10px] font-bold text-slate-500">سبب الإنشاء *</span>
+              <input v-model.trim="newRole.reason" class="filter-input" maxlength="500" placeholder="مثال: إنشاء دور لفريق المبيعات">
+            </label>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label v-for="permission in permissions" :key="permission.id" class="flex items-start gap-2 rounded-lg border border-slate-100 p-2 text-[10px]" :class="canGrant(permission.name) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'">
+                <input v-model="newRole.permissions" type="checkbox" :value="permission.name" :disabled="!canGrant(permission.name)" class="mt-0.5" />
+                <span><strong class="block">{{ permissionLabel(permission) }}</strong><small class="font-mono text-slate-400">{{ permission.name }}</small></span>
+              </label>
+            </div>
+            <p v-if="createRoleError" class="rounded-lg bg-rose-50 p-3 text-[11px] font-bold text-rose-700">{{ createRoleError }}</p>
+          </div>
+          <div class="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+            <button type="button" class="h-9 rounded-md border border-slate-200 px-4 text-[11px] font-bold" @click="closeCreateRole">إلغاء</button>
+            <button type="button" :disabled="isCreatingRole || !newRole.display_name || !newRole.reason" class="h-9 rounded-md bg-blue-600 px-4 text-[11px] font-bold text-white disabled:opacity-50" @click="createRole">حفظ الدور</button>
+          </div>
+        </div>
+      </div>
 
       <!-- KPI Cards -->
       <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -235,6 +285,7 @@ import { useAuthStore } from '@/stores/auth/authStore'
 import { useRoleStore } from '@/stores/role/roleStore'
 import { useRbacStore } from '@/stores/rbac/rbacStore'
 import { useBreadcrumb } from '@/composables/useBreadcrumb'
+import { getRoleDisplayName } from '@/utils/roleDisplay'
 
 // ─── Stores & Composables ─────────────────────────────────────────────────────
 const authStore  = useAuthStore()
@@ -254,6 +305,10 @@ const isLoading          = ref(false)
 const isSaving           = ref(false)
 const loadError          = ref('')
 const feedback           = ref('')
+const isCreateRoleOpen  = ref(false)
+const isCreatingRole    = ref(false)
+const createRoleError   = ref('')
+const newRole           = ref({ display_name: '', description: '', reason: '', permissions: [] })
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const hasUnsavedChanges = computed(() => {
@@ -281,20 +336,6 @@ const protectedNames = new Set([
   'role.view', 'role.edit', 'role.create', 'role.delete',
   'permission.view', 'permission.assign',
 ])
-
-const roleLabels = {
-  super_admin: 'مدير المنصة', admin: 'مسؤول المنشأة', manager: 'مدير الفروع', cashier: 'كاشير',
-  inventory_clerk: 'مسؤول المخزون', finance_officer: 'مسؤول مالي',
-  branch_manager: 'مدير الفرع',
-}
-
-const roleDescriptions = {
-  admin:           'إدارة النظام والمستخدمين على مستوى المنشأة.',
-  manager:         'إدارة العمليات والموظفين على مستوى الفروع.',
-  cashier:         'تنفيذ عمليات البيع وإدارة جلسة نقطة البيع.',
-  inventory_clerk: 'إدارة المنتجات وحركة المخزون.',
-  finance_officer: 'إدارة العمليات المالية ومراجعة الحسابات.',
-}
 
 const categoryLabels = {
   rbac:                   'إدارة الأدوار والصلاحيات',
@@ -325,12 +366,13 @@ const categoryLabels = {
   other:                  'صلاحيات أخرى',
 }
 
-const roleLabel       = role => roleLabels[role.role_code || role.name] || role.display_name || role.name
-const roleDescription = role => roleDescriptions[role.role_code || role.name] || roleLabel(role)
+const roleLabel       = role => getRoleDisplayName(role)
+const roleDescription = role => role?.description || roleLabel(role)
 const categoryLabel   = name => categoryLabels[name] || name
 const permissionLabel = p => p.display_name || p.name
 const isProtected     = name => protectedNames.has(name)
 const canGrant        = name => (authStore.user?.permissions || []).includes(name)
+const canCreateRole   = computed(() => authStore.user?.permissions?.includes('role.create') === true)
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const loadRolePermissions = async () => {
@@ -382,12 +424,38 @@ const saveRolePermissions = async () => {
   }
 }
 
+const openCreateRole = () => {
+  createRoleError.value = ''
+  newRole.value = { display_name: '', description: '', reason: '', permissions: [] }
+  isCreateRoleOpen.value = true
+}
+
+const closeCreateRole = () => {
+  if (!isCreatingRole.value) isCreateRoleOpen.value = false
+}
+
+const createRole = async () => {
+  if (isCreatingRole.value || !newRole.value.display_name || !newRole.value.reason) return
+  isCreatingRole.value = true
+  createRoleError.value = ''
+  try {
+    await rbacStore.createRole(newRole.value)
+    isCreateRoleOpen.value = false
+    feedback.value = 'تم إنشاء الدور المخصص داخل المنشأة الحالية.'
+    await loadPage()
+  } catch (err) {
+    createRoleError.value = err.response?.data?.message || err.message || 'تعذر إنشاء الدور المخصص.'
+  } finally {
+    isCreatingRole.value = false
+  }
+}
+
 const loadPage = async () => {
   isLoading.value = true
   loadError.value = ''
   try {
     const [roleData, permissionData] = await Promise.all([
-      roleStore.fetchRoles(),
+      roleStore.fetchRoles({ force: true }),
       rbacStore.listPermissions(),
     ])
 

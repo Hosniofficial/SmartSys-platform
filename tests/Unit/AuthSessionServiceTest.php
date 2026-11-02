@@ -50,6 +50,9 @@ final class AuthSessionServiceTest extends TestCase
             'is_owner' => 1,
             'identity_role_id' => 3,
             'identity_role_name' => 'owner',
+            'role_code' => 'tenant_owner',
+            'role_display_name' => 'مسؤول المنشأة',
+            'role_description' => 'إدارة المنشأة والمستخدمين',
             'isAdmin' => true,
             'permissions' => ['sales.view', 'sales.create'],
         ]);
@@ -62,6 +65,9 @@ final class AuthSessionServiceTest extends TestCase
         self::assertSame(8, $decoded->branch_id);
         self::assertSame(3, $decoded->role_id);
         self::assertSame('owner', $decoded->role);
+        self::assertSame('tenant_owner', $decoded->role_code);
+        self::assertSame('مسؤول المنشأة', $decoded->role_display_name);
+        self::assertSame('إدارة المنشأة والمستخدمين', $decoded->role_description);
         self::assertTrue($decoded->isAdmin);
         self::assertSame(['sales.view', 'sales.create'], $decoded->permissions);
         self::assertSame('access', $decoded->type);

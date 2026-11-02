@@ -55,7 +55,7 @@
         <div class="flex items-center gap-2">
           <select v-model="filterRole" @change="loadUsers(1)" class="h-9 px-4 rounded-md border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:border-slate-300 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all">
             <option value="">جميع الأدوار</option>
-            <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleAr(r.name) }}</option>
+            <option v-for="r in roles" :key="r.id" :value="r.id">{{ getRoleDisplayName(r) }}</option>
           </select>
           <select v-model="filterStatus" @change="loadUsers(1)" class="h-9 px-4 rounded-md border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:border-slate-300 focus:ring-4 focus:ring-blue-500/5 outline-none transition-all">
             <option value="">جميع الحالات</option>
@@ -120,7 +120,7 @@
                       :key="role.id"
                       class="px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[9px] font-bold text-slate-600"
                     >
-                      {{ roleAr(role.name) }}
+                      {{ getRoleDisplayName(role) }}
                     </span>
                     <span v-if="!assignedRoles(u).length" class="text-[9px] text-rose-500">بدون دور</span>
                   </div>
@@ -258,7 +258,7 @@
               class="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100 cursor-pointer hover:bg-white has-[:checked]:border-blue-500"
             >
               <input v-model="form.roles" type="checkbox" :value="role.id" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-0" />
-              <span class="text-[11px] font-bold text-slate-700">{{ roleAr(role.name) }}</span>
+              <span class="text-[11px] font-bold text-slate-700">{{ getRoleDisplayName(role) }}</span>
             </label>
           </div>
           <p v-if="!form.roles.length" class="text-[10px] font-bold text-rose-600">يجب اختيار دور واحد على الأقل.</p>
@@ -433,6 +433,7 @@ import { useRoleStore } from '@/stores/role/roleStore'
 import { useRbacStore } from '@/stores/rbac/rbacStore'
 import { useBreadcrumb } from '@/composables/useBreadcrumb'
 import PageHeader from '@/components/PageHeader.vue'
+import { getRoleDisplayName } from '@/utils/roleDisplay'
 
 const { breadcrumb } = useBreadcrumb()
 const authStore = useAuthStore()
@@ -505,17 +506,7 @@ const userPermissionGroups = computed(() => {
   return [...groups].map(([name, items]) => ({ name, items }))
 })
 
-const roleLabels = {
-  super_admin: 'مدير النظام الرئيسي',
-  admin: 'مدير النظام',
-  manager: 'مدير الفروع',
-  cashier: 'كاشير',
-  inventory_clerk: 'أمين مخزن',
-  finance_officer: 'مسؤول مالي',
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const roleAr = (name) => roleLabels[name] || name
 const permissionCategoryLabel = (name) => permissionCategories[name] || name
 const isProtectedPermission = (name) => protectedPermissionNames.has(name)
 const avatarColors = ['bg-blue-600', 'bg-violet-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-pink-600']

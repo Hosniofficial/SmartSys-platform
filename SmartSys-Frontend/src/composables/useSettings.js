@@ -27,6 +27,10 @@ export function useDirtyTracking(sections) {
     }
   }
 
+  function setSectionSnapshot(sectionKey) {
+    if (sections[sectionKey]) snapshots[sectionKey] = clone(sections[sectionKey].value)
+  }
+
   function isSectionDirty(sectionKey) {
     if (!sections[sectionKey]) return false
     // Accessing snapshots[sectionKey] here registers it as a reactive dependency,
@@ -53,6 +57,7 @@ export function useDirtyTracking(sections) {
     isDirty,
     isSectionDirty,
     setSnapshotsFromCurrent,
+    setSectionSnapshot,
     resetSectionToSnapshot,
   }
 }

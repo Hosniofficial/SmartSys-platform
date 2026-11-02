@@ -22,6 +22,22 @@ use Psr\Http\Message\ResponseInterface as Response;
  */
 class SettingsHandler extends BaseHandler
 {
+    private const BRANCH_PRINT_DEFAULTS = [
+        'print.template' => 'thermal-compact',
+        'printer.print_header' => '1',
+        'printer.print_footer' => '1',
+        'print.header_text' => '',
+        'print.footer_text' => 'شكراً لتعاملكم معنا',
+        'print.terms_text' => '',
+    ];
+
+    private const BRANCH_PRINT_TEMPLATES = [
+        'thermal-compact',
+        'thermal-detailed',
+        'a4-simple',
+        'a4-professional',
+    ];
+
     private array $cache = [];
 
     public function __construct(PDO $db)
@@ -272,6 +288,170 @@ class SettingsHandler extends BaseHandler
     public function updateSettings($settings, $tenantId = null, $userId = null): bool
     {
         return $this->setGroup($settings, $tenantId, $userId);
+    }
+
+    /** Return tenant defaults merged with the selected branch's print overrides. */
+    public function getBranchPrintSettings(int $tenantId, int $branchId): array
+    {
+        $effective = [];
+        foreach (self::BRANCH_PRINT_DEFAULTS as $key => $default) {
+            $value = $this->get($key, $default, $tenantId);
+            $effective[$key] = is_bool($value) ? ($value ? '1' : '0') : (string) $value;
+        }
+
+        $tenantTemplateStmt = $this->db->prepare(
+            "SELECT 1 FROM settings WHERE tenant_id = ? AND key_name = 'print.template' LIMIT 1"
+        );
+        $tenantTemplateStmt->execute([$tenantId]);
+        $tenantTemplateConfigured = $tenantTemplateStmt->fetchColumn() !== false;
+
+        $stmt = $this->db->prepare(
+            'SELECT key_name, value
+             FROM branch_settings
+             WHERE tenant_id = ? AND branch_id = ?'
+        );
+        $stmt->execute([$tenantId, $branchId]);
+        $overrides = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $key = (string) $row['key_name'];
+            if (array_key_exists($key, self::BRANCH_PRINT_DEFAULTS)) {
+                $effective[$key] = (string) $row['value'];
+                $overrides[] = $key;
+            }
+        }
+
+        return [
+            'settings' => $effective,
+            'overrides' => $overrides,
+            'tenant_template_configured' => $tenantTemplateConfigured,
+        ];
+    }
+
+    /** Validate and persist the supported print settings for one tenant branch. */
+    public function updateBranchPrintSettings(
+        int $tenantId,
+        int $branchId,
+        int $userId,
+        array $settings
+    ): void {
+        if ($settings === []) {
+            throw new \InvalidArgumentException('يجب إرسال إعداد طباعة واحد على الأقل.');
+        }
+
+        foreach ($settings as $key => $value) {
+            if (!array_key_exists($key, self::BRANCH_PRINT_DEFAULTS)) {
+                throw new \InvalidArgumentException('إعداد الفرع غير مدعوم: ' . $key);
+            }
+            if (!is_scalar($value)) {
+                throw new \InvalidArgumentException('قيمة إعداد الطباعة غير صالحة: ' . $key);
+            }
+
+            $value = (string) $value;
+            if ($key === 'print.template' && !in_array($value, self::BRANCH_PRINT_TEMPLATES, true)) {
+                throw new \InvalidArgumentException('قالب الطباعة المحدد غير صالح.');
+            }
+            if (in_array($key, ['printer.print_header', 'printer.print_footer'], true)
+                && !in_array($value, ['0', '1'], true)
+            ) {
+                throw new \InvalidArgumentException('قيمة خيار الطباعة يجب أن تكون 0 أو 1.');
+            }
+            if (strlen($value) > 5000) {
+                throw new \InvalidArgumentException('نص إعداد الطباعة يتجاوز الحد المسموح.');
+            }
+            $settings[$key] = $value;
+        }
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $tenantTemplateStmt = $this->db->prepare(
+                "SELECT 1 FROM settings
+                 WHERE tenant_id = ? AND key_name = 'print.template'
+                 LIMIT 1"
+            );
+            $tenantTemplateStmt->execute([$tenantId]);
+            $tenantTemplateConfigured = $tenantTemplateStmt->fetchColumn() !== false;
+
+            $upsertSql = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite'
+                ? 'INSERT INTO branch_settings
+                    (tenant_id, branch_id, key_name, value, type, updated_by, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT (tenant_id, branch_id, key_name) DO UPDATE SET
+                    value = excluded.value,
+                    type = excluded.type,
+                    updated_by = excluded.updated_by,
+                    updated_at = CURRENT_TIMESTAMP'
+                : 'INSERT INTO branch_settings
+                    (tenant_id, branch_id, key_name, value, type, updated_by, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   ON DUPLICATE KEY UPDATE
+                    value = VALUES(value),
+                    type = VALUES(type),
+                    updated_by = VALUES(updated_by),
+                    updated_at = CURRENT_TIMESTAMP';
+            $upsert = $this->db->prepare($upsertSql);
+            $delete = $this->db->prepare(
+                'DELETE FROM branch_settings
+                 WHERE tenant_id = ? AND branch_id = ? AND key_name = ?'
+            );
+            $auditChanges = [];
+            foreach ($settings as $key => $value) {
+                $tenantDefault = $this->get($key, self::BRANCH_PRINT_DEFAULTS[$key], $tenantId);
+                $tenantDefault = is_bool($tenantDefault)
+                    ? ($tenantDefault ? '1' : '0')
+                    : (string) $tenantDefault;
+                if ($value === $tenantDefault && ($key !== 'print.template' || $tenantTemplateConfigured)) {
+                    $delete->execute([$tenantId, $branchId, $key]);
+                    $auditChanges[] = [$key, null, 'delete'];
+                    continue;
+                }
+
+                $upsert->execute([$tenantId, $branchId, $key, $value, 'string', $userId]);
+                $auditChanges[] = [$key, $value, 'update'];
+            }
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
+
+            foreach ($auditChanges as [$key, $value, $action]) {
+                $this->logSettingChange($key, $value, $action, $tenantId, $userId);
+            }
+        } catch (Throwable $e) {
+            if (!$inTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /** Remove all branch print overrides so the branch inherits tenant defaults. */
+    public function resetBranchPrintSettings(int $tenantId, int $branchId, int $userId): void
+    {
+        $keys = array_keys(self::BRANCH_PRINT_DEFAULTS);
+        $placeholders = implode(', ', array_fill(0, count($keys), '?'));
+        $select = $this->db->prepare(
+            "SELECT key_name
+             FROM branch_settings
+             WHERE tenant_id = ? AND branch_id = ? AND key_name IN ({$placeholders})"
+        );
+        $select->execute(array_merge([$tenantId, $branchId], $keys));
+        $removedKeys = $select->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $stmt = $this->db->prepare(
+            "DELETE FROM branch_settings
+             WHERE tenant_id = ? AND branch_id = ? AND key_name IN ({$placeholders})"
+        );
+        $stmt->execute(array_merge([$tenantId, $branchId], $keys));
+        foreach ($removedKeys as $key) {
+            $this->logSettingChange($key, null, 'delete', $tenantId, $userId);
+        }
+        $this->logger->info('Branch print settings reset to tenant defaults', [
+            'tenant_id' => $tenantId,
+            'branch_id' => $branchId,
+            'user_id' => $userId,
+        ]);
     }
 
     private function castValue($value, $type)

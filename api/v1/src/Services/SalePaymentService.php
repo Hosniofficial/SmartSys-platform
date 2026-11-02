@@ -176,8 +176,19 @@ class SalePaymentService
             );
             $creditStmt->execute([$tenantId, $saleId]);
             $returnCredits = (float) $creditStmt->fetchColumn();
+            $refundStmt = $this->pdo->prepare(
+                "SELECT COALESCE(SUM(paid_amount), 0)
+                 FROM returns WHERE tenant_id = ? AND sale_id = ? AND return_type = 'sale'"
+            );
+            $refundStmt->execute([$tenantId, $saleId]);
+            $cashRefundAmount = (float) $refundStmt->fetchColumn();
             $grandTotal = round((float) $sale['net_total_amount'] + (float) ($sale['tax_amount'] ?? 0), 2);
-            $remaining = max(0.0, round($grandTotal - (float) ($sale['paid_amount'] ?? 0) - $returnCredits, 2));
+            $remaining = SaleBalanceCalculator::remaining(
+                $grandTotal,
+                (float) ($sale['paid_amount'] ?? 0),
+                $cashRefundAmount,
+                $returnCredits
+            );
             if ($amount > $remaining + 0.01) {
                 throw new \DomainException(
                     sprintf('الدفعة (%.2f) تتجاوز المبلغ المتبقي (%.2f).', $amount, $remaining)

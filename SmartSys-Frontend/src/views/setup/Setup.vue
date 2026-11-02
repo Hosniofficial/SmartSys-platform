@@ -121,7 +121,7 @@
                   <div class="space-y-1.5">
                     <label class="metadata-label">النسبة المئوية (%)</label>
                     <div class="relative">
-                      <input v-model.number="formData.tax.tax_rate" type="number" step="0.01" class="setup-input font-mono font-bold text-lg" />
+                      <input v-model.number="formData.tax.tax_rate" type="number" min="0" max="100" step="0.01" class="setup-input font-mono font-bold text-lg" />
                       <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-300">%</span>
                     </div>
                   </div>
@@ -214,10 +214,15 @@
 
               <div class="space-y-6">
                 <div class="space-y-1.5"><label class="metadata-label">نص تذييل الفاتورة</label><textarea v-model="formData.invoice.footer_text" class="setup-input h-auto py-3 italic" rows="3"></textarea></div>
-                <label class="setting-toggle-row bg-slate-50 border border-slate-200 px-4 h-11 rounded-lg">
-                  <span class="text-[11px] font-bold text-slate-600 uppercase">تضمين الضريبة في السعر</span>
-                  <input v-model="formData.invoice.show_tax_in_price" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-blue-600" />
-                </label>
+                <div class="space-y-1">
+                  <label class="setting-toggle-row bg-slate-50 border border-slate-200 px-4 h-11 rounded-lg">
+                    <span class="text-[11px] font-bold text-slate-600 uppercase">أسعار البيع تشمل الضريبة</span>
+                    <input v-model="formData.invoice.show_tax_in_price" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                  </label>
+                  <p class="text-[10px] leading-relaxed text-slate-500">
+                    عند التفعيل تُستخرج الضريبة من السعر ولا تُضاف فوقه.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

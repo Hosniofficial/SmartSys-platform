@@ -561,24 +561,23 @@ class RBACHandler extends BaseHandler
                   ON r.id = rp.role_id AND (rp.tenant_id IS NULL OR rp.tenant_id = ?)
                 LEFT JOIN permissions p
                   ON rp.permission_id = p.id AND (p.tenant_id IS NULL OR p.tenant_id = ?)
-                WHERE (r.tenant_id = ? AND LOWER(r.name) <> 'administrator')
-                   OR (
-                       r.tenant_id IS NULL
-                       AND (
-                           (
-                               r.is_system_role = 1
-                               AND LOWER(r.name) NOT IN ('super_admin', 'manager', 'branch_manager', 'finance_officer', 'administrator')
-                           )
-                           OR LOWER(r.name) IN ('admin', 'manager', 'cashier', 'finance_officer', 'inventory_clerk')
-                       )
-                       AND LOWER(r.name) <> 'administrator'
-                       AND NOT EXISTS (
-                           SELECT 1
-                           FROM roles tenant_role
-                           WHERE tenant_role.tenant_id = ?
-                             AND LOWER(tenant_role.name) = LOWER(r.name)
-                       )
-                   )
+                WHERE (
+                    (r.tenant_id = ? AND r.is_active = 1 AND LOWER(r.name) <> 'administrator')
+                    OR
+                    (r.tenant_id IS NULL
+                     AND (
+                         (r.is_system_role = 1
+                          AND LOWER(r.name) NOT IN ('super_admin', 'manager', 'branch_manager', 'finance_officer', 'administrator'))
+                         OR LOWER(r.name) IN ('admin', 'manager', 'cashier', 'finance_officer', 'inventory_clerk')
+                     )
+                     AND LOWER(r.name) <> 'administrator'
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM roles tenant_role
+                         WHERE tenant_role.tenant_id = ?
+                           AND LOWER(tenant_role.name) = LOWER(r.name)
+                     ))
+                )
                 GROUP BY r.id
                 ORDER BY {$roleSort}, COALESCE(r.tenant_id, 0) DESC, r.name
             ");
@@ -597,6 +596,154 @@ class RBACHandler extends BaseHandler
             ]);
 
             return $this->errorResponse($response, 'حدث خطأ أثناء معالجة الطلب', 500);
+        }
+    }
+
+    /** Create a role owned by the current tenant with permissions capped by the caller. */
+    public function createCustomRole(Request $request, Response $response): Response
+    {
+        $tenantId = $this->extractTenantId($request);
+        $callerId = $this->extractUserId($request);
+        if (!$tenantId || !$callerId) {
+            return $this->errorResponse($response, 'تعذر تحديد سياق المنشأة أو المستخدم.', 403);
+        }
+
+        $data = $request->getParsedBody() ?? [];
+        $displayName = trim((string) ($data['display_name'] ?? ''));
+        $description = trim((string) ($data['description'] ?? ''));
+        $reason = trim((string) ($data['reason'] ?? ''));
+        $permissionNames = $data['permissions'] ?? [];
+        if ($displayName === '' || mb_strlen($displayName) > 120 || mb_strlen($description) > 500
+            || $reason === '' || mb_strlen($reason) > 500 || !is_array($permissionNames)) {
+            return $this->errorResponse($response, 'بيانات الدور غير صالحة أو سبب الإنشاء مفقود.', 400);
+        }
+
+        try {
+            $catalog = $this->permissionCatalogMap((int) $tenantId);
+            $permissionNames = array_values(array_unique(array_filter(
+                $permissionNames,
+                static fn($name): bool => is_string($name) && isset($catalog[$name])
+            )));
+            if (count($permissionNames) !== count($data['permissions'] ?? [])) {
+                return $this->errorResponse($response, 'تتضمن الصلاحيات قيمة غير متاحة.', 400);
+            }
+            $callerPermissions = $this->getCallerAssignablePermissions((int) $callerId, $catalog);
+            if (array_diff($permissionNames, $callerPermissions) !== []) {
+                return $this->errorResponse($response, 'لا يمكنك إسناد صلاحية لا تملكها.', 403);
+            }
+
+            $roleCode = 'custom_' . bin2hex(random_bytes(12));
+            $this->db->beginTransaction();
+            $roleStmt = $this->db->prepare(
+                "INSERT INTO roles
+                    (name, role_code, display_name, description, is_system_role, tenant_id, created_by, is_active, sort_order, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 0, ?, ?, 1, 1000, NOW(), NOW())"
+            );
+            $roleStmt->execute([$roleCode, $roleCode, $displayName, $description, $tenantId, $callerId]);
+            $roleId = (int) $this->db->lastInsertId();
+
+            $permissionStmt = $this->db->prepare(
+                'INSERT INTO role_permissions (role_id, permission_id, tenant_id, created_at, created_by)
+                 VALUES (?, ?, ?, NOW(), ?)'
+            );
+            foreach ($permissionNames as $permissionName) {
+                $permissionStmt->execute([(int) $roleId, (int) $catalog[$permissionName]['id'], $tenantId, $callerId]);
+            }
+            $this->writePermissionAudit($tenantId, $callerId, 'role_created', 'roles', $roleId, [
+                'role_code' => $roleCode, 'display_name' => $displayName, 'reason' => $reason,
+                'permissions' => $permissionNames,
+            ], $request);
+            $this->db->commit();
+
+            return $this->successResponse($response, [
+                'id' => $roleId, 'role_code' => $roleCode, 'display_name' => $displayName,
+                'description' => $description, 'tenant_id' => $tenantId, 'permissions' => $permissionNames,
+            ], 201);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            $this->logger->error('Failed to create custom role', ['tenant_id' => $tenantId, 'message' => $e->getMessage()]);
+            return $this->errorResponse($response, 'تعذر إنشاء الدور المخصص.', 500);
+        }
+    }
+
+    /** Update a tenant-owned role and replace its direct permission set. */
+    public function updateCustomRole(Request $request, Response $response, array $args): Response
+    {
+        $tenantId = $this->extractTenantId($request);
+        $callerId = $this->extractUserId($request);
+        $roleId = (int) ($args['id'] ?? 0);
+        if (!$tenantId || !$callerId || $roleId <= 0) return $this->errorResponse($response, 'الدور غير صالح.', 400);
+        $role = $this->findCustomRole($roleId, (int) $tenantId);
+        if (!$role) return $this->errorResponse($response, 'الدور المخصص غير موجود.', 404);
+        $data = $request->getParsedBody() ?? [];
+        $displayName = trim((string) ($data['display_name'] ?? $role['display_name']));
+        $description = trim((string) ($data['description'] ?? $role['description']));
+        $reason = trim((string) ($data['reason'] ?? ''));
+        $permissionNames = $data['permissions'] ?? null;
+        if ($displayName === '' || mb_strlen($displayName) > 120 || mb_strlen($description) > 500
+            || $reason === '' || mb_strlen($reason) > 500 || !is_array($permissionNames)) {
+            return $this->errorResponse($response, 'بيانات الدور أو سبب التعديل غير صالح.', 400);
+        }
+        try {
+            $catalog = $this->permissionCatalogMap((int) $tenantId);
+            $permissionNames = array_values(array_unique($permissionNames));
+            if (array_filter($permissionNames, static fn($name): bool => !is_string($name) || !isset($catalog[$name])) !== []) {
+                return $this->errorResponse($response, 'تتضمن الصلاحيات قيمة غير متاحة.', 400);
+            }
+            $callerPermissions = $this->getCallerAssignablePermissions($callerId, $catalog);
+            if (array_diff($permissionNames, $callerPermissions) !== []) return $this->errorResponse($response, 'لا يمكنك إسناد صلاحية لا تملكها.', 403);
+            $this->db->beginTransaction();
+            $this->db->prepare('UPDATE roles SET display_name = ?, description = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ? AND is_active = 1')
+                ->execute([$displayName, $description, $roleId, $tenantId]);
+            $this->db->prepare('DELETE FROM role_permissions WHERE role_id = ? AND tenant_id = ?')->execute([$roleId, $tenantId]);
+            $insert = $this->db->prepare('INSERT INTO role_permissions (role_id, permission_id, tenant_id, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)');
+            foreach ($permissionNames as $name) $insert->execute([$roleId, $catalog[$name]['id'], $tenantId, $callerId]);
+            $this->writePermissionAudit($tenantId, $callerId, 'role_updated', 'roles', $roleId, ['display_name' => $displayName, 'reason' => $reason, 'permissions' => $permissionNames], $request);
+            $this->db->commit();
+            return $this->successResponse($response, ['id' => $roleId, 'display_name' => $displayName, 'description' => $description, 'permissions' => $permissionNames], 200);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            $this->logger->error('Failed to update custom role', ['tenant_id' => $tenantId, 'role_id' => $roleId, 'message' => $e->getMessage()]);
+            return $this->errorResponse($response, 'تعذر تعديل الدور المخصص.', 500);
+        }
+    }
+
+    /** Deactivate a tenant-owned role; assigned users must be moved first. */
+    public function deactivateCustomRole(Request $request, Response $response, array $args): Response
+    {
+        $tenantId = $this->extractTenantId($request);
+        $callerId = $this->extractUserId($request);
+        $roleId = (int) ($args['id'] ?? 0);
+        $role = $this->findCustomRole($roleId, (int) $tenantId);
+        if (!$tenantId || !$callerId || !$role) return $this->errorResponse($response, 'الدور المخصص غير موجود.', 404);
+        $data = $request->getParsedBody() ?? [];
+        $reason = trim((string) ($data['reason'] ?? ''));
+        if ($reason === '' || mb_strlen($reason) > 500) return $this->errorResponse($response, 'سبب تعطيل الدور مطلوب.', 400);
+        $check = $this->db->prepare(
+            'SELECT COUNT(*)
+             FROM users u
+             WHERE u.tenant_id = ?
+               AND (
+                   u.role_id = ?
+                   OR EXISTS (
+                       SELECT 1
+                       FROM users_role ur
+                       WHERE ur.user_id = u.id
+                         AND ur.role_id = ?
+                         AND (ur.tenant_id IS NULL OR ur.tenant_id = u.tenant_id)
+                   )
+               )'
+        );
+        $check->execute([$tenantId, $roleId, $roleId]);
+        if ((int) $check->fetchColumn() > 0) return $this->errorResponse($response, 'لا يمكن تعطيل دور مرتبط بمستخدمين.', 409);
+        try {
+            $this->db->prepare('UPDATE roles SET is_active = 0, deleted_at = NOW(), updated_at = NOW() WHERE id = ? AND tenant_id = ?')
+                ->execute([$roleId, $tenantId]);
+            $this->writePermissionAudit($tenantId, $callerId, 'role_deactivated', 'roles', $roleId, ['reason' => $reason], $request);
+            return $this->successResponse($response, ['id' => $roleId, 'is_active' => 0], 200);
+        } catch (\Throwable $e) {
+            $this->logger->error('Failed to deactivate custom role', ['tenant_id' => $tenantId, 'role_id' => $roleId, 'message' => $e->getMessage()]);
+            return $this->errorResponse($response, 'تعذر تعطيل الدور المخصص.', 500);
         }
     }
 
@@ -700,6 +847,30 @@ class RBACHandler extends BaseHandler
             $newGrants = array_diff($requestedGrants, $current);
             if (array_diff($newGrants, $callerPermissions) !== []) {
                 return $this->errorResponse($response, 'لا يمكنك إسناد صلاحية لا تملكها.', 403);
+            }
+
+            if ((int) ($role['tenant_id'] ?? 0) === (int) $tenantId) {
+                $this->db->beginTransaction();
+                $this->db->prepare('DELETE FROM role_permissions WHERE role_id = ? AND tenant_id = ?')
+                    ->execute([(int) $role['id'], (int) $tenantId]);
+                $insert = $this->db->prepare(
+                    'INSERT INTO role_permissions (role_id, permission_id, tenant_id, created_at, created_by)
+                     VALUES (?, ?, ?, NOW(), ?)'
+                );
+                foreach ($requestedGrants as $name) {
+                    $insert->execute([(int) $role['id'], (int) $catalog[$name]['id'], (int) $tenantId, (int) $callerId]);
+                }
+                $this->writePermissionAudit(
+                    (int) $tenantId,
+                    (int) $callerId,
+                    'custom_role_permissions_updated',
+                    'roles',
+                    (int) $role['id'],
+                    ['role' => $role['name'], 'reason' => $reason, 'permissions' => $requestedGrants],
+                    $request
+                );
+                $this->db->commit();
+                return $this->successResponse($response, ['role' => $role, 'permissions' => $requestedGrants], 200);
             }
 
             $baseline = $this->getBaselineRolePermissions((int) $role['id'], (int) $tenantId);
@@ -934,16 +1105,18 @@ class RBACHandler extends BaseHandler
         if ($roleId <= 0) {
             return null;
         }
+
         $stmt = $this->db->prepare(
-            "SELECT id, name, display_name, description, tenant_id
-             FROM roles
-             WHERE id = ?
-               AND LOWER(name) NOT IN ('super_admin', 'administrator')
+            "SELECT r.id, r.name, r.display_name, r.description, r.tenant_id
+             FROM roles r
+             WHERE r.id = ?
+               AND LOWER(r.name) NOT IN ('super_admin', 'administrator')
+               AND COALESCE(r.is_active, 1) = 1
                AND (
-                   tenant_id = ?
+                   r.tenant_id = ?
                    OR (
-                       tenant_id IS NULL
-                       AND LOWER(name) IN ('admin', 'manager', 'cashier', 'inventory_clerk', 'finance_officer')
+                       r.tenant_id IS NULL
+                       AND LOWER(r.name) IN ('admin', 'manager', 'cashier', 'inventory_clerk', 'finance_officer')
                    )
                )
              LIMIT 1"
@@ -951,6 +1124,18 @@ class RBACHandler extends BaseHandler
         $stmt->execute([$roleId, $tenantId]);
         $role = $stmt->fetch(PDO::FETCH_ASSOC);
         return $role ?: null;
+    }
+
+    private function findCustomRole(int $roleId, int $tenantId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, name, role_code, display_name, description, tenant_id
+             FROM roles
+             WHERE id = ? AND tenant_id = ? AND is_system_role = 0 AND is_active = 1
+             LIMIT 1'
+        );
+        $stmt->execute([$roleId, $tenantId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     private function findAssignableUser(int $userId, int $tenantId): ?array

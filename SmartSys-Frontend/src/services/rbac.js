@@ -5,6 +5,18 @@ export const rbacService = {
     return apiClient.get('/rbac/roles');
   },
 
+  createRole(payload) {
+    return apiClient.post('/rbac/roles', payload);
+  },
+
+  updateRole(roleId, payload) {
+    return apiClient.put(`/rbac/roles/${roleId}`, payload);
+  },
+
+  deleteRole(roleId, payload) {
+    return apiClient.delete(`/rbac/roles/${roleId}`, { data: payload });
+  },
+
   listUsers(params = {}) {
     return apiClient.get('/rbac/users', { params });
   },

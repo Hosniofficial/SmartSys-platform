@@ -10,6 +10,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\SalesService;
 use App\Services\AccountingService;
+use App\Services\SaleBalanceCalculator;
 use App\Services\MonologHandler;
 use App\Services\LabelService;
 use App\Services\CurrencyService;
@@ -39,10 +40,10 @@ class SalesHandler extends BaseHandler
     }
 
     /** Use the accounting status policy for the calculated sale status. */
-    private function determineSaleStatus(float $grandTotal, float $paidAmount, float $returnAmount = 0.0, float $returnCredits = 0.0, $createdAt = null, $firstPaymentDate = null, bool $hasDirectReturn = false): string
+    private function determineSaleStatus(float $grandTotal, float $paidAmount, float $returnAmount = 0.0, float $returnCredits = 0.0, $createdAt = null, $firstPaymentDate = null, bool $hasDirectReturn = false, float $cashRefundAmount = 0.0): string
     {
         return (new AccountingService($this->db))
-            ->computeSaleStatus($grandTotal, $paidAmount, $returnAmount, $returnCredits, $hasDirectReturn);
+            ->computeSaleStatus($grandTotal, $paidAmount, $returnAmount, $returnCredits, $hasDirectReturn, $cashRefundAmount);
     }
 
     private function resolveSalesBranchScope(Request $request, int $tenantId): ?int
@@ -201,6 +202,9 @@ class SalesHandler extends BaseHandler
                         COALESCE((SELECT SUM(r.grand_total) FROM returns r
                                   WHERE r.sale_id = s.id AND r.tenant_id = s.tenant_id
                                     AND r.return_type = 'sale'), 0)  AS return_amount,
+                        COALESCE((SELECT SUM(r.paid_amount) FROM returns r
+                                  WHERE r.sale_id = s.id AND r.tenant_id = s.tenant_id
+                                    AND r.return_type = 'sale'), 0) AS cash_refund_amount,
                         COALESCE((SELECT SUM(rca.allocated_amount) FROM return_credit_allocations rca
                                   WHERE rca.sale_id = s.id AND rca.tenant_id = s.tenant_id), 0) AS return_credits,
                         (SELECT MIN(pm.payment_date) FROM payments pm
@@ -220,16 +224,24 @@ class SalesHandler extends BaseHandler
                 $grandTotal    = round((float)($row['net_total_amount'] ?? 0) + (float)($row['tax_amount'] ?? 0), 2);
                 $actualPaid    = round((float)$row['actual_paid_amount'], 2);
                 $returnAmount  = round((float)($row['return_amount'] ?? 0), 2);
+                $cashRefundAmount = round((float)($row['cash_refund_amount'] ?? 0), 2);
                 $returnCredits = round((float)($row['return_credits'] ?? 0), 2);
                 $isReturned    = $grandTotal > 0 && $returnAmount >= $grandTotal;
                 $hasDirectReturn = !empty($row['return_ids']);  // Determine if this invoice has direct returns
 
                 $row['actual_paid_amount']  = $actualPaid;
                 $row['return_amount']       = $returnAmount;
-                $row['remaining_balance'] = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid - $returnCredits, 2));
+                $row['cash_refund_amount'] = $cashRefundAmount;
+                $row['net_invoice_total'] = max(0.0, round($grandTotal - $returnAmount, 2));
+                $row['remaining_balance'] = $isReturned ? 0.0 : SaleBalanceCalculator::remaining(
+                    $grandTotal,
+                    $actualPaid,
+                    $cashRefundAmount,
+                    $returnCredits
+                );
                 $row['dynamic_status'] = in_array(strtolower((string) $row['status']), ['canceled', 'cancelled'], true)
                     ? 'canceled'
-                    : $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount, $returnCredits, $row['created_at'], $row['first_payment_date'], $hasDirectReturn);
+                    : $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount, $returnCredits, $row['created_at'], $row['first_payment_date'], $hasDirectReturn, $cashRefundAmount);
                 $items[] = $row;
             }
 
@@ -378,6 +390,13 @@ class SalesHandler extends BaseHandler
             $stmtReturn->execute([$id, $tenantId]);
             $returnAmount = round((float) $stmtReturn->fetchColumn(), 2);
 
+            $stmtCashRefund = $this->db->prepare(
+                "SELECT COALESCE(SUM(paid_amount), 0) FROM returns
+                 WHERE sale_id = ? AND tenant_id = ? AND return_type = 'sale'"
+            );
+            $stmtCashRefund->execute([$id, $tenantId]);
+            $cashRefundAmount = round((float) $stmtCashRefund->fetchColumn(), 2);
+
             $stmtReturnCredits = $this->db->prepare(
                 "SELECT COALESCE(SUM(allocated_amount), 0) FROM return_credit_allocations
                  WHERE sale_id = ? AND tenant_id = ?"
@@ -406,11 +425,18 @@ class SalesHandler extends BaseHandler
 
             $sale['actual_paid_amount'] = $actualPaid;
             $sale['return_amount']      = $returnAmount;
+            $sale['cash_refund_amount'] = $cashRefundAmount;
+            $sale['net_invoice_total'] = max(0.0, round($grandTotal - $returnAmount, 2));
             $sale['return_credit_amount'] = $returnCredits;
-            $sale['remaining_balance'] = $isReturned ? 0.0 : max(0, round($grandTotal - $actualPaid - $returnCredits, 2));
+            $sale['remaining_balance'] = $isReturned ? 0.0 : SaleBalanceCalculator::remaining(
+                $grandTotal,
+                $actualPaid,
+                $cashRefundAmount,
+                $returnCredits
+            );
             $sale['dynamic_status'] = in_array(strtolower((string) $sale['status']), ['canceled', 'cancelled'], true)
                 ? 'canceled'
-                : $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount, $returnCredits, $sale['created_at'], $firstPaymentDate, $hasDirectReturn);
+                : $this->determineSaleStatus($grandTotal, $actualPaid, $returnAmount, $returnCredits, $sale['created_at'], $firstPaymentDate, $hasDirectReturn, $cashRefundAmount);
 
             return $this->successResponse($response, $sale, 200);
         } catch (\DomainException $e) {

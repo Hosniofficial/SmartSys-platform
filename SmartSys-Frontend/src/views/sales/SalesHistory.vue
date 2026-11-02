@@ -349,9 +349,9 @@
                 <td class="px-2 py-3 font-bold text-slate-700">{{ formatPrice(item.sale_price) }}</td>
                 <td class="px-2 py-3 font-bold text-slate-700">{{ formatPrice((item.sale_price || 0) * (item.quantity || 0)) }}</td>
                 <td class="px-2 py-3 font-bold text-rose-500">{{ formatPrice(item.discount_value || 0) }}</td>
-                <td class="px-2 py-3 font-bold text-indigo-500">{{ formatPrice((item.net_price || 0) * (taxRate / 100)) }}</td>
-                <td class="px-2 py-3 font-bold text-slate-700">{{ formatPrice(item.net_price || 0) }}</td>
-                <td class="px-2 py-3 font-bold text-slate-900">{{ formatPrice(item.net_total * (1 + taxRate / 100)) }}</td>
+                <td class="px-2 py-3 font-bold text-indigo-500">{{ formatPrice(getSaleItemTax(item)) }}</td>
+                <td class="px-2 py-3 font-bold text-slate-700">{{ formatPrice(getSaleItemNet(item) / (Number(item.quantity) || 1)) }}</td>
+                <td class="px-2 py-3 font-bold text-slate-900">{{ formatPrice(getSaleItemGross(item)) }}</td>
               </tr>
             </tbody>
           </table>
@@ -365,13 +365,20 @@
           <div class="w-full md:w-72 space-y-2.5 bg-slate-50 border border-slate-200 p-5 rounded-xl">
             <div class="flex justify-between text-[11px] font-medium text-slate-500"><span>المجموع</span><span class="font-mono font-bold text-slate-700">{{ formatPrice(subTotalNet) }}</span></div>
             <div class="flex justify-between text-[11px] font-medium text-slate-500"><span>الخصومات</span><span class="font-mono font-bold text-rose-500">- {{ formatPrice(totalDiscount) }}</span></div>
-            <div class="flex justify-between text-[11px] font-medium text-slate-500 pb-2.5 border-b border-slate-200"><span>الضريبة ({{ taxRateDisplay }}%)</span><span class="font-mono font-bold text-slate-700">{{ formatPrice(finalNetTotal * (taxRate / 100)) }}</span></div>
+            <div class="flex justify-between text-[11px] font-medium text-slate-500 pb-2.5 border-b border-slate-200">
+              <span>الضريبة{{ detailTaxInclusive ? ' (ضمن السعر)' : '' }} ({{ detailTaxRateDisplay }}%)</span>
+              <span class="font-mono font-bold text-slate-700">{{ formatPrice(detailTaxAmount) }}</span>
+            </div>
             <!-- سطر الصافي مميز -->
             <div class="flex justify-between items-center bg-blue-600 text-white px-4 py-3 rounded-lg">
-              <span class="text-[11px] font-bold uppercase tracking-widest opacity-80">الصافي</span>
-              <span class="text-xl font-bold font-mono tracking-tighter">{{ formatPrice(finalNetTotal * (1 + taxRate / 100)) }}</span>
+              <span class="text-[11px] font-bold uppercase tracking-widest opacity-80">{{ detailTaxInclusive ? 'الإجمالي شامل الضريبة' : 'الإجمالي النهائي' }}</span>
+              <span class="text-xl font-bold font-mono tracking-tighter">{{ formatPrice(selectedSaleGrandTotal) }}</span>
             </div>
             <div class="pt-1 space-y-2">
+              <div v-if="Number(selectedSale?.return_amount || 0) > 0" class="flex justify-between text-[11px] font-medium text-slate-500">
+                <span>صافي الفاتورة بعد المرتجعات</span>
+                <span class="font-mono font-bold text-slate-700">{{ formatPrice(selectedSale.net_invoice_total ?? Math.max(0, selectedSaleGrandTotal - Number(selectedSale.return_amount || 0))) }}</span>
+              </div>
               <div class="flex justify-between text-[11px] font-medium text-slate-500">
                 <span>صافي التحصيل</span>
                 <span class="font-mono font-bold text-emerald-600">{{ formatPrice(getSalePaid(selectedSale)) }}</span>
@@ -609,7 +616,9 @@ import { useCostCenterStore } from '@/stores/costCenter/costCenterStore';
 import AlertService from '@/services/AlertService';
 import { useToast } from '@/composables/useToast';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
-import { getLocalDateISO, printDocument } from '@/utils';
+import { getLocalDateISO, isSettingEnabled, printDocument } from '@/utils';
+import { getBuilderByTemplate } from '@/utils/printTemplates';
+import { resolvePrintOptions } from '@/utils/printTemplates/branchPrintSettings';
 import PageHeader from '@/components/PageHeader.vue';
 import PaginationControls from '@/components/ui/PaginationControls.vue';
 import LoadingButton from '@/components/ui/LoadingButton.vue';
@@ -632,7 +641,14 @@ const { breadcrumb } = useBreadcrumb();
 const formatPrice = (amount) => formatCurrencyLocale(amount, 2);
 
 const taxRate = ref(0);
-const taxRateDisplay = computed(() => taxRate.value.toFixed(0));
+const detailTaxRate = computed(() => Number(selectedSale.value?.tax_rate ?? taxRate.value) || 0);
+const detailTaxRateDisplay = computed(() => detailTaxRate.value.toFixed(2).replace(/\.?0+$/, ''));
+const detailTaxInclusive = computed(() => isSettingEnabled(selectedSale.value?.tax_inclusive));
+const detailTaxAmount = computed(() => {
+  const storedTax = selectedSale.value?.tax_amount;
+  if (storedTax !== undefined && storedTax !== null) return Number(storedTax) || 0;
+  return Math.round((finalNetTotal.value * detailTaxRate.value / 100 + Number.EPSILON) * 100) / 100;
+});
 
 const sales = ref([]);
 const paymentMethods = computed(() => paymentStore.paymentMethods);
@@ -718,10 +734,32 @@ const totalDiscount = computed(() => {
 });
 
 const finalNetTotal = computed(() => {
+  if (selectedSale.value?.net_total_amount !== undefined) return parseFloat(selectedSale.value.net_total_amount) || 0;
   if (selectedSale.value?.sale?.net_total_amount !== undefined) return parseFloat(selectedSale.value.sale.net_total_amount) || 0;
   if (selectedSale.value?.items) return selectedSale.value.items.reduce((sum, item) => sum + (parseFloat(item.net_total) || 0), 0);
   return 0;
 });
+const getSaleItemTax = (item) => {
+  if (item.tax_amount !== undefined && item.tax_amount !== null
+    && (Number(item.tax_amount) !== 0 || Number(selectedSale.value?.tax_amount) === 0)) {
+    return Number(item.tax_amount) || 0;
+  }
+  const amount = Number(item.net_total) || 0;
+  const rate = detailTaxRate.value;
+  if (detailTaxInclusive.value && rate > 0) {
+    return Math.round((amount - amount / (1 + rate / 100) + Number.EPSILON) * 100) / 100;
+  }
+  return Math.round((amount * rate / 100 + Number.EPSILON) * 100) / 100;
+};
+const getSaleItemNet = (item) => {
+  const amount = Number(item.net_total) || 0;
+  return detailTaxInclusive.value ? amount - getSaleItemTax(item) : amount;
+};
+const getSaleItemGross = (item) => {
+  const net = getSaleItemNet(item);
+  return detailTaxInclusive.value ? Number(item.net_total) || 0 : net + getSaleItemTax(item);
+};
+const selectedSaleGrandTotal = computed(() => getSaleGross(selectedSale.value));
 
 const selectedSalePaymentMethodId = computed(() => {
   const s = selectedSale.value || {};
@@ -950,7 +988,10 @@ const getSaleGross = (s) => {
   if (!s) return 0;
   const net = parseFloat(s.net_total_amount ?? s.total_amount ?? 0) || 0;
   if (s.grand_total !== undefined && s.grand_total !== null) return parseFloat(s.grand_total) || net;
-  const tax = (s.tax_amount !== undefined && s.tax_amount !== null) ? (parseFloat(s.tax_amount) || 0) : (net * (taxRate.value / 100));
+  const rate = Number(s.tax_rate ?? taxRate.value) || 0;
+  const tax = (s.tax_amount !== undefined && s.tax_amount !== null)
+    ? (parseFloat(s.tax_amount) || 0)
+    : (net * (rate / 100));
   return net + tax;
 };
 const isSaleCanceled = (sale) =>
@@ -1271,17 +1312,15 @@ const printSelected = () => {
   win.onload = () => { win.print(); setTimeout(() => { try { win.close(); } catch {} }, 300); };
 };
 
-const getSelectedPrintTemplate = () => {
-  let t = (localStorage.getItem('pos_print_template') || '').toLowerCase();
-  if (t === 'thermal') t = 'thermal-compact';
-  if (t === 'a4') t = 'a4-simple';
-  return new Set(['thermal-compact', 'thermal-detailed', 'a4-simple', 'a4-professional']).has(t) ? t : 'thermal-compact';
-};
-
 const printSaleDetails = async () => {
   if (!selectedSale.value) return;
-  const html = getBuilderByTemplate(getSelectedPrintTemplate())(selectedSale.value);
-  await printDocument(html);
+  try {
+    const printOptions = await resolvePrintOptions(selectedSale.value, branchStore.selectedBranchId);
+    const html = getBuilderByTemplate(printOptions.template)(selectedSale.value, printOptions);
+    await printDocument(html);
+  } catch (error) {
+    showToast(error?.response?.data?.message || error.message || 'تعذر تحميل إعدادات الطباعة لهذا الفرع.', 'error');
+  }
 };
 
 // isMounting flag: يمنع الـ watches من إطلاق fetchSalesHistory() أثناء onMounted

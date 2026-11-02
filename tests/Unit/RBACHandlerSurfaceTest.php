@@ -21,8 +21,10 @@ final class RBACHandlerSurfaceTest extends TestCase
         self::assertEqualsCanonicalizing(
             [
                 '__construct',
+                'createCustomRole',
                 'createUser',
                 'deleteUser',
+                'deactivateCustomRole',
                 'getPermissionCatalog',
                 'getRolePermissions',
                 'getRoles',
@@ -30,6 +32,7 @@ final class RBACHandlerSurfaceTest extends TestCase
                 'getUsers',
                 'hasPermission',
                 'updateRolePermissions',
+                'updateCustomRole',
                 'updateUser',
                 'updateUserPermissions',
             ],

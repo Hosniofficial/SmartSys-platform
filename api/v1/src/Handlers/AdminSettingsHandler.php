@@ -123,6 +123,163 @@ class AdminSettingsHandler extends BaseHandler
         }
     }
 
+    /** Return effective print settings for an authenticated user's tenant branch. */
+    public function getBranchPrintSettings(Request $request, Response $response): Response
+    {
+        $userData = $request->getAttribute('user');
+        $userData = is_object($userData) ? (array) $userData : (is_array($userData) ? $userData : []);
+        if (empty($userData['id'])) {
+            return $this->errorResponse($response, 'يجب تسجيل الدخول لعرض إعدادات الطباعة.', 401);
+        }
+
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+            $branchId = $this->resolvePrintSettingsBranch($request, $userData, $tenantId);
+            return $this->successResponse(
+                $response,
+                ['branch_id' => $branchId] + $this->settingsHandler->getBranchPrintSettings($tenantId, $branchId),
+                200
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->errorResponse($response, $e->getMessage(), 400);
+        } catch (\DomainException $e) {
+            return $this->errorResponse($response, $e->getMessage(), 403);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to retrieve branch print settings', [
+                'message' => $e->getMessage(),
+                'tenant_id' => $this->extractTenantId($request),
+                'user_id' => $userData['id'],
+            ]);
+            return $this->errorResponse($response, 'فشل في جلب إعدادات طباعة الفرع', 500);
+        }
+    }
+
+    /** Save print overrides for one authorized branch. */
+    public function updateBranchPrintSettings(Request $request, Response $response): Response
+    {
+        $userData = $this->checkSettingsAccess($request, true);
+        if (!$userData) {
+            return $this->errorResponse($response, 'ليس لديك إذن لتحديث إعدادات الطباعة', 403);
+        }
+
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+            $data = $request->getParsedBody();
+            $data = is_array($data) ? $data : [];
+            $branchId = $this->resolvePrintSettingsBranch($request, $userData, $tenantId, $data['branch_id'] ?? null);
+            $settings = $data['settings'] ?? null;
+            if (!is_array($settings)) {
+                return $this->errorResponse($response, 'بيانات إعدادات الطباعة غير صالحة', 400);
+            }
+
+            $this->settingsHandler->updateBranchPrintSettings(
+                $tenantId,
+                $branchId,
+                (int) $userData['id'],
+                $settings
+            );
+            return $this->successResponse(
+                $response,
+                ['updated' => true, 'branch_id' => $branchId]
+                    + $this->settingsHandler->getBranchPrintSettings($tenantId, $branchId),
+                200
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->errorResponse($response, $e->getMessage(), 400);
+        } catch (\DomainException $e) {
+            return $this->errorResponse($response, $e->getMessage(), 403);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to update branch print settings', [
+                'message' => $e->getMessage(),
+                'tenant_id' => $this->extractTenantId($request),
+                'user_id' => $userData['id'] ?? null,
+            ]);
+            return $this->errorResponse($response, 'فشل في تحديث إعدادات طباعة الفرع', 500);
+        }
+    }
+
+    /** Remove branch print overrides and restore inheritance from the tenant. */
+    public function resetBranchPrintSettings(Request $request, Response $response): Response
+    {
+        $userData = $this->checkSettingsAccess($request, true);
+        if (!$userData) {
+            return $this->errorResponse($response, 'ليس لديك إذن لتحديث إعدادات الطباعة', 403);
+        }
+
+        try {
+            $tenantId = $this->extractTenantId($request);
+            if (!$tenantId) {
+                return $this->errorResponse($response, 'مطلوب معرف المستأجر (Tenant ID).', 403);
+            }
+            $branchId = $this->resolvePrintSettingsBranch($request, $userData, $tenantId);
+            $this->settingsHandler->resetBranchPrintSettings($tenantId, $branchId, (int) $userData['id']);
+            return $this->successResponse($response, ['reset' => true, 'branch_id' => $branchId], 200);
+        } catch (\InvalidArgumentException $e) {
+            return $this->errorResponse($response, $e->getMessage(), 400);
+        } catch (\DomainException $e) {
+            return $this->errorResponse($response, $e->getMessage(), 403);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to reset branch print settings', [
+                'message' => $e->getMessage(),
+                'tenant_id' => $this->extractTenantId($request),
+                'user_id' => $userData['id'] ?? null,
+            ]);
+            return $this->errorResponse($response, 'فشل في استعادة إعدادات الطباعة الافتراضية', 500);
+        }
+    }
+
+    /** Validate tenant ownership and the authenticated user's branch assignment. */
+    private function resolvePrintSettingsBranch(
+        Request $request,
+        array $userData,
+        int $tenantId,
+        $branchIdParam = null
+    ): int {
+        if ($branchIdParam === null) {
+            $branchIdParam = $request->getQueryParams()['branch_id'] ?? null;
+        }
+        $branchId = filter_var($branchIdParam, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($branchId === false) {
+            throw new \InvalidArgumentException('معرف الفرع غير صالح.');
+        }
+
+        $branch = $this->db->prepare('SELECT id FROM branches WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $branch->execute([$branchId, $tenantId]);
+        if (!$branch->fetchColumn()) {
+            throw new \InvalidArgumentException('الفرع غير موجود ضمن هذه المنشأة.');
+        }
+
+        if (!SuperAdminHelper::is($userData)) {
+            $assignment = $this->db->prepare(
+                'SELECT u.branch_id, u.is_owner, LOWER(r.name) AS role_name
+                 FROM users u
+                 LEFT JOIN roles r ON r.id = u.role_id
+                 WHERE u.id = ? AND u.tenant_id = ?
+                 LIMIT 1'
+            );
+            $assignment->execute([(int) $userData['id'], $tenantId]);
+            $assignmentData = $assignment->fetch(PDO::FETCH_ASSOC);
+            if (!$assignmentData) {
+                throw new \DomainException('لا يمكنك الوصول إلى إعدادات هذا الفرع.');
+            }
+            $canManageAllBranches = !empty($assignmentData['is_owner'])
+                || $assignmentData['role_name'] === 'admin';
+            $assignedBranchId = $assignmentData['branch_id'];
+            if (!$canManageAllBranches
+                && ($assignedBranchId === null || (int) $assignedBranchId !== (int) $branchId)) {
+                throw new \DomainException('لا يمكنك الوصول إلى إعدادات فرع غير مخصص لحسابك.');
+            }
+        }
+
+        return (int) $branchId;
+    }
+
     /** Update the current tenant's settings for users with manage access. */
     public function updateSettings(Request $request, Response $response): Response
     {

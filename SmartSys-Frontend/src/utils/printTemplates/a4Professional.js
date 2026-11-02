@@ -1,12 +1,13 @@
 import { getPrintConfig } from './printConfig';
-import { esc, fmt, itemTotal, getCompanyData } from './printHelpers';
+import { esc, fmt, itemTotal, getCompanyData, isSaleTaxInclusive, saleGrandTotal } from './printHelpers';
 import { getLocalDateISO } from '@/utils';
 
-export const buildA4ProfessionalHtml = (sale) => {
-  const cfg     = getPrintConfig();
+export const buildA4ProfessionalHtml = (sale, options = {}) => {
+  const cfg     = getPrintConfig(options.config);
   const company = getCompanyData(sale);
+  const taxInclusive = isSaleTaxInclusive(sale);
 
-  const qrRaw = `INV:${sale.invoice_number || sale.id}|TOTAL:${fmt(sale.net_total_amount)}|DATE:${sale.sale_date || getLocalDateISO()}`;
+  const qrRaw = `INV:${sale.invoice_number || sale.id}|TOTAL:${fmt(saleGrandTotal(sale))}|DATE:${sale.sale_date || getLocalDateISO()}`;
 
   const rows = (sale.items || []).map((it, idx) => `
     <tr>
@@ -84,10 +85,10 @@ export const buildA4ProfessionalHtml = (sale) => {
   </table>
 
   <div class="totals">
-    <div><strong>الإجمالي:</strong> ${fmt(sale.total_amount)}</div>
+    <div><strong>إجمالي الأصناف:</strong> ${fmt(sale.total_amount)}</div>
     <div><strong>الخصم:</strong> ${fmt(sale.discount_value)}</div>
-    <div><strong>الضريبة:</strong> ${fmt(sale.tax_amount)}</div>
-    <div><strong>الصافي:</strong> ${fmt(sale.net_total_amount)}</div>
+    <div><strong>الضريبة${taxInclusive ? ' (ضمن الإجمالي)' : ''}:</strong> ${fmt(sale.tax_amount)}</div>
+    <div><strong>الإجمالي المستحق:</strong> ${fmt(saleGrandTotal(sale))}</div>
     <div><strong>المدفوع:</strong> ${fmt(sale.paid_amount)}</div>
   </div>
 

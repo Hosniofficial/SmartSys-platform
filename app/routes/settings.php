@@ -15,6 +15,14 @@ return function (RouteCollectorProxy $group, Container $container): void {
 
     $group->group('/settings', function (RouteCollectorProxy $group) use ($handler, $db) {
 
+        // Print configuration is intentionally readable by authenticated staff so invoices
+        // can use the current branch's settings without granting general settings access.
+        $group->get('/print', [$handler, 'getBranchPrintSettings']);
+        $group->put('/print', [$handler, 'updateBranchPrintSettings'])
+            ->add(PermissionMiddleware::require(Permissions::SETTINGS_MANAGE, $db));
+        $group->delete('/print', [$handler, 'resetBranchPrintSettings'])
+            ->add(PermissionMiddleware::require(Permissions::SETTINGS_MANAGE, $db));
+
         // Read — requires view OR manage, OR tenant owner (for initial setup)
         $group->get('', [$handler, 'getSettings'])
             ->add(PermissionMiddleware::anyOf([

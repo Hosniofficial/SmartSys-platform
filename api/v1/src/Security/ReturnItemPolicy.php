@@ -20,7 +20,8 @@ final class ReturnItemPolicy
         array $requestedItems,
         array $sourceItems,
         array $previousQuantities,
-        float $saleTaxRate = 0.0
+        float $saleTaxRate = 0.0,
+        bool $saleTaxInclusive = false
     ): array {
         if (!in_array($type, ['sale', 'purchase'], true)) {
             throw new DomainException('نوع المرتجع غير صالح.');
@@ -37,21 +38,13 @@ final class ReturnItemPolicy
             }
 
             $key = self::groupKey($productId, $unitId);
-            $netAmount = $type === 'sale'
-                ? (float) ($source['net_total'] ?? 0)
-                : max(0.0, (float) ($source['subtotal'] ?? 0) - (float) ($source['tax_amount'] ?? 0));
-            $taxAmount = $type === 'purchase' ? (float) ($source['tax_amount'] ?? 0) : 0.0;
             $groups[$key] ??= [
                 'product_id' => $productId,
                 'unit_id' => $unitId,
                 'quantity' => 0.0,
-                'net_amount' => 0.0,
-                'tax_amount' => 0.0,
                 'items' => [],
             ];
             $groups[$key]['quantity'] += $quantity;
-            $groups[$key]['net_amount'] += $netAmount;
-            $groups[$key]['tax_amount'] += $taxAmount;
             $groups[$key]['items'][] = $source;
 
             $sourceId = (int) ($source['id'] ?? 0);
@@ -61,6 +54,7 @@ final class ReturnItemPolicy
         }
 
         $requestedByGroup = [];
+        $requestedBySource = [];
         foreach ($requestedItems as $item) {
             $productId = (int) ($item['product_id'] ?? 0);
             $unitId = (int) ($item['unit_id'] ?? 0);
@@ -80,6 +74,7 @@ final class ReturnItemPolicy
                 if (($sourceById[$sourceId]['key'] ?? null) !== $key) {
                     throw new DomainException('بند المرتجع لا يتبع الفاتورة الأصلية.');
                 }
+                $requestedBySource[$sourceId] = ($requestedBySource[$sourceId] ?? 0.0) + $quantity;
             } elseif (count($groups[$key]['items']) > 1) {
                 throw new DomainException('يجب تحديد بند الفاتورة الأصلي لهذا الصنف قبل إرجاعه.');
             }
@@ -94,6 +89,26 @@ final class ReturnItemPolicy
             }
         }
 
+        $remainingBySource = [];
+        foreach ($groups as $key => $group) {
+            $previousRemaining = max(0.0, (float) ($previousQuantities[$key] ?? 0.0));
+            foreach ($group['items'] as $sourceItem) {
+                $sourceId = (int) ($sourceItem['id'] ?? 0);
+                if ($sourceId <= 0) {
+                    continue;
+                }
+                $sourceQuantity = (float) $sourceItem['quantity'];
+                $previousForSource = min($sourceQuantity, $previousRemaining);
+                $remainingBySource[$sourceId] = max(0.0, $sourceQuantity - $previousForSource);
+                $previousRemaining -= $previousForSource;
+            }
+        }
+        foreach ($requestedBySource as $sourceId => $quantity) {
+            if ($quantity > ($remainingBySource[$sourceId] ?? 0.0) + 0.0001) {
+                throw new DomainException('كمية الإرجاع تتجاوز الكمية المتبقية في بند الفاتورة الأصلي.');
+            }
+        }
+
         $normalized = [];
         $subtotal = 0.0;
         $tax = 0.0;
@@ -104,11 +119,30 @@ final class ReturnItemPolicy
             $sourceItem = !empty($item[$itemIdField])
                 ? $sourceById[(int) $item[$itemIdField]]['item']
                 : $group['items'][0];
-            $unitNet = $group['net_amount'] / $group['quantity'];
-            $lineNet = round($unitNet * (float) $item['quantity'], 2);
-            $lineTax = $type === 'sale'
-                ? round($lineNet * max(0.0, $saleTaxRate) / 100, 2)
-                : round(($group['tax_amount'] / $group['quantity']) * (float) $item['quantity'], 2);
+            $sourceQuantity = (float) $sourceItem['quantity'];
+            $sourceAmount = $type === 'sale'
+                ? (float) ($sourceItem['net_total'] ?? 0)
+                : max(0.0, (float) ($sourceItem['subtotal'] ?? 0) - (float) ($sourceItem['tax_amount'] ?? 0));
+            $sourceTaxAmount = $sourceItem['tax_amount'] ?? null;
+            if ($type === 'sale' && $saleTaxInclusive && $saleTaxRate > 0) {
+                $lineGross = round(
+                    ($sourceAmount / $sourceQuantity) * (float) $item['quantity'],
+                    2
+                );
+                $lineTax = $sourceTaxAmount !== null
+                    ? round(((float) $sourceTaxAmount / $sourceQuantity) * (float) $item['quantity'], 2)
+                    : round($lineGross - round($lineGross / (1 + ($saleTaxRate / 100)), 2), 2);
+                $lineNet = round($lineGross - $lineTax, 2);
+                $unitNet = $lineNet / (float) $item['quantity'];
+            } else {
+                $unitNet = $sourceAmount / $sourceQuantity;
+                $lineNet = round($unitNet * (float) $item['quantity'], 2);
+                $lineTax = $type === 'sale'
+                    ? ($sourceTaxAmount !== null
+                        ? round(((float) $sourceTaxAmount / $sourceQuantity) * (float) $item['quantity'], 2)
+                        : round($lineNet * max(0.0, $saleTaxRate) / 100, 2))
+                    : round(((float) ($sourceTaxAmount ?? 0) / $sourceQuantity) * (float) $item['quantity'], 2);
+            }
 
             $normalized[] = array_merge($item, [
                 'product_id' => $group['product_id'],

@@ -1719,14 +1719,28 @@ class AccountingService
         $returnStmt->execute([$saleId, $tenantId]);
         $returnAmount = round((float) $returnStmt->fetchColumn(), 2);
 
+        $cashRefundStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(paid_amount), 0) FROM returns
+             WHERE sale_id = ? AND tenant_id = ? AND return_type = 'sale'"
+        );
+        $cashRefundStmt->execute([$saleId, $tenantId]);
+        $cashRefundAmount = round((float) $cashRefundStmt->fetchColumn(), 2);
+
         $directReturnStmt = $this->db->prepare(
             "SELECT COUNT(*) FROM returns WHERE sale_id = ? AND tenant_id = ? AND return_type = 'sale'"
         );
         $directReturnStmt->execute([$saleId, $tenantId]);
         $hasDirectReturn = ((int) $directReturnStmt->fetchColumn()) > 0;
 
-        $outstanding = round(max(0.0, $grandTotal - $totalPaid - $returnCredits), 2);
-        $status      = $this->computeSaleStatus($grandTotal, $totalPaid, $returnAmount, $returnCredits, $hasDirectReturn);
+        $outstanding = SaleBalanceCalculator::remaining($grandTotal, $totalPaid, $cashRefundAmount, $returnCredits);
+        $status = $this->computeSaleStatus(
+            $grandTotal,
+            $totalPaid,
+            $returnAmount,
+            $returnCredits,
+            $hasDirectReturn,
+            $cashRefundAmount
+        );
 
         $this->db->prepare(
             "UPDATE sales SET paid_amount = ?, status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?"
@@ -1755,38 +1769,17 @@ class AccountingService
         float $paidAmount,
         float $returnAmount,
         float $returnCredits,
-        bool $hasDirectReturn
+        bool $hasDirectReturn,
+        float $cashRefundAmount = 0.0
     ): string {
-        if ($grandTotal <= 0) {
-            return 'paid';
-        }
-        if ($returnAmount >= $grandTotal) {
-            return 'returned';
-        }
-
-        $outstanding = max(0.0, round($grandTotal - $paidAmount - $returnCredits, 2));
-
-        if ($outstanding < 0.01) {
-            if ($paidAmount >= $grandTotal - 0.01) {
-                return ($hasDirectReturn || $returnAmount > 0.01) ? 'returned' : 'paid';
-            }
-            if ($paidAmount < 0.01) {
-                if ($returnCredits > 0.01 && !$hasDirectReturn) {
-                    return 'settled_by_credit';
-                }
-                return 'closed_by_return';
-            }
-            if ($returnCredits > 0.01 && $paidAmount > 0.01) {
-                return 'settled_mixed';
-            }
-            return 'closed_by_return';
-        }
-
-        if ($paidAmount <= 0) {
-            return 'pending_payment';
-        }
-
-        return 'partial';
+        return SaleBalanceCalculator::status(
+            $grandTotal,
+            $paidAmount,
+            $cashRefundAmount,
+            $returnAmount,
+            $returnCredits,
+            $hasDirectReturn
+        );
     }
 
     // ─── postDebtPaymentJournalEntry ──────────────────────────────────────────
