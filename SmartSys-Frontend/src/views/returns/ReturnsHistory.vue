@@ -127,14 +127,15 @@
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">عدد الأصناف</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">إجمالي المرتجع</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">النوع</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">إجراءات</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <template v-if="isLoadingReturns">
-                <tr v-for="n in 5" :key="n" class="animate-pulse"><td v-for="m in 7" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td></tr>
+                <tr v-for="n in 5" :key="n" class="animate-pulse"><td v-for="m in 8" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td></tr>
               </template>
-              <tr v-else-if="!rows.length"><td colspan="7" class="py-20 text-center text-slate-300"><i class="fas fa-box-open text-3xl mb-4 opacity-20"></i><p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير مرتجعات حتى الآن</p></td></tr>
+              <tr v-else-if="!rows.length"><td colspan="8" class="py-20 text-center text-slate-300"><i class="fas fa-box-open text-3xl mb-4 opacity-20"></i><p class="text-xs font-bold uppercase tracking-widest">لا توجد فواتير مرتجعات حتى الآن</p></td></tr>
               <tr v-for="r in rows" :key="r.id" class="hover:bg-blue-50/20 transition-all group">
                 <td class="px-6 py-4 text-xs font-bold text-slate-900 font-mono tracking-wider">{{ r.return_number || ('RET-' + String(r.id).padStart(4, '0')) }}</td>
                 <td class="px-4 py-4 text-xs font-bold text-slate-400 font-mono">{{ r.invoice_number || '-' }}</td>
@@ -146,6 +147,11 @@
                 <td class="px-4 py-4 text-center">
                   <span :class="[type === 'sales' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100']" class="px-2 py-0.5 rounded text-[9px] font-bold border">
                     {{ type === 'sales' ? 'مرتجع بيع' : 'مرتجع شراء' }}
+                  </span>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <span :class="returnStatusClass(r.status)" class="px-2 py-0.5 rounded text-[9px] font-bold border">
+                    {{ returnStatusLabel(r.status, r.status_label) }}
                   </span>
                 </td>
                 <td class="px-4 py-4 text-center">
@@ -347,6 +353,22 @@ const selectParty = (p) => {
 const hidePartyDropdown = () => filters.hideCustomerDropdown();
 
 const kpiCount = computed(() => filters.total.value || rows.value.length);
+const returnStatusLabel = (status, apiLabel = null) => ({
+  approved: 'معتمدة',
+  pending: 'قيد الانتظار',
+  pending_approval: 'تحت الاعتماد',
+  rejected: 'مرفوضة',
+  canceled: 'ملغاة',
+  cancelled: 'ملغاة',
+}[String(status || '').toLowerCase()] || apiLabel || 'غير معروفة');
+const returnStatusClass = (status) => ({
+  approved: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  pending: 'bg-amber-50 text-amber-700 border-amber-100',
+  pending_approval: 'bg-amber-50 text-amber-700 border-amber-100',
+  rejected: 'bg-rose-50 text-rose-700 border-rose-100',
+  canceled: 'bg-slate-100 text-slate-600 border-slate-200',
+  cancelled: 'bg-slate-100 text-slate-600 border-slate-200',
+}[String(status || '').toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200');
 const kpiSum = computed(() => rows.value.reduce((s, r) => s + parseFloat(r.grand_total || r.total_amount || r.total || 0), 0));
 const kpiTax = computed(() => {
   const any = rows.value.some(r => r.tax_amount != null);
