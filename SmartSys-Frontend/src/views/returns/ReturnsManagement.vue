@@ -26,12 +26,13 @@
       </PageHeader>
 
       <!-- KPI Summary Overview -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-6">
         <div v-for="kpi in [
           { label: 'إجمالي العمليات', val: stats.count, icon: 'fa-list-ol', color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'إجمالي القيمة', val: formatPrice(stats.total), icon: 'fa-money-bill-wave', color: 'text-rose-600', bg: 'bg-rose-50' },
+          { label: 'إجمالي قيمة المرتجعات شامل الضريبة', val: formatPrice(stats.total), icon: 'fa-money-bill-wave', color: 'text-rose-600', bg: 'bg-rose-50' },
+          { label: 'إجمالي ضريبة المرتجعات', val: formatPrice(stats.tax), icon: 'fa-percent', color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'نشاط اليوم (عدد)', val: stats.today, icon: 'fa-calendar-check', color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'قيمة مرتجع اليوم', val: formatPrice(stats.todayTotal), icon: 'fa-chart-line', color: 'text-emerald-600', bg: 'bg-emerald-50' }
+          { label: 'قيمة مرتجعات اليوم شامل الضريبة', val: formatPrice(stats.todayTotal), icon: 'fa-chart-line', color: 'text-emerald-600', bg: 'bg-emerald-50' }
         ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
           <div>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{{ kpi.label }}</p>
@@ -550,9 +551,11 @@ const stats = computed(() => {
   const todayReturns = returns.value.filter(r => isToday(r.created_at));
   const todayTotal = todayReturns.reduce((sum, r) => sum + parseFloat(r.grand_total || r.total_amount || r.total || r.amount || 0), 0);
   const totalVal = totalAmountFromAPI.value || returns.value.reduce((sum, r) => sum + parseFloat(r.grand_total || r.total_amount || r.total || r.amount || 0), 0);
+  const tax = returns.value.reduce((sum, r) => sum + parseFloat(r.tax_amount || 0), 0);
   return {
     count: totalCount.value || returns.value.length,
     total: totalVal,
+    tax,
     today: todayReturns.length,
     todayTotal: todayTotal
   };
