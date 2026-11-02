@@ -31,7 +31,6 @@
           { label: 'إجمالي العمليات', val: stats.count, icon: 'fa-list-ol', color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'إجمالي قيمة المرتجعات شامل الضريبة', val: formatPrice(stats.total), icon: 'fa-money-bill-wave', color: 'text-rose-600', bg: 'bg-rose-50' },
           { label: 'إجمالي ضريبة المرتجعات', val: formatPrice(stats.tax), icon: 'fa-percent', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'نشاط اليوم (عدد)', val: stats.today, icon: 'fa-calendar-check', color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'قيمة مرتجعات اليوم شامل الضريبة', val: formatPrice(stats.todayTotal), icon: 'fa-chart-line', color: 'text-emerald-600', bg: 'bg-emerald-50' }
         ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
           <div>
