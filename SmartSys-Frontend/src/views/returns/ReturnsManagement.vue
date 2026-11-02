@@ -172,7 +172,10 @@
                 </td>
                 <td class="px-4 py-4 text-xs font-bold text-rose-600">{{ formatPrice(r.grand_total || r.total_amount || 0) }}</td>
                 <td class="px-4 py-4 text-center">
-                  <span class="px-2 py-0.5 rounded text-[9px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-100">مكتمل</span>
+                  <span
+                    class="px-2 py-0.5 rounded text-[9px] font-bold border"
+                    :class="returnStatusClass(r.status)"
+                  >{{ returnStatusLabel(r.status, r.status_label) }}</span>
                 </td>
                 <td class="px-6 py-4 text-center">
                   <button @click="viewReturnDetails(r)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all flex items-center justify-center mx-auto shadow-sm">
@@ -557,6 +560,28 @@ const stats = computed(() => {
 
 // --- Formatting Helpers ---
 const formatPrice = (amount) => formatCurrencyLocale(amount, 2);
+const returnStatusLabel = (status, apiLabel = null) => {
+  const labels = {
+    approved: 'معتمدة',
+    pending: 'قيد الانتظار',
+    pending_approval: 'تحت الاعتماد',
+    rejected: 'مرفوضة',
+    canceled: 'ملغاة',
+    cancelled: 'ملغاة',
+  };
+  return labels[String(status || '').toLowerCase()] || apiLabel || 'غير معروفة';
+};
+const returnStatusClass = (status) => {
+  const classes = {
+    approved: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    pending: 'bg-amber-50 text-amber-700 border-amber-100',
+    pending_approval: 'bg-amber-50 text-amber-700 border-amber-100',
+    rejected: 'bg-rose-50 text-rose-700 border-rose-100',
+    canceled: 'bg-slate-100 text-slate-600 border-slate-200',
+    cancelled: 'bg-slate-100 text-slate-600 border-slate-200',
+  };
+  return classes[String(status || '').toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
+};
 const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 const formatReturnDateTime = (returnDate, createdAt) => {
