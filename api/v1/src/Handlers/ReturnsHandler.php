@@ -287,13 +287,15 @@ class ReturnsHandler extends BaseHandler
         }
 
         if ($search !== '') {
-            $query .= " AND (r.return_number LIKE ? OR c.name LIKE ? OR s.name LIKE ?)";
-            $countQuery .= " AND (r.return_number LIKE ? OR c.name LIKE ? OR s.name LIKE ?)";
+            $query .= " AND (r.return_number LIKE ? OR r.invoice_number LIKE ? OR c.name LIKE ? OR s.name LIKE ?)";
+            $countQuery .= " AND (r.return_number LIKE ? OR r.invoice_number LIKE ? OR c.name LIKE ? OR s.name LIKE ?)";
 
             $params[] = "%{$search}%";
             $params[] = "%{$search}%";
             $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
 
+            $countParams[] = "%{$search}%";
             $countParams[] = "%{$search}%";
             $countParams[] = "%{$search}%";
             $countParams[] = "%{$search}%";

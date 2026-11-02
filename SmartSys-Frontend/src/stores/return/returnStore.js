@@ -88,6 +88,7 @@ export const useReturnStore = defineStore('return', () => {
       const promise = (async () => {
         try {
           const params   = { page: String(page), per_page: String(perPage) };
+          params.type = type === 'sales' ? 'sale' : 'purchase';
 
           if (branchId) params.branch_id = String(branchId);
           if (status)   params.status    = status;

@@ -680,6 +680,13 @@ const handleSearchResultSelect = (result) => {
 // --- Watchers & Lifecycle ---
 
 watch(activeType, () => { currentPage.value = 1; search.value = ''; searchResults.value = []; loadReturns(); showCreateForm.value = false; });
+watch([dateFrom, dateTo, pageSize], () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1;
+    return;
+  }
+  loadReturns();
+});
 
 onMounted(async () => {
   await branchStore.initialize?.();
