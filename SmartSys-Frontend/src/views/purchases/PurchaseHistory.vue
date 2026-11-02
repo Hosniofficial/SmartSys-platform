@@ -32,8 +32,8 @@
       <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <div v-for="kpi in [
           { label: 'عدد الفواتير', val: kpiCount, icon: 'fa-file-invoice', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'إجمالي المشتريات', val: formatPrice(kpiSum), icon: 'fa-truck-loading', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'إجمالي الضريبة', val: formatPrice(kpiTax || 0), icon: 'fa-receipt', color: 'text-blue-600', bg: 'bg-blue-50', show: kpiTax != null },
+          { label: 'إجمالي المشتريات شامل الضريبة', val: formatPrice(kpiSum), icon: 'fa-truck-loading', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'إجمالي ضريبة المشتريات', val: formatPrice(kpiTax || 0), icon: 'fa-receipt', color: 'text-blue-600', bg: 'bg-blue-50', show: kpiTax != null },
           { label: 'إجمالي الخصومات', val: formatPrice(kpiDiscount || 0), icon: 'fa-tag', color: 'text-rose-600', bg: 'bg-rose-50', show: kpiDiscount != null }
         ].filter(k => k.show !== false)" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
           <div>

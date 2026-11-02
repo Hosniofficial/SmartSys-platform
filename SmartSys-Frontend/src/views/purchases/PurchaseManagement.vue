@@ -24,10 +24,11 @@
       </PageHeader>
 
       <!-- KPI Summary Overview -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <div v-for="kpi in [
           { label: 'إجمالي الفواتير', val: stats.totalPurchases, icon: 'fa-file-invoice', color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'إجمالي المبالغ', val: formatCurrency(stats.totalAmount), icon: 'fa-money-bill-wave', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'إجمالي المشتريات شامل الضريبة', val: formatCurrency(stats.totalAmount), icon: 'fa-money-bill-wave', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'إجمالي ضريبة المشتريات', val: formatCurrency(stats.taxAmount), icon: 'fa-percent', color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'الفواتير المعلقة', val: stats.pendingInvoices, icon: 'fa-clock', color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'الموردون النشطون', val: stats.activeSuppliers, icon: 'fa-truck', color: 'text-indigo-600', bg: 'bg-indigo-50' }
       ]" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all shadow-sm">
@@ -433,7 +434,7 @@ const {
 
 const purchases = ref([]); const suppliers = ref([]); const products = ref([]);
 const branches = computed(() => branchStore.branches);
-const stats = ref({ totalPurchases: 0, totalAmount: 0, pendingInvoices: 0, activeSuppliers: 0 });
+const stats = ref({ totalPurchases: 0, totalAmount: 0, taxAmount: 0, pendingInvoices: 0, activeSuppliers: 0 });
 const isLoading = ref(true); const selectedSupplier = ref('');
 const isSaving = ref(false); const isEditMode = ref(false);
 const pendingPurchaseStorageKey = `pending_purchase_create_request:${authStore.user?.tenant_id || 'no-tenant'}:${authStore.user?.id || 'no-user'}`;
@@ -538,6 +539,8 @@ const loadPurchases = async () => {
         totalPurchases: totalCount.value,
         totalAmount: purchases.value.reduce((s, p) =>
           s + (['cancelled', 'canceled', 'rejected'].includes(p.dynamic_status || p.status) ? 0 : parseFloat(p.total_amount || 0)), 0),
+        taxAmount: purchases.value.reduce((s, p) =>
+          s + (['cancelled', 'canceled', 'rejected'].includes(p.dynamic_status || p.status) ? 0 : parseFloat(p.tax_amount || 0)), 0),
         pendingInvoices: purchases.value.filter(p => p.status === 'pending').length,
         activeSuppliers: new Set(purchases.value.map(p => p.supplier_id)).size
       };
