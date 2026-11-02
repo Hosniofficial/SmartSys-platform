@@ -46,7 +46,7 @@
       <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <div v-for="kpi in [
           { label: 'عدد الفواتير', val: filters.total.value, icon: 'fa-clipboard-list', color: 'text-blue-600', bg: 'bg-blue-50', show: true },
-          { label: 'إجمالي المبيعات', val: formatPrice(filters.kpiSum.value), icon: 'fa-file-invoice-dollar', color: 'text-emerald-600', bg: 'bg-emerald-50', show: true },
+          { label: 'إجمالي المبيعات شامل الضريبة', val: formatPrice(filters.kpiSum.value), icon: 'fa-file-invoice-dollar', color: 'text-emerald-600', bg: 'bg-emerald-50', show: true },
           { label: 'إجمالي الضريبة', val: formatPrice(filters.kpiTax.value), icon: 'fa-percent', color: 'text-indigo-600', bg: 'bg-indigo-50', show: filters.kpiTax.value != null },
           { label: 'إجمالي الخصومات', val: formatPrice(filters.kpiDiscount.value), icon: 'fa-tags', color: 'text-rose-600', bg: 'bg-rose-50', show: filters.kpiDiscount.value != null }
         ].filter(k => k.show)" :key="kpi.label" class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between group hover:border-slate-300 transition-all">

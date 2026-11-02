@@ -206,9 +206,10 @@ export const useSalesStore = defineStore('sales', () => {
           const list     = Array.isArray(data) ? data : (data?.items || []);
           const summary  = data.summary || {};
           const kpiSum = pick([
-  data.sum_net_total, data.total_sum,
-  summary.sum_net_total, summary.net_total, summary.total,
-]) ?? list.reduce((s, v) => s + parseFloat((v.net_total_amount ?? v.total_amount) || 0), 0);
+  data.sum_gross_total,
+  summary.sum_gross_total,
+]) ?? list.reduce((s, v) => s
+  + parseFloat(v.total_amount || 0), 0);
           const kpiTax   = pick([data.sum_tax, data.total_tax, summary.sum_tax, summary.tax_total, summary.tax]);
           const kpiDiscount = pick([data.sum_discount, data.total_discount, summary.sum_discount, summary.discount_total, summary.discount]);
 

@@ -253,6 +253,7 @@ class SalesHandler extends BaseHandler
                     "SELECT
                         COALESCE(SUM(s.net_total_amount), 0) AS sum_net_total,
                         COALESCE(SUM(s.tax_amount), 0) AS sum_tax,
+                        COALESCE(SUM(COALESCE(s.net_total_amount, 0) + COALESCE(s.tax_amount, 0)), 0) AS sum_gross_total,
                         COALESCE(SUM(COALESCE(
                             (SELECT SUM(si.discount_value)
                              FROM sales_items si
@@ -268,6 +269,7 @@ class SalesHandler extends BaseHandler
                 $summary = $stmt->fetch(PDO::FETCH_ASSOC) ?: [
                     'sum_net_total' => 0,
                     'sum_tax' => 0,
+                    'sum_gross_total' => 0,
                     'sum_discount' => 0
                 ];
             }
