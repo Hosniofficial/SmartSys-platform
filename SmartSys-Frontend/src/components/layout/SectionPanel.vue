@@ -1,7 +1,7 @@
 <template>
   <aside
     v-if="section"
-    class="section-panel fixed top-14 md:top-16 z-30 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-[min(320px,calc(100vw-72px))] bg-white border-l border-slate-200 shadow-lg flex flex-col transition-[right] duration-200"
+    class="section-panel fixed top-14 md:top-16 z-50 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] w-[min(320px,calc(100vw-72px))] bg-white border-l border-slate-200 shadow-lg flex flex-col transition-[right] duration-200"
     :style="{ right: sidebarCollapsed ? '72px' : '256px' }"
     :aria-label="`التنقل داخل ${section.name}`"
   >

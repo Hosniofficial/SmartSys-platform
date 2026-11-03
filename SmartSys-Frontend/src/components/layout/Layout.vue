@@ -204,7 +204,7 @@
 
       <!-- Main Content -->
       <main 
-        class="flex-1 overflow-x-hidden overflow-y-auto custom-scroll relative bg-slate-50"
+        class="flex-1 overflow-x-hidden overflow-y-auto custom-scroll relative z-0 bg-slate-50"
         :class="{ 'md:mr-[72px]': sidebarCollapsed, 'md:mr-[256px]': !sidebarCollapsed }"
       >
         <WorkspaceTabs />
