@@ -26,7 +26,7 @@
       </PageHeader>
 
       <!-- KPI Summary Overview -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-6">
+      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         <div v-for="kpi in [
           { label: 'إجمالي العمليات', val: stats.count, icon: 'fa-list-ol', color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'إجمالي قيمة المرتجعات شامل الضريبة', val: formatPrice(stats.total), icon: 'fa-money-bill-wave', color: 'text-rose-600', bg: 'bg-rose-50' },

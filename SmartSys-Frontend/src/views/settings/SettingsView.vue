@@ -205,21 +205,6 @@
                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">إدارة نقاط البيع والورديات</h2>
             </div>
 
-            <!-- Terminal Redirect: Professional CTA Card -->
-            <div class="bg-slate-900 rounded-xl p-8 text-white shadow-xl relative overflow-hidden group">
-              <div class="absolute right-0 top-0 w-48 h-48 bg-blue-600/10 rounded-full translate-x-12 -translate-y-12 group-hover:scale-110 transition-transform duration-[2s]"></div>
-              <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                <div class="flex items-center gap-6">
-                  <div class="w-14 h-14 bg-white/10 rounded-xl flex items-center justify-center text-2xl text-blue-400 shadow-inner"><i class="fas fa-desktop"></i></div>
-                  <div>
-                    <h3 class="text-lg font-bold leading-none">تعريف الأجهزة (Terminals)</h3>
-                    <p class="text-xs text-slate-400 mt-2 font-medium">قم بربط أجهزة الكاشير بالمستودعات وتسميتها للتقارير.</p>
-                  </div>
-                </div>
-                <router-link :to="{ name: 'TerminalsManagement' }" class="h-10 px-8 bg-blue-600 text-white rounded-lg text-[11px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/40">إدارة الأجهزة</router-link>
-              </div>
-            </div>
-
             <!-- Configuration Grid -->
             <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm p-8 space-y-10">
 
