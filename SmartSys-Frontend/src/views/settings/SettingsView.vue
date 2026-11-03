@@ -201,8 +201,25 @@
           <!-- 2. POS SETTINGS                                             -->
           <!-- ════════════════════════════════════════════════════════════ -->
           <section v-if="activeTab === 'pos-settings'" class="animate-fadeIn space-y-8">
-            <div class="p-2 border-b border-slate-200">
-               <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">إدارة نقاط البيع والورديات</h2>
+            <div class="rounded-xl border border-blue-100 bg-gradient-to-l from-blue-50 via-white to-white px-6 py-5 shadow-sm">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-4">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+                    <i class="fas fa-cash-register text-lg"></i>
+                  </div>
+                  <div>
+                    <div class="mb-1 flex items-center gap-2">
+                      <h2 class="text-base font-bold text-slate-900">إدارة نقاط البيع والورديات</h2>
+                      <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold text-blue-700">POS</span>
+                    </div>
+                    <p class="text-[11px] leading-5 text-slate-500">تحكم في الجلسات، الورديات، صلاحيات البيع، وقواعد اعتماد الفواتير.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-500 sm:self-auto">
+                  <i class="fas fa-sliders text-blue-500"></i>
+                  إعدادات التشغيل
+                </div>
+              </div>
             </div>
 
             <!-- Configuration Grid -->
