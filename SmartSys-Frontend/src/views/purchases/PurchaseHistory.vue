@@ -331,6 +331,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import BaseModal from '@/components/BaseModal.vue';
+import LoadingButton from '@/components/ui/LoadingButton.vue';
 import { useHistoryFilters } from '@/composables/useHistoryFilters';
 import { useToast } from '@/composables/useToast';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';

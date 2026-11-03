@@ -208,6 +208,7 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth/authStore'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
+import LoadingButton from '@/components/ui/LoadingButton.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import AlertService from '@/services/AlertService'
 
