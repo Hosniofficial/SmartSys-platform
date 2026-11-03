@@ -259,7 +259,7 @@ const chartOptions = {
   plugins: { 
     legend: { display: false },
     tooltip: {
-      backgroundColor: '#0f172a',
+      backgroundColor: '#1e293b',
       padding: 12,
       titleFont: { family: 'Cairo', size: 12, weight: 'bold' },
       bodyFont: { family: 'Cairo', size: 11 },

@@ -298,7 +298,7 @@ async function printQuotation(row) {
     printWindow.document.write(`<!doctype html>
       <html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(quote.quote_number)}</title>
       <style>
-        body{font-family:Tahoma,Arial,sans-serif;margin:32px;color:#0f172a}
+        body{font-family:Tahoma,Arial,sans-serif;margin:32px;color:#1e293b}
         h1{margin:0 0 8px;font-size:24px} .meta{display:flex;gap:24px;margin:20px 0;color:#475569}
         table{width:100%;border-collapse:collapse;margin-top:20px} th,td{border:1px solid #cbd5e1;padding:9px;text-align:right}
         th{background:#f1f5f9} .total{margin-top:20px;font-size:18px;font-weight:bold;text-align:left}

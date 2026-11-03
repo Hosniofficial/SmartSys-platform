@@ -411,7 +411,7 @@ function initChart(chartRef, type, data, instanceRef) {
       tooltip: {
         rtl: true,
         textDirection: 'rtl',
-        backgroundColor: '#0f172a',
+        backgroundColor: '#1e293b',
         titleColor: '#cbd5e1',
         bodyColor: '#fff',
         padding: 12,
@@ -522,7 +522,7 @@ function initChart(chartRef, type, data, instanceRef) {
       context.fillStyle = '#94a3b8'
       context.font = '500 10px Cairo, sans-serif'
       context.fillText('إجمالي القيمة', centerX, centerY - 9)
-      context.fillStyle = '#0f172a'
+      context.fillStyle = '#1e293b'
       context.font = `700 ${valueFontSize}px Cairo, sans-serif`
       context.fillText(compactNumberFormat.format(topProductsTotal.value), centerX, centerY + 9)
       context.restore()

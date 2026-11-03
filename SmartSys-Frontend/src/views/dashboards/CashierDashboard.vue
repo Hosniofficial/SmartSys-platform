@@ -719,7 +719,7 @@ function initChart(chartRef, type, data, instanceRef) {
         tooltip: {
           rtl: true,
           textDirection: 'rtl',
-          backgroundColor: '#0f172a',
+          backgroundColor: '#1e293b',
           titleColor: '#cbd5e1',
           bodyColor: '#fff',
           padding: 12,
