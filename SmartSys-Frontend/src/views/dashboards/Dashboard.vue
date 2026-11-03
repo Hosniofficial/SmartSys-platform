@@ -51,17 +51,21 @@
             </button>
           </div>
 
-          <LoadingButton
-            text=""
-            loadingText=""
-            :showTextDuringLoad="false"
-            icon="fas fa-sync-alt"
-            :isLoading="isRefreshing || isLoading"
-            variant="secondary"
-            class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm hover:text-blue-600 hover:border-blue-200"
+          <button
+            type="button"
+            :disabled="isRefreshing || isLoading"
+            :aria-busy="isRefreshing || isLoading"
             aria-label="تحديث لوحة التحكم"
+            title="تحديث لوحة التحكم"
+            class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             @click="refresh"
-          />
+          >
+            <i
+              class="fas fa-sync-alt text-xs transition-transform duration-500"
+              :class="{ 'animate-spin': isRefreshing || isLoading }"
+              aria-hidden="true"
+            ></i>
+          </button>
         </template>
       </PageHeader>
 
@@ -256,7 +260,6 @@ import { useCompanyCurrency } from '@/composables/useCompanyCurrency'
 import { useBranchStore } from '@/stores/branch/branchStore'
 import { useSessionExemption } from '@/composables/useCashierSessionGuard'
 import PageHeader from '@/components/PageHeader.vue'
-import LoadingButton from '@/components/ui/LoadingButton.vue'
 
 Chart.register(Filler)
 
@@ -322,7 +325,7 @@ const quickAccessLinks = ref([
   { text: 'تحليلات المبيعات',  icon: 'fa fa-chart-bar',       to: '/reports/sales-analytics' },
   { text: 'نقطة البيع',        icon: 'fa fa-cash-register',   to: '/sales/pos' },
   { text: 'إدارة المخزون',     icon: 'fa fa-warehouse',       to: '/inventory' },
-  { text: 'كل التقارير',       icon: 'fa fa-chart-pie',       to: '/reports/accounting', highlighted: true }
+  { text: 'جلسات الكاشير',     icon: 'fa fa-clock',           to: '/sessions', highlighted: true }
 ])
 
 function formatCurrency(value) {

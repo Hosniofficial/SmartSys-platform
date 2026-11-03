@@ -24,18 +24,7 @@
             <i class="fas fa-filter text-[10px]"></i>
             {{ showFilters ? 'إخفاء الفلاتر' : 'تصفية الجلسات' }}
           </button>
-          <LoadingButton
-            text=""
-            loadingText=""
-            :showTextDuringLoad="false"
-            icon="fas fa-sync-alt"
-            :isLoading="loading"
-            variant="secondary"
-            class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-400 hover:text-blue-600"
-            aria-label="تحديث الجلسات"
-            @click="fetchData"
-          />
-          <button @click="openRenameDevice" class="h-9 px-4 rounded-md bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50">
+          <button @click="openRenameDevice" title="تسمية نقطة البيع الحالية" class="h-9 px-4 rounded-md bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50">
             <i class="fas fa-edit ml-1.5 text-[10px]"></i> تسمية الجهاز
           </button>
         </template>
@@ -264,98 +253,87 @@
       </div>
     </div>
 
-    <!-- Details Sidebar Drawer: Standardized side panel -->
-    <transition name="drawer">
-      <div v-if="detailsSession" class="fixed inset-0 z-[120] flex justify-end bg-slate-900/60 backdrop-blur-sm" @click="detailsSession = null">
-        <div class="w-full max-w-xl h-full bg-white shadow-2xl flex flex-col overflow-hidden animate-slide-in-right" @click.stop>
-          <!-- Drawer Header -->
-          <div class="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+    <HistoryDetailsModal
+      :show="!!detailsSession"
+      @close="detailsSession = null"
+      title="تفاصيل الجلسة المالية"
+      subtitle="مراجعة حالة الجلسة والحركات النقدية والفروقات"
+      icon="fas fa-clock"
+      maxWidth="4xl"
+    >
+      <template v-if="detailsSession">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white text-xs font-bold">{{ detailsSession.id }}</div>
+            <div>
+              <p class="text-xs font-bold text-slate-900">{{ getbranchName(detailsSession.branch_id) }}</p>
+              <p class="text-[10px] text-slate-400 font-medium mt-0.5">محطة: {{ deviceLabel(detailsSession) }}</p>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span :class="[detailsSession.status === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/40 text-slate-300 border-slate-600/50', 'px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-widest']">
+                {{ statusLabel(detailsSession.status) }}
+              </span>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ formatDate(detailsSession.start_time) }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
+              <i class="fas fa-clock text-slate-500"></i>
+              <span>{{ formatTime(detailsSession.start_time) }}</span>
+              <span class="text-slate-600 mx-1">→</span>
+              <span v-if="detailsSession.end_time">{{ formatTime(detailsSession.end_time) }}</span>
+              <span v-else class="text-emerald-400 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> الآن
+              </span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mt-6">
+            <div v-for="info in [
+              { l: 'الرصيد الافتتاحي', v: summaries[detailsSession.id]?.calculated?.opening_balance, c: 'text-slate-600' },
+              { l: 'إجمالي المبيعات', v: summaries[detailsSession.id]?.totals?.cash_in, c: 'text-emerald-600' },
+              { l: 'إجمالي المصروفات', v: summaries[detailsSession.id]?.totals?.cash_out, c: 'text-rose-600' },
+              { l: 'المتوقع حالياً', v: summaries[detailsSession.id]?.calculated?.expected_cash, c: 'text-blue-600 font-black' }
+            ]" :key="info.l" class="p-4 rounded-lg bg-slate-50 border border-slate-100 space-y-1">
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ info.l }}</p>
+              <p :class="[info.c, 'text-sm font-bold font-mono tracking-tighter']">{{ formatCurrency(info.v || 0) }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-3 mt-8">
+            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">سجل الحركات النقدية</h3>
+            <div class="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+              <table class="w-full text-right text-xs">
+                <thead><tr class="bg-slate-50 border-b border-slate-100"><th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الوقت</th><th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">النوع</th><th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase text-left">المبلغ</th></tr></thead>
+                <tbody class="divide-y divide-slate-50">
+                  <tr v-for="tx in transactions[detailsSession.id]" :key="tx.id" class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 text-slate-400 font-mono">{{ formatTime(tx.created_at) }}</td>
+                    <td class="px-4 py-3 font-bold text-slate-700">
+                      {{ getTransactionTypeLabel(tx.type) }}
+                      <span v-if="tx.status === 'cancelled'" class="mr-1 text-[9px] text-slate-400">ملغاة</span>
+                    </td>
+                    <td class="px-4 py-3 text-left font-bold font-mono" :class="tx.status === 'cancelled' ? 'text-slate-400 line-through' : (isExpense(tx.type) ? 'text-rose-600' : 'text-emerald-600')">
+                      <span v-if="tx.status !== 'cancelled'">{{ isExpense(tx.type) ? '-' : '+' }}</span>{{ formatCurrency(tx.amount) }}
+                    </td>
+                  </tr>
+                  <tr v-if="!transactions[detailsSession.id]?.length"><td colspan="3" class="py-8 text-center text-slate-300 italic text-[10px]">لا توجد حركات مسجلة لهذه الجلسة</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div v-if="summaries[detailsSession.id]?.calculated?.variance_amount" class="mt-8 p-6 rounded-xl bg-amber-50 border border-amber-100 space-y-3 shadow-inner">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white text-xs font-bold">{{ detailsSession.id }}</div>
-              <div>
-                <h2 class="text-sm font-bold text-slate-900 uppercase">تفاصيل الجلسة المالية</h2>
-                <p class="text-[10px] text-slate-400 font-medium mt-0.5">
-                  {{ getbranchName(detailsSession.branch_id) }}
-                  <span class="mx-1 text-slate-200">|</span>
-                  محطة: {{ deviceLabel(detailsSession) }}
-                </p>
-              </div>
+              <h4 class="text-[10px] font-bold text-amber-800 uppercase tracking-widest">تقرير الفروقات والتصفية</h4>
+              <span class="text-sm font-bold text-amber-900 font-mono tracking-tighter">{{ formatCurrency(summaries[detailsSession.id].calculated.variance_amount) }}</span>
             </div>
-            <button @click="detailsSession = null" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times"></i></button>
+            <p class="text-xs text-amber-700 leading-relaxed italic border-t border-amber-200/50 pt-3">{{ summaries[detailsSession.id]?.session?.variance_reason || 'تم إغلاق الجلسة دون تبرير للفروقات المذكورة.' }}</p>
           </div>
-
-          <!-- Drawer Body -->
-          <div class="flex-grow overflow-y-auto custom-scroll p-8 space-y-10">
-
-            <!-- Session Status Header -->
-            <div class="bg-slate-900 rounded-xl p-5 space-y-3">
-              <div class="flex items-center justify-between">
-                <span :class="[detailsSession.status === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/40 text-slate-300 border-slate-600/50', 'px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-widest']">
-                  {{ statusLabel(detailsSession.status) }}
-                </span>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ formatDate(detailsSession.start_time) }}</span>
-              </div>
-              <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
-                <i class="fas fa-clock text-slate-500"></i>
-                <span>{{ formatTime(detailsSession.start_time) }}</span>
-                <span class="text-slate-600 mx-1">→</span>
-                <span v-if="detailsSession.end_time">{{ formatTime(detailsSession.end_time) }}</span>
-                <span v-else class="text-emerald-400 flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> الآن
-                </span>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div v-for="info in [
-                { l: 'الرصيد الافتتاحي', v: summaries[detailsSession.id]?.calculated?.opening_balance, c: 'text-slate-600' },
-                { l: 'إجمالي المبيعات', v: summaries[detailsSession.id]?.totals?.cash_in, c: 'text-emerald-600' },
-                { l: 'إجمالي المصروفات', v: summaries[detailsSession.id]?.totals?.cash_out, c: 'text-rose-600' },
-                { l: 'المتوقع حالياً', v: summaries[detailsSession.id]?.calculated?.expected_cash, c: 'text-blue-600 font-black' }
-              ]" :key="info.l" class="p-4 rounded-lg bg-slate-50 border border-slate-100 space-y-1">
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ info.l }}</p>
-                <p :class="[info.c, 'text-sm font-bold font-mono tracking-tighter']">{{ formatCurrency(info.v || 0) }}</p>
-              </div>
-            </div>
-
-            <!-- Transaction Table -->
-            <div class="space-y-3">
-              <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">سجل الحركات النقدية</h3>
-              <div class="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
-                <table class="w-full text-right text-xs">
-                  <thead><tr class="bg-slate-50 border-b border-slate-100"><th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">الوقت</th><th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">النوع</th><th class="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase text-left">المبلغ</th></tr></thead>
-                  <tbody class="divide-y divide-slate-50">
-                    <tr v-for="tx in transactions[detailsSession.id]" :key="tx.id" class="hover:bg-slate-50 transition-colors">
-                      <td class="px-4 py-3 text-slate-400 font-mono">{{ formatTime(tx.created_at) }}</td>
-                      <td class="px-4 py-3 font-bold text-slate-700">
-                        {{ getTransactionTypeLabel(tx.type) }}
-                        <span v-if="tx.status === 'cancelled'" class="mr-1 text-[9px] text-slate-400">ملغاة</span>
-                      </td>
-                      <td class="px-4 py-3 text-left font-bold font-mono" :class="tx.status === 'cancelled' ? 'text-slate-400 line-through' : (isExpense(tx.type) ? 'text-rose-600' : 'text-emerald-600')">
-                        <span v-if="tx.status !== 'cancelled'">{{ isExpense(tx.type) ? '-' : '+' }}</span>{{ formatCurrency(tx.amount) }}
-                      </td>
-                    </tr>
-                    <tr v-if="!transactions[detailsSession.id]?.length"><td colspan="3" class="py-8 text-center text-slate-300 italic text-[10px]">لا توجد حركات مسجلة لهذه الجلسة</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- Variance Report -->
-            <div v-if="summaries[detailsSession.id]?.calculated?.variance_amount" class="p-6 rounded-xl bg-amber-50 border border-amber-100 space-y-3 shadow-inner">
-               <div class="flex items-center justify-between">
-                  <h4 class="text-[10px] font-bold text-amber-800 uppercase tracking-widest">تقرير الفروقات والتصفية</h4>
-                  <span class="text-sm font-bold text-amber-900 font-mono tracking-tighter">{{ formatCurrency(summaries[detailsSession.id].calculated.variance_amount) }}</span>
-               </div>
-               <p class="text-xs text-amber-700 leading-relaxed italic border-t border-amber-200/50 pt-3">{{ summaries[detailsSession.id]?.session?.variance_reason || 'تم إغلاق الجلسة دون تبرير للفروقات المذكورة.' }}</p>
-            </div>
-          </div>
-          
-          <div class="px-8 py-5 bg-slate-900 border-t border-white/10 flex justify-end shrink-0">
-             <button @click="detailsSession = null" class="h-10 px-8 rounded-md bg-white/10 text-white hover:bg-white/20 text-xs font-bold transition-all uppercase tracking-widest">إغلاق الجلسة</button>
-          </div>
-        </div>
-      </div>
-    </transition>
+      </template>
+      <template #footer>
+        <button @click="detailsSession = null" class="h-10 px-8 rounded-md bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold transition-all">إغلاق</button>
+      </template>
+    </HistoryDetailsModal>
 
     <!-- Rename Device Modal -->
     <transition name="fade">
@@ -392,7 +370,7 @@ import { useHistoryFilters } from '@/composables/useHistoryFilters';
 import { getLocalDateISO } from '@/utils';
 
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
-import LoadingButton from '@/components/ui/LoadingButton.vue';
+import HistoryDetailsModal from '@/components/HistoryDetailsModal.vue';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
 import PageHeader from '@/components/PageHeader.vue';
 import PaginationControls from '@/components/ui/PaginationControls.vue';
@@ -586,7 +564,4 @@ onMounted(async () => {
 @keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 .animate-modalIn { animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 
-/* Drawer Slide */
-.drawer-enter-active, .drawer-leave-active { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.drawer-enter-from, .drawer-leave-to { transform: translateX(-100%); }
 </style>

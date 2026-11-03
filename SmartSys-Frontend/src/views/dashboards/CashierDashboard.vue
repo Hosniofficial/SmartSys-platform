@@ -31,18 +31,17 @@
                 <span class="text-slate-300">•</span>
                 <span class="font-mono text-slate-700">{{ currentTime }}</span>
               </span>
-              <LoadingButton
-                text=""
-                loadingText=""
-                :showTextDuringLoad="false"
-                icon="fas fa-sync-alt"
-                :isLoading="isLoadingData"
-                variant="secondary"
-                class="h-9 w-9 shrink-0 rounded-lg border border-slate-200 bg-white p-0 text-slate-400 shadow-sm hover:text-blue-600"
+              <button
+                type="button"
+                :disabled="isLoadingData"
+                :aria-busy="isLoadingData"
                 aria-label="تحديث لوحة التحكم"
                 title="تحديث لوحة التحكم"
+                class="h-9 w-9 shrink-0 rounded-lg border border-slate-200 bg-white p-0 text-slate-400 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 @click="handleRefresh"
-              />
+              >
+                <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoadingData }" aria-hidden="true"></i>
+              </button>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-600 whitespace-nowrap">

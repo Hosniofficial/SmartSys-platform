@@ -51,20 +51,22 @@
           />
           <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
         </div>
-        <select v-model="statusFilter" class="h-10 rounded-lg border border-slate-200 px-3 text-sm font-bold" @change="loadQuotations(1)">
+        <select v-model="statusFilter" class="h-9 rounded-md border border-slate-200 px-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500" @change="loadQuotations(1)">
           <option value="">كل العروض</option>
           <option value="active">سارية</option>
           <option value="expired">منتهية</option>
         </select>
-        <LoadingButton
-          text="تحديث"
-          loadingText="جاري التحديث..."
-          icon="fas fa-sync-alt"
-          :isLoading="isLoading"
-          variant="secondary"
-          class="h-10 rounded-lg px-4 text-sm"
+        <button
+          type="button"
+          :disabled="isLoading"
+          :aria-busy="isLoading"
+          aria-label="تحديث العروض"
+          title="تحديث العروض"
+          class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           @click="loadQuotations(1)"
-        />
+        >
+          <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoading }" aria-hidden="true"></i>
+        </button>
       </div>
 
       <div v-if="error" role="alert" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{{ error }}</div>
@@ -159,7 +161,6 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import PageHeader from '@/components/PageHeader.vue';
-import LoadingButton from '@/components/ui/LoadingButton.vue';
 import { useSalesStore } from '@/stores/sales/salesStore';
 import { useToast } from '@/composables/useToast';
 

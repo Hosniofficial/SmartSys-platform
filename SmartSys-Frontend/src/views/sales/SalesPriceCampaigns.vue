@@ -76,7 +76,25 @@
                 </label>
                 <label class="space-y-1.5">
                   <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">الأولوية</span>
-                  <input v-model.number="form.priority" type="number" min="-100" max="100" class="filter-input" />
+                  <select v-model="priorityPreset" class="filter-input">
+                    <option value="100">قصوى (100)</option>
+                    <option value="50">عالية (50)</option>
+                    <option value="0">عادية (0)</option>
+                    <option value="-50">منخفضة (-50)</option>
+                    <option value="-100">الأدنى (-100)</option>
+                    <option value="custom">قيمة مخصصة</option>
+                  </select>
+                  <input
+                    v-if="priorityPreset === 'custom'"
+                    v-model.number="form.priority"
+                    type="number"
+                    min="-100"
+                    max="100"
+                    step="1"
+                    class="filter-input mt-2"
+                    placeholder="من -100 إلى 100"
+                  />
+                  <span class="block text-[9px] font-medium text-slate-400">القيمة الأكبر تُطبق أولًا عند تعارض الحملات.</span>
                 </label>
                 <label class="space-y-1.5">
                   <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">تاريخ البداية</span>
@@ -181,20 +199,22 @@
       <!-- Search & Filter Controls -->
       <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row">
         <input v-model="search" class="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-400" placeholder="ابحث باسم الحملة..." @keydown.enter="loadCampaigns(1)" />
-        <select v-model="statusFilter" class="h-10 rounded-lg border border-slate-200 px-3 text-sm font-bold" @change="loadCampaigns(1)">
+        <select v-model="statusFilter" class="h-9 rounded-md border border-slate-200 px-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500" @change="loadCampaigns(1)">
           <option value="">كل الحالات</option>
           <option value="active">نشطة</option>
           <option value="paused">متوقفة</option>
         </select>
-        <LoadingButton
-          text="تحديث"
-          loadingText="جاري التحديث..."
-          icon="fas fa-sync-alt"
-          :isLoading="isLoading"
-          variant="secondary"
-          class="h-10 rounded-lg px-4 text-sm"
+        <button
+          type="button"
+          :disabled="isLoading"
+          :aria-busy="isLoading"
+          aria-label="تحديث الحملات"
+          title="تحديث الحملات"
+          class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           @click="loadCampaigns(1)"
-        />
+        >
+          <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoading }" aria-hidden="true"></i>
+        </button>
       </div>
 
       <div v-if="error" role="alert" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{{ error }}</div>
@@ -210,6 +230,7 @@
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">النطاق</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الفترة</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المنتجات</th>
+                <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center" title="القيمة الأكبر تعني أولوية أعلى عند تعارض الحملات">الأولوية</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الإجراء</th>
               </tr>
@@ -217,11 +238,11 @@
             <tbody class="divide-y divide-slate-100">
               <template v-if="isLoading">
                 <tr v-for="n in 5" :key="n" class="animate-pulse">
-                  <td v-for="m in 7" :key="m" class="px-5 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                  <td v-for="m in 8" :key="m" class="px-5 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
                 </tr>
               </template>
               <tr v-else-if="!campaigns.length" class="hover:bg-blue-50/20 transition-all">
-                <td colspan="7" class="py-20 text-center text-slate-300">
+                <td colspan="8" class="py-20 text-center text-slate-300">
                    <i class="fas fa-chart-line text-3xl mb-4 opacity-20"></i>
                    <p class="text-xs font-bold uppercase tracking-widest">لا توجد حملات سعرية حتى الآن</p>
                 </td>
@@ -233,6 +254,17 @@
                 <td class="px-5 py-3 font-mono text-[10px] text-slate-500">{{ formatDate(campaign.start_date) }} — {{ formatDate(campaign.end_date) }}</td>
                 <td class="px-5 py-3">
                   <span class="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-bold text-slate-500">{{ Number(campaign.product_count) || 0 }}</span>
+                </td>
+                <td class="px-5 py-3 text-center">
+                  <span
+                    :class="priorityClass(campaign.priority)"
+                    class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[9px] font-bold"
+                    :title="`الأولوية ${Number(campaign.priority) || 0}: القيمة الأكبر تُطبق أولًا عند تعارض الحملات`"
+                  >
+                    <i :class="priorityIcon(campaign.priority)" class="text-[8px]" aria-hidden="true"></i>
+                    {{ priorityLabel(campaign.priority) }}
+                    <b class="font-black">({{ Number(campaign.priority) || 0 }})</b>
+                  </span>
                 </td>
                 <td class="px-5 py-3 text-center">
                   <span :class="campaign.status === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'" class="rounded-full border px-2.5 py-1 text-[9px] font-bold">
@@ -331,6 +363,15 @@ const form = ref({
   start_date: localDate,
   end_date: endDate,
   items: [],
+});
+const priorityPreset = computed({
+  get() {
+    const priority = Number(form.value.priority);
+    return [-100, -50, 0, 50, 100].includes(priority) ? String(priority) : 'custom';
+  },
+  set(value) {
+    if (value !== 'custom') form.value.priority = Number(value);
+  },
 });
 
 async function loadCampaigns(nextPage = page.value) {
@@ -487,6 +528,27 @@ function formatDate(value) {
   if (!value) return '-';
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('ar-EG');
+}
+
+function priorityLabel(value) {
+  const priority = Number(value) || 0;
+  if (priority > 0) return 'عالية';
+  if (priority < 0) return 'منخفضة';
+  return 'عادية';
+}
+
+function priorityClass(value) {
+  const priority = Number(value) || 0;
+  if (priority > 0) return 'border-rose-200 bg-rose-50 text-rose-700';
+  if (priority < 0) return 'border-slate-200 bg-slate-100 text-slate-600';
+  return 'border-blue-200 bg-blue-50 text-blue-700';
+}
+
+function priorityIcon(value) {
+  const priority = Number(value) || 0;
+  if (priority > 0) return 'fas fa-arrow-up';
+  if (priority < 0) return 'fas fa-arrow-down';
+  return 'fas fa-minus';
 }
 
 onMounted(async () => {
