@@ -7,7 +7,7 @@
     <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
       
       <PageHeader
-        :breadcrumb="{ parent: 'النظام والتدقيق', current: 'سلامة البيانات' }"
+        :breadcrumb="{ parent: { label: 'النظام والتدقيق', path: '/users' }, current: 'سلامة البيانات' }"
         title="الربط والنزاهة المحاسبية"
         description="اكتشف مشكلات الربط مع دليل الحسابات، وراجعها وعالجها لضمان تسجيل القيود المحاسبية الآلية بشكل صحيح."
         :branches="[]"

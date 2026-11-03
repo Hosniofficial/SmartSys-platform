@@ -5,7 +5,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'تقرير حركة المخزون', path: '/reports/inventory-movements' } }"
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports/sales-analytics' }, current: 'تقرير حركة المخزون' }"
         title="تقرير حركة المخزون"
         description="تتبع الوارد والمنصرف واللوجستيات"
         :branches="branches"

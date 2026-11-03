@@ -8,7 +8,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'تحليلات المبيعات', path: '/reports/sales-analytics' } }"
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports/sales-summary' }, current: 'تحليلات المبيعات' }"
         title="مركز تحليلات المبيعات"
         description="ذكاء الأعمال • تحليل الإيرادات والربحية"
         :branches="branches"

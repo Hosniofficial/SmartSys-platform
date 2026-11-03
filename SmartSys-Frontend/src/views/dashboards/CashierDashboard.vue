@@ -6,7 +6,7 @@
 
     <main class="max-w-[1600px] mx-auto p-6 lg:p-8 space-y-8">
       <PageHeader
-        :breadcrumb="{ parent: { label: 'الرئيسية', path: '/' }, current: 'لوحة تحكم الكاشير' }"
+        :breadcrumb="{ parent: { label: 'الرئيسية', path: '/dashboard' }, current: 'لوحة تحكم الكاشير' }"
         :title="`أهلًا، ${cashierName} 👋`"
         :description="`تابع مبيعاتك، وحركة النقدية وحالة الوردية من مكان واحد.`"
         :branches="[]"

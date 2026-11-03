@@ -32,7 +32,7 @@
 
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'الرئيسية', path: '/' }, current: { label: 'لوحة تحكم المدير', path: '/dashboard' } }"
+        :breadcrumb="{ parent: { label: 'الرئيسية', path: '/dashboard' }, current: 'لوحة تحكم المدير' }"
         :title="`أهلًا، ${username} 👋`"
         :description="`تابع أداء متجرك، وراجع المبيعات والأرباح والمخزون وحالة العمليات من مكان واحد.`"
         :branches="branches"

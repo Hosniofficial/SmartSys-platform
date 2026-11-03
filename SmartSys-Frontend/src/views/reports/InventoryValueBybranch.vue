@@ -8,7 +8,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'توزيع قيمة المخزون', path: '/reports/inventory-by-branch' } }"
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports/sales-analytics' }, current: 'توزيع قيمة المخزون' }"
         title="توزيع قيمة المخزون"
         description="تحليل الأصول وتوزيع السيولة عبر الفروع"
         :branches="branches"

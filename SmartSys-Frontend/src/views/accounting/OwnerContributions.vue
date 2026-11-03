@@ -8,7 +8,7 @@
 
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: 'المالية', current: 'مساهمات المالك' }"
+        :breadcrumb="{ parent: { label: 'المالية', path: '/payments' }, current: 'مساهمات المالك' }"
         title="مساهمات المالك"
         description="سجّل مساهمات المالك في رأس المال وقروضه للمنشأة، وراجع العمليات المالية المرتبطة بها وقيود عكسها."
         :branches="[]"

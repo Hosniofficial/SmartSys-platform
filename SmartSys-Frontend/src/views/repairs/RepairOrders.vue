@@ -8,7 +8,7 @@
 
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: 'العمليات', current: 'صيانة الأجهزة' }"
+        :breadcrumb="{ parent: { label: 'العمليات', path: '/warranty' }, current: 'صيانة الأجهزة' }"
         title="صيانة الأجهزة"
         description="أدر عمليات استلام الأجهزة وإصلاحها، وفوترة قطع الغيار وأجور الصيانة، وتوثيق التسليم."
         :branches="canSelectBranch ? branches : []"

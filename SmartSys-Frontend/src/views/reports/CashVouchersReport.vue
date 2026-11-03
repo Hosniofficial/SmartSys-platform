@@ -8,7 +8,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'تقرير الصرف والقبض', path: '/reports/cash-vouchers' } }"
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports/sales-analytics' }, current: 'تقرير الصرف والقبض' }"
         title="تقرير الصرف والقبض"
         description="تحليل السيولة والتدفقات النقدية اللحظية"
         :branches="canSelectBranch ? branches : []"

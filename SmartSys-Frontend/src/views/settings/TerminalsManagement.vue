@@ -8,7 +8,7 @@
       <div class="mx-auto max-w-[1600px]">
         <PageHeader
           class="border-0 pb-0"
-          :breadcrumb="{ parent: 'الإعدادات', current: 'أجهزة نقاط البيع' }"
+          :breadcrumb="{ parent: { label: 'الإعدادات', path: '/settings/details' }, current: 'أجهزة نقاط البيع' }"
           title="إدارة أجهزة نقاط البيع"
           description="تعريف ومراقبة محطات الكاشير (Terminals)"
           :branches="[]"

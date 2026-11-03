@@ -8,7 +8,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'التقارير المالية والمحاسبية', path: '/reports/accounting' } }"
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports/sales-analytics' }, current: 'التقارير المالية والمحاسبية' }"
         title="التقارير المالية والمحاسبية"
         description="موازين المراجعة والقوائم الختامية • IAS/IFRS Compliant"
         :branches="branches"

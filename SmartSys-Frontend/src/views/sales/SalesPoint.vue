@@ -7,7 +7,7 @@
     <div class="max-w-[1700px] mx-auto p-5 lg:p-8 space-y-6 animate-fadeIn">
       
       <PageHeader
-        :breadcrumb="{ parent: 'المبيعات', current: 'نقطة البيع' }"
+        :breadcrumb="{ parent: { label: 'المبيعات', path: '/sales/history' }, current: 'نقطة البيع' }"
         title="نقطة البيع"
         description="ابحث عن المنتجات، وجهّز سلة البيع، ثم أصدر الفاتورة وسجّل عملية التحصيل."
         :branches="[]"

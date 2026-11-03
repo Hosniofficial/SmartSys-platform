@@ -7,7 +7,7 @@
     <div class="max-w-[1600px] mx-auto p-6 lg:p-10 space-y-8">
       
       <PageHeader
-        :breadcrumb="{ parent: 'المالية', current: 'الفترات المحاسبية' }"
+        :breadcrumb="{ parent: { label: 'المالية', path: '/payments' }, current: 'الفترات المحاسبية' }"
         title="إدارة الفترات المحاسبية"
         description="أدر الفترات المحاسبية، وتحكّم في فتحها وإغلاقها وتحديد إمكانية تسجيل القيود والعمليات المالية خلالها."
         :branches="[]"

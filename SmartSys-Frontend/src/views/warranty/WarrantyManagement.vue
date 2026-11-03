@@ -8,7 +8,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: 'العمليات', current: 'طلبات الضمان' }"
+        :breadcrumb="{ parent: { label: 'العمليات', path: '/repairs' }, current: 'طلبات الضمان' }"
         title="إدارة الضمان"
         description="تابع مطالبات الضمان، وتحقّق من صلاحية التغطية، وراجع حالة الطلبات وسجلات الضمان."
         :branches="branches"

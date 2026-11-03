@@ -385,11 +385,31 @@ function buildBreadcrumbMap() {
 
   const map = {}
 
-  function traverse(items, sectionName) {
+  function findFirstPath(items) {
+    for (const item of items) {
+      if (item.path && !item.path.includes(':')) return item.path.split('?')[0]
+      if (item.items) {
+        const nestedPath = findFirstPath(item.items)
+        if (nestedPath) return nestedPath
+      }
+    }
+    return null
+  }
+
+  function traverse(items, sectionName, sectionPath = null) {
     items.forEach(item => {
       if (item.path) {
         const basePath = item.path.split('?')[0]
+        const breadcrumbItems = []
+        if (sectionName) {
+          breadcrumbItems.push({
+            label: sectionName,
+            ...(sectionPath ? { path: sectionPath } : {})
+          })
+        }
+        breadcrumbItems.push({ label: item.name, path: basePath })
         map[basePath] = {
+          items: breadcrumbItems,
           section: sectionName,
           label: item.name,
           access: item.access || 'user',
@@ -398,16 +418,19 @@ function buildBreadcrumbMap() {
           permissionsMode: item.permissionsMode
         }
       }
-      if (item.items) traverse(item.items, item.name || sectionName)
+      if (item.items) {
+        traverse(item.items, item.name || sectionName, item.path || sectionPath)
+      }
     })
   }
 
   menuConfig.forEach(section => {
     if (section.items) {
-      traverse(section.items, section.name)
+      traverse(section.items, section.name, section.path || findFirstPath(section.items))
     } else if (section.path) {
       const basePath = section.path.split('?')[0]
       map[basePath] = {
+        items: [{ label: section.name }],
         section: section.name,
         label: section.name,
         access: section.access || 'user',
@@ -418,8 +441,16 @@ function buildBreadcrumbMap() {
     }
 
     if (section.relatedRoutes && section.relatedRoutes.length > 0) {
+      const sectionPath = section.path || (section.items ? findFirstPath(section.items) : null)
       section.relatedRoutes.forEach(route => {
         map[route.path] = {
+          items: [
+            {
+              label: section.name,
+              ...(sectionPath ? { path: sectionPath } : {})
+            },
+            { label: route.label || section.name }
+          ],
           section: section.name,
           label: route.label || section.name,
           access: route.access || section.access || 'user',

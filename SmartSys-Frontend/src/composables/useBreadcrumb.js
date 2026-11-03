@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth/authStore';
  * Composable for managing breadcrumb from menuConfig (Single Source of Truth)
  * 
  * Returns:
- * - breadcrumb: { parent: string, current: string } - Breadcrumb labels
+ * - breadcrumb: { items: Array<{ label: string, path?: string }> } - Breadcrumb labels
  * - canAccess: boolean - Whether user can access this route
  * - isLoading: boolean - Auth store loading state
  * 
@@ -24,17 +24,15 @@ export function useBreadcrumb() {
   const breadcrumb = computed(() => {
     const info = getBreadcrumbForPath(route.path);
     
-    if (info && info.section && info.label) {
+    if (info && Array.isArray(info.items)) {
       return {
-        parent: info.section,
-        current: info.label
+        items: info.items
       };
     }
 
     // Fallback: no breadcrumb found
     return {
-      parent: '',
-      current: ''
+      items: []
     };
   });
 

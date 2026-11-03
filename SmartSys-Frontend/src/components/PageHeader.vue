@@ -4,12 +4,13 @@
     <div class="space-y-1">
       <!-- Breadcrumb Navigation -->
       <div class="flex items-center gap-2 text-slate-500 text-xs font-medium uppercase tracking-wider">
-        <RouterLink v-if="breadcrumb.parent?.path" :to="breadcrumb.parent.path" class="hover:text-slate-700 transition-colors">
-          {{ breadcrumb.parent?.label || breadcrumb.parent }}
-        </RouterLink>
-        <span v-else>{{ breadcrumb.parent?.label || breadcrumb.parent }}</span>
-        <i class="fas fa-chevron-left text-[8px]"></i>
-        <span class="text-slate-900">{{ breadcrumb.current?.label || breadcrumb.current }}</span>
+        <template v-for="(item, index) in breadcrumbItems" :key="`${item.label}-${index}`">
+          <RouterLink v-if="item.path && index < breadcrumbItems.length - 1" :to="item.path" class="hover:text-slate-700 transition-colors">
+            {{ item.label }}
+          </RouterLink>
+          <span v-else :class="index === breadcrumbItems.length - 1 ? 'text-slate-900' : ''">{{ item.label }}</span>
+          <i v-if="index < breadcrumbItems.length - 1" class="fas fa-chevron-left text-[8px]"></i>
+        </template>
       </div>
       
       <!-- Page Title -->
@@ -58,7 +59,7 @@ const props = defineProps({
   breadcrumb: {
     type: Object,
     required: true,
-    validator: (value) => 'parent' in value && 'current' in value
+    validator: (value) => Array.isArray(value.items) || ('parent' in value && 'current' in value)
   },
   title: {
     type: String,
@@ -92,6 +93,17 @@ const emit = defineEmits(['branch-changed'])
 const branchIsolation = useBranchIsolation()
 const branchStore = useBranchStore()
 const canSelectBranch = computed(() => branchIsolation.isExempt.value)
+const breadcrumbItems = computed(() => {
+  if (Array.isArray(props.breadcrumb.items)) {
+    return props.breadcrumb.items.filter(item => item && item.label)
+  }
+
+  const { parent, current } = props.breadcrumb
+  return [
+    typeof parent === 'object' ? parent : { label: parent },
+    typeof current === 'object' ? current : { label: current }
+  ].filter(item => item.label)
+})
 
 // Optional branch filters default to all branches; only required filters show a placeholder.
 const isUnselected = computed(() => {

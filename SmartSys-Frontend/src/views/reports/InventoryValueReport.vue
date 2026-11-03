@@ -8,7 +8,7 @@
       
       <!-- Page Header -->
       <PageHeader
-        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports' }, current: { label: 'تحليل قيمة المخزون', path: '/reports/inventory-value' } }"
+        :breadcrumb="{ parent: { label: 'التقارير', path: '/reports/sales-analytics' }, current: 'تحليل قيمة المخزون' }"
         title="تحليل قيمة المخزون"
         description="تقييم القيمة الرأسمالية للأصول المخزنية"
         :branches="branches"
