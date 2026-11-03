@@ -115,8 +115,17 @@
           <!-- 1. GENERAL SETTINGS                                         -->
           <!-- ════════════════════════════════════════════════════════════ -->
           <section v-if="activeTab === 'general-settings'" class="animate-fadeIn space-y-8">
-            <div class="p-2 border-b border-slate-200">
-               <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">هوية النشاط التجاري</h2>
+            <div class="rounded-xl border border-emerald-100 bg-gradient-to-l from-emerald-50 via-white to-white px-6 py-5 shadow-sm">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-4">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"><i class="fas fa-building text-lg"></i></div>
+                  <div>
+                    <div class="mb-1 flex items-center gap-2"><h2 class="text-base font-bold text-slate-900">هوية النشاط التجاري</h2><span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">GENERAL</span></div>
+                    <p class="text-[11px] leading-5 text-slate-500">إدارة البيانات الرسمية والهوية البصرية ومعلومات التواصل.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-500 sm:self-auto"><i class="fas fa-id-card text-emerald-500"></i>بيانات المنشأة</div>
+              </div>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -334,8 +343,17 @@
           <!-- 3. INVOICE & TAX SETTINGS                                   -->
           <!-- ════════════════════════════════════════════════════════════ -->
           <section v-if="activeTab === 'invoice-settings'" class="animate-fadeIn space-y-8">
-            <div class="p-2 border-b border-slate-200">
-               <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">تخصيص الفواتير والضرائب</h2>
+            <div class="rounded-xl border border-rose-100 bg-gradient-to-l from-rose-50 via-white to-white px-6 py-5 shadow-sm">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-4">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-600/20"><i class="fas fa-file-invoice-dollar text-lg"></i></div>
+                  <div>
+                    <div class="mb-1 flex items-center gap-2"><h2 class="text-base font-bold text-slate-900">تخصيص الفواتير والضرائب</h2><span class="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-700">INVOICES</span></div>
+                    <p class="text-[11px] leading-5 text-slate-500">ضبط الضريبة، ترقيم الفواتير، ومحتوى التذييل المطبوع.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-500 sm:self-auto"><i class="fas fa-percent text-rose-500"></i>ضريبة وفوترة</div>
+              </div>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm p-8">
@@ -386,8 +404,17 @@
           <!-- 4. ACCOUNTING SETTINGS                                      -->
           <!-- ════════════════════════════════════════════════════════════ -->
           <section v-if="activeTab === 'accounting-settings'" class="animate-fadeIn space-y-8">
-             <div class="p-2 border-b border-slate-200">
-               <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">توجيه الحسابات المحاسبية</h2>
+            <div class="rounded-xl border border-violet-100 bg-gradient-to-l from-violet-50 via-white to-white px-6 py-5 shadow-sm">
+             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+               <div class="flex items-center gap-4">
+                 <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-600/20"><i class="fas fa-book-open text-lg"></i></div>
+                 <div>
+                   <div class="mb-1 flex items-center gap-2"><h2 class="text-base font-bold text-slate-900">توجيه الحسابات المحاسبية</h2><span class="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold text-violet-700">ACCOUNTING</span></div>
+                   <p class="text-[11px] leading-5 text-slate-500">ربط الحسابات الافتراضية بحركات المبيعات والمشتريات والمخزون.</p>
+                 </div>
+               </div>
+               <div class="flex items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-500 sm:self-auto"><i class="fas fa-chart-line text-violet-500"></i>دليل الحسابات</div>
+             </div>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm p-8 space-y-10">
@@ -466,8 +493,17 @@
           <!-- 5. PRINTING                                                 -->
           <!-- ════════════════════════════════════════════════════════════ -->
           <section v-if="activeTab === 'printers-settings'" class="animate-fadeIn space-y-8">
-            <div class="p-2 border-b border-slate-200">
-               <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">إعدادات الطباعة والقوالب</h2>
+            <div class="rounded-xl border border-amber-100 bg-gradient-to-l from-amber-50 via-white to-white px-6 py-5 shadow-sm">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-4">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-500/20"><i class="fas fa-print text-lg"></i></div>
+                  <div>
+                    <div class="mb-1 flex items-center gap-2"><h2 class="text-base font-bold text-slate-900">إعدادات الطباعة والقوالب</h2><span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">PRINTING</span></div>
+                    <p class="text-[11px] leading-5 text-slate-500">تخصيص القوالب، نطاق الطباعة، وإعدادات إخراج المستندات.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-500 sm:self-auto"><i class="fas fa-file-lines text-amber-500"></i>قوالب المستندات</div>
+              </div>
             </div>
 
             <div class="grid grid-cols-1 xl:grid-cols-12 gap-10">
