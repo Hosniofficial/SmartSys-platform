@@ -147,6 +147,7 @@
             <thead>
               <tr class="bg-slate-50 border-b border-slate-200">
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الجلسة والكاشير</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوردية</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المحطة / الجهاز</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">ملخص الخزينة</th>
@@ -158,11 +159,11 @@
             <tbody class="divide-y divide-slate-100">
               <template v-if="loading">
                 <tr v-for="n in 5" :key="n" class="animate-pulse">
-                  <td v-for="m in 7" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
+                  <td v-for="m in 8" :key="m" class="px-6 py-4"><div class="h-3 bg-slate-100 rounded w-full"></div></td>
                 </tr>
               </template>
               <tr v-else-if="items.length === 0">
-                <td colspan="7" class="py-20 text-center text-slate-300">
+                <td colspan="8" class="py-20 text-center text-slate-300">
                    <i class="fas fa-history text-3xl mb-4 opacity-20"></i>
                    <p class="text-xs font-bold uppercase tracking-widest">لا توجد جلسات مسجلة</p>
                 </td>
@@ -178,6 +179,16 @@
                       <span class="text-[10px] font-medium text-slate-400">{{ row.cashier_name || 'كاشير' }}</span>
                     </div>
                   </div>
+                </td>
+                <td class="px-4 py-4">
+                  <div v-if="row.shift_id" class="flex flex-col gap-1">
+                    <span class="inline-flex w-fit items-center gap-1.5 rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700">
+                      <i class="fas fa-clock text-[9px]"></i>
+                      #{{ row.shift_id }}
+                    </span>
+                    <span class="text-[9px] text-slate-400">{{ row.status === 'open' ? 'وردية مفتوحة' : 'مرتبطة بالجلسة' }}</span>
+                  </div>
+                  <span v-else class="text-[10px] text-slate-300">بدون وردية</span>
                 </td>
                 <td class="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
                    <div class="flex items-center gap-2"><i class="fas fa-desktop text-slate-300"></i> {{ deviceLabel(row) }}</div>
@@ -381,6 +392,7 @@ import { useHistoryFilters } from '@/composables/useHistoryFilters';
 import { getLocalDateISO } from '@/utils';
 
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
+import LoadingButton from '@/components/ui/LoadingButton.vue';
 import { useBreadcrumb } from '@/composables/useBreadcrumb';
 import PageHeader from '@/components/PageHeader.vue';
 import PaginationControls from '@/components/ui/PaginationControls.vue';

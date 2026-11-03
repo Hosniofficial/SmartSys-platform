@@ -684,6 +684,7 @@ class StrictSubscriptionHandler extends BaseHandler
         // Cashier sessions are opt-in for each tenant.
         $settings->set('pos.sessions.enabled', '0', 'boolean', $tenantId);
         $settings->set('pos.sessions.mode', 'manual', 'string', $tenantId);
+        $settings->set('pos.sessions.session_type_mode', '', 'string', $tenantId);
         $settings->set('pos.sessions.period_cutoff', '15:00', 'string', $tenantId);
         // Keep manager override disabled explicitly; service defaults differ.
         $settings->set('pos.sessions.allow_manager_override', '0', 'boolean', $tenantId);

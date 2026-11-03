@@ -67,6 +67,7 @@ class CashierSessionService
     {
         $lockAcquired         = false;
         $terminalLockAcquired = false;
+        $sessionTransactionStarted = false;
         $lockName             = null;
         $terminalLockName     = null;
 
@@ -277,7 +278,26 @@ class CashierSessionService
                 );
             }
 
-            // Auto-create shift if needed
+            // Check no open session on same terminal
+            if ($terminalId !== null) {
+                $termChk = $this->db->prepare(
+                    "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND terminal_id = ? AND status = 'open' LIMIT 1"
+                );
+                $termChk->execute([$tenantId, $terminalId]);
+                if ($termChk->fetch()) {
+                    throw new SessionDeniedException(
+                        'يوجد بالفعل جلسة مفتوحة على جهاز نقطة البيع المحدد. يجب إغلاقها قبل فتح جلسة جديدة.',
+                        403,
+                        'pos_session_open_denied_terminal_in_use',
+                        ['reason' => 'terminal_already_in_use', 'terminal_id' => $terminalId,
+                         'cashier_id' => $cashierId, 'branch_id' => $branchId]
+                    );
+                }
+            }
+
+            // Auto-create shift only after all guards that can reject the session.
+            $this->db->beginTransaction();
+            $sessionTransactionStarted = true;
             if ($branchId !== null && $terminalId !== null) {
                 $shiftStmt = $this->db->prepare(
                     "SELECT id FROM cashier_shifts
@@ -308,23 +328,6 @@ class CashierSessionService
                 }
             }
 
-            // Check no open session on same terminal
-            if ($terminalId !== null) {
-                $termChk = $this->db->prepare(
-                    "SELECT id FROM cashier_sessions WHERE tenant_id = ? AND terminal_id = ? AND status = 'open' LIMIT 1"
-                );
-                $termChk->execute([$tenantId, $terminalId]);
-                if ($termChk->fetch()) {
-                    throw new SessionDeniedException(
-                        'يوجد بالفعل جلسة مفتوحة على جهاز نقطة البيع المحدد. يجب إغلاقها قبل فتح جلسة جديدة.',
-                        403,
-                        'pos_session_open_denied_terminal_in_use',
-                        ['reason' => 'terminal_already_in_use', 'terminal_id' => $terminalId,
-                         'cashier_id' => $cashierId, 'branch_id' => $branchId]
-                    );
-                }
-            }
-
             // INSERT session
             $createdBy = $jwtUserId ?: $cashierId;
             $this->db->prepare("
@@ -351,6 +354,9 @@ class CashierSessionService
                 ]);
             }
 
+            $this->db->commit();
+            $sessionTransactionStarted = false;
+
             $this->logger->info('Session created successfully', [
                 'tenant_id' => $tenantId, 'session_id' => $sessionId,
                 'cashier_id' => $cashierId, 'session_type' => $finalSessionType, 'created_by' => $createdBy,
@@ -364,6 +370,9 @@ class CashierSessionService
                 'auto_closed'        => $isAdmin,
             ];
         } finally {
+            if ($sessionTransactionStarted && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             if ($lockAcquired && $lockName !== null) {
                 try {
                     $this->db->query("SELECT RELEASE_LOCK(" . $this->db->quote($lockName) . ")");
@@ -407,43 +416,66 @@ class CashierSessionService
         // IEEE 754 floating-point artifacts in the variance calculation below.
         $closingCash = round((float) $closingCash, 2);
 
-        $stmt = $this->db->prepare(
-            "SELECT id FROM cashier_sessions WHERE id = ? AND tenant_id = ? AND status = 'open'"
-        );
-        $stmt->execute([$sessionId, $tenantId]);
-        if (!$stmt->fetch()) {
-            throw new SessionDeniedException(
-                'لم يتم العثور على جلسة مفتوحة.',
-                403,
-                'pos_session_close_not_found',
-                ['session_id' => $sessionId]
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT id, shift_id
+             FROM cashier_sessions
+             WHERE id = ? AND tenant_id = ? AND status = 'open'
+             FOR UPDATE"
             );
+            $stmt->execute([$sessionId, $tenantId]);
+            $session = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$session) {
+                throw new SessionDeniedException(
+                    'لم يتم العثور على جلسة مفتوحة.',
+                    403,
+                    'pos_session_close_not_found',
+                    ['session_id' => $sessionId]
+                );
+            }
+
+            $summaryBefore = $this->buildSessionSummary($tenantId, $sessionId);
+            $expected      = (float) ($summaryBefore['calculated']['expected_cash'] ?? 0);
+            // Use round() with 4-decimal precision to prevent IEEE 754 floating-point artifacts
+            // This matches the tolerance used in LiquidityPolicyService (0.001 tolerance)
+            $variance      = round($closingCash - $expected, 4);
+
+            // Normalise variance reason
+            if (
+                $varianceReason === '-- اختر سبب الفرق --' ||
+                $varianceReason === '' ||
+                (is_string($varianceReason) && trim($varianceReason) === '')
+            ) {
+                $varianceReason = null;
+            } elseif (is_string($varianceReason)) {
+                $varianceReason = trim($varianceReason) ?: null;
+            }
+
+            $this->db->prepare("
+                UPDATE cashier_sessions
+                SET status = 'closed', end_time = NOW(),
+                    closing_cash_amount = ?, closed_by = ?,
+                    variance_reason = ?, updated_at = NOW()
+                WHERE id = ? AND tenant_id = ? AND status = 'open'
+            ")->execute([$closingCash, $closedBy, $varianceReason, $sessionId, $tenantId]);
+
+            if (!empty($session['shift_id'])) {
+                $this->db->prepare("
+                    UPDATE cashier_shifts
+                    SET status = 'closed', end_time = NOW(),
+                        closing_cash_amount = ?, closed_by = ?, updated_at = NOW()
+                    WHERE id = ? AND tenant_id = ? AND status = 'open'
+                ")->execute([$closingCash, $closedBy, (int) $session['shift_id'], $tenantId]);
+            }
+
+            $this->db->commit();
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
-
-        $summaryBefore = $this->buildSessionSummary($tenantId, $sessionId);
-        $expected      = (float) ($summaryBefore['calculated']['expected_cash'] ?? 0);
-        // Use round() with 4-decimal precision to prevent IEEE 754 floating-point artifacts
-        // This matches the tolerance used in LiquidityPolicyService (0.001 tolerance)
-        $variance      = round($closingCash - $expected, 4);
-
-        // Normalise variance reason
-        if (
-            $varianceReason === '-- اختر سبب الفرق --' ||
-            $varianceReason === '' ||
-            (is_string($varianceReason) && trim($varianceReason) === '')
-        ) {
-            $varianceReason = null;
-        } elseif (is_string($varianceReason)) {
-            $varianceReason = trim($varianceReason) ?: null;
-        }
-
-        $this->db->prepare("
-            UPDATE cashier_sessions
-            SET status = 'closed', end_time = NOW(),
-                closing_cash_amount = ?, closed_by = ?,
-                variance_reason = ?, updated_at = NOW()
-            WHERE id = ? AND tenant_id = ?
-        ")->execute([$closingCash, $closedBy, $varianceReason, $sessionId, $tenantId]);
 
         $summary = $this->buildSessionSummary($tenantId, $sessionId);
 
@@ -748,6 +780,19 @@ class CashierSessionService
     public function checkAndCloseInactiveAdminSessions(int $tenantId): void
     {
         try {
+            $this->db->beginTransaction();
+            $shiftStmt = $this->db->prepare("
+                UPDATE cashier_shifts cs
+                INNER JOIN cashier_sessions s ON s.shift_id = cs.id
+                SET cs.status = 'closed', cs.end_time = NOW(),
+                    cs.closing_cash_amount = s.opening_cash_amount,
+                    cs.closed_by = s.created_by, cs.updated_at = NOW()
+                WHERE s.tenant_id = ? AND s.session_type = 'admin' AND s.status = 'open'
+                  AND cs.tenant_id = ? AND cs.status = 'open'
+                  AND TIMESTAMPDIFF(HOUR, s.updated_at, NOW()) >= ?
+            ");
+            $shiftStmt->execute([$tenantId, $tenantId, self::ADMIN_SESSION_TIMEOUT_HOURS]);
+
             $stmt = $this->db->prepare("
                 UPDATE cashier_sessions
                 SET status = 'closed', end_time = NOW(),
@@ -757,6 +802,7 @@ class CashierSessionService
                   AND TIMESTAMPDIFF(HOUR, updated_at, NOW()) >= ?
             ");
             $stmt->execute([$tenantId, self::ADMIN_SESSION_TIMEOUT_HOURS]);
+            $this->db->commit();
 
             if ($stmt->rowCount() > 0) {
                 $this->logger->info('Inactive admin sessions closed', [
@@ -765,6 +811,9 @@ class CashierSessionService
                 ]);
             }
         } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->logger->error('Error closing inactive admin sessions', ['message' => $e->getMessage()]);
         }
     }
@@ -775,7 +824,11 @@ class CashierSessionService
 
     private function resolveSessionType(int $tenantId, ?string $requestedType = null): string
     {
-        $mode   = strtolower((string) ($this->settings->get($tenantId, 'pos.sessions.mode', 'manual') ?? 'manual'));
+        $mode = strtolower((string) ($this->settings->get($tenantId, 'pos.sessions.session_type_mode', '') ?? ''));
+        if ($mode === '') {
+            $legacyMode = strtolower((string) ($this->settings->get($tenantId, 'pos.sessions.mode', '') ?? ''));
+            $mode = in_array($legacyMode, ['daily', 'morning', 'evening'], true) ? $legacyMode : 'manual';
+        }
         $cutoff = (string) ($this->settings->get($tenantId, 'pos.sessions.period_cutoff', '15:00') ?? '15:00');
         $cutoff = preg_match('/^\d{2}:\d{2}$/', $cutoff) ? $cutoff : '15:00';
 

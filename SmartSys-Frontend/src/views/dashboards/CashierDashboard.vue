@@ -51,6 +51,11 @@
                 <span v-if="currentShift?.id" class="font-mono text-slate-900">#{{ currentShift.id }}</span>
                 <span v-else class="text-slate-500">غير محددة</span>
               </span>
+              <span v-if="activeSessionId" class="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-[10px] font-bold text-blue-700 whitespace-nowrap">
+                <i class="fas fa-id-badge text-blue-500"></i>
+                <span>الجلسة</span>
+                <span class="font-mono">#{{ activeSessionId }}</span>
+              </span>
               <span
                 class="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[11px] font-bold whitespace-nowrap"
                 :class="activeSessionId ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'"
@@ -284,14 +289,15 @@
       </section>
     </main>
 
-    <!-- Modals: Redesigned as Minimal Overlays -->
-    <div v-if="openSessionModal || shiftState === 'ending'" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+    <!-- Modals: render outside the layout stacking context so the header cannot overlap them -->
+    <Teleport to="body">
+    <div v-if="openSessionModal || shiftState === 'ending'" class="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm">
       
       <!-- Open Session Modal -->
       <div v-if="openSessionModal" ref="openSessionModalRef" class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" aria-labelledby="open-session-title" @keydown.esc="openSessionModal = false" tabindex="-1">
         <div class="p-6 border-b border-slate-100 bg-slate-50">
           <h3 id="open-session-title" class="text-base font-bold text-slate-900">بدء جلسة عمل جديدة</h3>
-          <p class="text-[10px] text-slate-500 font-medium uppercase mt-1">يرجى تأكيد العهدة الافتتاحية للموقع</p>
+          <p class="text-[10px] text-slate-500 font-medium uppercase mt-1">سيتم ربط الجلسة تلقائياً بالوردية المفتوحة أو إنشاء وردية جديدة</p>
         </div>
         <div class="p-6 space-y-5">
           <div v-if="authStore.isAdmin">
@@ -340,9 +346,10 @@
       </div>
 
       <!-- End Shift/Session Modal -->
-      <div v-if="shiftState === 'ending'" ref="endShiftModalRef" class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" aria-labelledby="end-shift-title" @keydown.esc="shiftState = 'active'" tabindex="-1">
+      <div v-if="shiftState === 'ending'" ref="endShiftModalRef" class="bg-white w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl shadow-2xl border border-slate-200 animate-modalIn" role="dialog" aria-modal="true" aria-labelledby="end-shift-title" @keydown.esc="shiftState = 'active'" tabindex="-1">
         <div class="p-6 border-b border-slate-100 bg-slate-50">
           <h3 id="end-shift-title" class="text-base font-bold text-slate-900">إغلاق الجلسة وتصفية الخزينة</h3>
+          <p class="text-[10px] text-slate-500 mt-1">سيتم إغلاق الجلسة والوردية المرتبطة معاً بعد اعتماد التسوية.</p>
         </div>
         <div class="p-6 space-y-6">
           <div class="grid grid-cols-2 gap-4">
@@ -385,8 +392,8 @@
           />
         </div>
       </div>
-
     </div>
+    </Teleport>
 
   </div>
 </template>

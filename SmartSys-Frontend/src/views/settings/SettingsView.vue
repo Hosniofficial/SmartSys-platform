@@ -234,21 +234,40 @@
             <!-- Configuration Grid -->
             <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm p-8 space-y-10">
 
-              <!-- ═══ Master Switch: تفعيل نظام الجلسات ═══ -->
-              <div class="space-y-4">
-                <h3 class="metadata-label text-slate-900"><i class="fas fa-power-off ml-2 text-blue-600"></i> تشغيل نظام الجلسات</h3>
-                <div class="space-y-3">
-                  <label class="setting-toggle-row bg-blue-50 border border-blue-200 px-4 rounded-lg h-14">
-                    <div class="flex flex-col">
-                      <span class="text-xs font-bold text-slate-800 uppercase tracking-tight">تفعيل نظام الورديات (Cashier Sessions)</span>
-                      <span class="text-[9px] text-slate-500 mt-0.5">عند التفعيل، يُلزَم الكاشير بفتح جلسة قبل تسجيل أي مبيعات نقدية</span>
+              <!-- Session and shift controls -->
+              <div class="space-y-5">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 class="metadata-label text-slate-900"><i class="fas fa-power-off ml-2 text-blue-600"></i> تشغيل الجلسات والورديات</h3>
+                    <p class="mt-1 text-[10px] leading-5 text-slate-400">حدد كيف يبدأ الكاشير ورديته وكيف تتم مطابقة النقدية في نهاية العمل.</p>
+                  </div>
+                  <span
+                    class="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold"
+                    :class="posSession.sessionsEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+                  >
+                    <span class="h-1.5 w-1.5 rounded-full" :class="posSession.sessionsEnabled ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                    {{ posSession.sessionsEnabled ? 'النظام مفعّل' : 'النظام غير مفعّل' }}
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <label class="setting-toggle-row min-h-[76px] rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                    <div class="flex items-start gap-3">
+                      <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm"><i class="fas fa-cash-register text-xs"></i></span>
+                      <span class="flex flex-col">
+                        <span class="text-xs font-bold text-slate-800">إلزام الجلسة النقدية</span>
+                        <span class="mt-1 text-[10px] leading-4 text-slate-500">يطلب من الكاشير فتح جلسة قبل العمليات النقدية، ويربط الحركة بالوردية الحالية.</span>
+                      </span>
                     </div>
                     <input type="checkbox" v-model="posSession.sessionsEnabled" class="ios-toggle" />
                   </label>
-                  <label class="setting-toggle-row bg-amber-50 border border-amber-200 px-4 rounded-lg h-14">
-                    <div class="flex flex-col">
-                      <span class="text-xs font-bold text-slate-800 uppercase tracking-tight">السماح برصيد نقدي سالب أثناء الجلسة</span>
-                      <span class="text-[9px] text-slate-500 mt-0.5">يُطبَّق على حسابات النقد (Cash) فقط — يسمح بالصرف أكثر من الرصيد شرط أن تكون جلسة الكاشير مفتوحة</span>
+                  <label class="setting-toggle-row min-h-[76px] rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div class="flex items-start gap-3">
+                      <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-amber-600 shadow-sm"><i class="fas fa-wallet text-xs"></i></span>
+                      <span class="flex flex-col">
+                        <span class="text-xs font-bold text-slate-800">السماح بالسالب داخل الجلسة</span>
+                        <span class="mt-1 text-[10px] leading-4 text-slate-500">يسمح بخروج نقدية أكبر من الرصيد، ولا يلغي ضرورة وجود جلسة مفتوحة.</span>
+                      </span>
                     </div>
                     <input type="checkbox" v-model="posSession.allowNegativeIntraday" class="ios-toggle" />
                   </label>
@@ -272,43 +291,67 @@
                 </div>
               </div>
 
-              <!-- Approval Toggles -->
-              <div class="pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="space-y-6">
-                  <h3 class="metadata-label text-slate-900"><i class="fas fa-toggle-on ml-2 text-blue-500"></i> معايير الاعتماد</h3>
+              <!-- Shift policy and approvals -->
+              <div class="grid grid-cols-1 gap-8 border-t border-slate-100 pt-6 lg:grid-cols-2">
+                <div class="space-y-4">
+                  <div>
+                    <h3 class="metadata-label text-slate-900"><i class="fas fa-history ml-2 text-indigo-500"></i> سياسة الوردية</h3>
+                    <p class="mt-1 text-[10px] leading-5 text-slate-400">حدد عدد مرات فتح الجلسة وتصنيفها خلال اليوم.</p>
+                  </div>
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="space-y-1.5">
+                      <label class="text-[10px] font-bold text-slate-500">عدد الجلسات المسموح يومياً</label>
+                      <select v-model="posSession.mode" class="filter-input-v2 h-10">
+                        <option value="">بدون حد</option>
+                        <option value="one_per_day">جلسة واحدة</option>
+                        <option value="two_per_day">جلستان</option>
+                      </select>
+                      <p class="text-[9px] leading-4 text-slate-400">يمكن للمدير تجاوز الحد إذا فُعّل الخيار المقابل.</p>
+                    </div>
+                    <div class="space-y-1.5">
+                      <label class="text-[10px] font-bold text-slate-500">تصنيف الجلسة تلقائياً</label>
+                      <select v-model="posSession.sessionTypeMode" class="filter-input-v2 h-10">
+                        <option value="">يدوي</option>
+                        <option value="daily">يومية</option>
+                        <option value="morning">صباحية / مسائية</option>
+                      </select>
+                      <p class="text-[9px] leading-4 text-slate-400">في الوضع اليدوي يختار المستخدم النوع، وفي غيره يحدده النظام.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div>
+                    <h3 class="metadata-label text-slate-900"><i class="fas fa-toggle-on ml-2 text-blue-500"></i> الاعتماد والاستثناءات</h3>
+                    <p class="mt-1 text-[10px] leading-5 text-slate-400">تحكم في اعتماد الفواتير ومن يستطيع تجاوز سياسة الجلسات.</p>
+                  </div>
                   <div class="space-y-3">
-                    <label class="setting-toggle-row">
+                    <label class="setting-toggle-row rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
                       <div class="flex flex-col">
-                        <span class="text-xs font-bold text-slate-800 uppercase tracking-tight">نظام الموافقة المسبقة</span>
-                        <span class="text-[9px] text-slate-400 mt-0.5">يتطلب مراجعة إدارية قبل ترحيل الفواتير</span>
+                        <span class="text-xs font-bold text-slate-800">الموافقة المسبقة على الفواتير</span>
+                        <span class="mt-1 text-[10px] text-slate-400">تتطلب مراجعة إدارية قبل ترحيل الفاتورة.</span>
                       </div>
                       <input type="checkbox" v-model="posSession.requireApproval" class="ios-toggle" />
                     </label>
-                    <label class="setting-toggle-row">
+                    <label class="setting-toggle-row rounded-lg border border-indigo-100 bg-indigo-50/50 px-4 py-3">
                       <div class="flex flex-col">
-                        <span class="text-xs font-bold text-slate-800 uppercase tracking-tight">تجاوز حد الورديات للمدير</span>
-                        <span class="text-[9px] text-slate-400 mt-0.5">السماح للمدراء بفتح أكثر من جلسة يومياً</span>
+                        <span class="text-xs font-bold text-slate-800">تجاوز حد الجلسات للمدير</span>
+                        <span class="mt-1 text-[10px] text-slate-400">يسمح للمدير بفتح جلسة إضافية عند الحاجة.</span>
                       </div>
                       <input type="checkbox" v-model="posSession.allowManagerOverride" class="ios-toggle" />
                     </label>
                   </div>
                 </div>
-
-                <div class="space-y-6">
-                  <h3 class="metadata-label text-slate-900"><i class="fas fa-history ml-2 text-indigo-500"></i> إدارة الورديات (Shifts)</h3>
-                  <div class="grid grid-cols-1 gap-4">
-                    <div class="space-y-1.5"><label class="metadata-label">الحد الأقصى للجلسات يومياً</label><select v-model="posSession.mode" class="filter-input-v2 h-10"><option value="">بدون قيود (مفتوح)</option><option value="one_per_day">جلسة واحدة فقط</option><option value="two_per_day">جلستان</option></select></div>
-                    <div class="space-y-1.5"><label class="metadata-label">نمط التشغيل التلقائي</label><select v-model="posSession.sessionTypeMode" class="filter-input-v2 h-10"><option value="">يدوي (اختيار الكاشير)</option><option value="daily">يومي كامل</option><option value="morning">صباحي / مسائي (Cut-off)</option></select></div>
-                  </div>
-                </div>
               </div>
 
-              <!-- ✅ RESTORED: وقت الفصل بين الوردية الصباحية والمسائية -->
-              <div v-if="posSession.sessionTypeMode === 'morning'" class="pt-6 border-t border-slate-100">
-                <div class="max-w-sm space-y-1.5">
-                  <label class="metadata-label">وقت الفصل بين الوردية الصباحية والمسائية</label>
-                  <input type="time" v-model="posSession.periodCutoff" class="filter-input-v2 h-10 font-mono font-bold" />
-                  <p class="text-[9px] text-slate-400 font-bold italic"><i class="fas fa-clock ml-1"></i> قبل هذا الوقت = صباحية، بعده = مسائية</p>
+              <!-- Morning/evening cutoff -->
+              <div v-if="posSession.sessionTypeMode === 'morning'" class="rounded-xl border border-violet-100 bg-violet-50/60 p-5">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 class="text-xs font-bold text-violet-900"><i class="fas fa-clock ml-2"></i> وقت التحويل بين الفترتين</h3>
+                    <p class="mt-1 text-[10px] leading-5 text-violet-700/70">قبل هذا الوقت تُصنف الجلسة صباحية، وبعده تُصنف مسائية.</p>
+                  </div>
+                  <input type="time" v-model="posSession.periodCutoff" class="filter-input-v2 h-10 max-w-[150px] bg-white font-mono font-bold" />
                 </div>
               </div>
 

@@ -120,7 +120,7 @@ class SessionsHandler extends BaseHandler
 
             $user      = $request->getAttribute('user');
             $jwtUserId = is_array($user) ? ($user['id'] ?? null) : null;
-            $closedBy  = $data['closed_by'] ?? $jwtUserId;
+            $closedBy  = $jwtUserId;
 
             if (!$sessionId) {
                 return $this->errorResponse($response, 'مطلوب معرف الجلسة (session_id).', 400);
@@ -206,7 +206,12 @@ class SessionsHandler extends BaseHandler
                 $s->execute([$tenantId, $branchId, $cashierId]);
                 $session = $s->fetch(PDO::FETCH_ASSOC);
             }
-            if (!$session && $cashierId !== null && $cashierId !== '') {
+            if (
+                !$session &&
+                ($branchId === null || $branchId === '') &&
+                $cashierId !== null &&
+                $cashierId !== ''
+            ) {
                 $s = $this->db->prepare($baseSql . " AND cashier_id = ? ORDER BY start_time DESC LIMIT 1");
                 $s->execute([$tenantId, $cashierId]);
                 $session = $s->fetch(PDO::FETCH_ASSOC);
