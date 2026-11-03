@@ -1589,18 +1589,15 @@ onMounted(async () => {
 
 /* Custom iOS-style toggle */
 .ios-toggle {
-  @apply relative w-9 h-5 bg-slate-200 rounded-full appearance-none cursor-pointer transition-colors duration-300;
+  @apply relative w-10 h-6 shrink-0 bg-slate-200 rounded-full appearance-none cursor-pointer transition-colors duration-300;
   @apply checked:bg-blue-600;
 }
 .ios-toggle::before {
   content: "";
-  @apply absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm;
+  @apply absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm;
 }
 .ios-toggle:checked::before {
   @apply translate-x-4;
-}
-[dir="rtl"] .ios-toggle:checked::before {
-  @apply -translate-x-4;
 }
 
 .custom-scroll::-webkit-scrollbar { width: 5px; }
