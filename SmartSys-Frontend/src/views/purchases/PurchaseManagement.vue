@@ -101,17 +101,17 @@
               </div>
             </div>
             <div class="lg:col-span-1">
-              <LoadingButton
-                text=""
-                loadingText=""
-                :showTextDuringLoad="false"
-                icon="fas fa-sync-alt"
-                :isLoading="isLoading"
-                variant="secondary"
-                class="h-9 w-full rounded-md border border-slate-200 bg-white p-0 text-slate-400 shadow-sm hover:text-indigo-600"
+              <button
+                type="button"
+                :disabled="isLoading"
+                :aria-busy="isLoading"
                 aria-label="تحديث المشتريات"
+                title="تحديث المشتريات"
+                class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 @click="loadPurchases"
-              />
+              >
+                <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoading }" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -124,7 +124,7 @@
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">رقم الفاتورة</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المورّد</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الفرع</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">التاريخ</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الوقت والتاريخ</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الإجمالي</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">إجراءات</th>
@@ -489,7 +489,7 @@ const purchaseDetailFacts = computed(() => {
   return [
     { label: 'المورد', value: purchase.supplier_name || purchase.supplier?.name || '-' },
     { label: 'الفرع', value: purchase.branch_name || branches.value.find(branch => String(branch.id) === String(purchase.branch_id))?.name || '-' },
-    { label: 'التاريخ', value: formatDateTime(purchase.invoice_date || purchase.purchase_date || purchase.created_at) || '-' },
+    { label: 'الوقت والتاريخ', value: formatDateTime(purchase.invoice_date || purchase.purchase_date || purchase.created_at) || '-' },
     { label: 'الكاشير', value: purchase.created_by_name || 'النظام' },
     { label: 'الحالة', value: getPurchaseStatus(purchase.dynamic_status || purchase.status).text },
   ];
@@ -922,7 +922,7 @@ const formatDateTime = (value) => {
   const parsed = new Date(String(value).replace(' ', 'T'));
   return Number.isNaN(parsed.getTime())
     ? String(value)
-    : parsed.toLocaleString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
+    : parsed.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 onMounted(async () => {

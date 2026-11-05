@@ -15,14 +15,14 @@
           type="button"
           :aria-current="isCurrent(tab) ? 'page' : undefined"
           :title="tab.title"
-          class="min-w-0 truncate px-3 text-right text-[11px] font-bold"
+          class="min-w-0 flex-1 truncate px-3 py-1 text-right text-[11px] font-bold"
           @click="activateTab(tab)"
         >
           {{ tab.title }}
         </button>
         <button
           type="button"
-          class="ml-1 mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-400 transition-colors hover:bg-white hover:text-rose-600"
+          class="ml-1 mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-600 active:scale-95"
           :aria-label="`إغلاق ${tab.title}`"
           :title="`إغلاق ${tab.title}`"
           @click="closeTab(tab)"
@@ -54,8 +54,9 @@ const { showToast } = useToast()
 const tabs = ref([])
 
 const storageKey = computed(() => {
+  const tenantId = authStore.user?.tenant_id
   const userId = authStore.user?.id ?? authStore.user?.user_id
-  return userId ? `${STORAGE_PREFIX}_${userId}` : null
+  return userId ? `${STORAGE_PREFIX}_${tenantId ?? 'system'}_${userId}` : null
 })
 
 function isPositiveId(value) {
@@ -164,7 +165,10 @@ function registerCurrentRoute() {
     return
   }
 
-  if (tabs.value.length >= MAX_TABS) tabs.value.shift()
+  if (tabs.value.length >= MAX_TABS) {
+    showToast(`تم بلوغ الحد الأقصى (${MAX_TABS}) من تبويبات السجلات. أغلق تبويبًا لإضافة سجل جديد.`, 'warning')
+    return
+  }
   tabs.value.push(tab)
 }
 
@@ -178,7 +182,10 @@ async function closeTab(tab) {
 
   const wasCurrent = isCurrent(tab)
   tabs.value.splice(index, 1)
-  if (!wasCurrent) return
+  if (!wasCurrent) {
+    registerCurrentRoute()
+    return
+  }
 
   const nextTab = tabs.value[Math.min(index, tabs.value.length - 1)]
   await router.push(nextTab?.path || tab.fallbackPath)

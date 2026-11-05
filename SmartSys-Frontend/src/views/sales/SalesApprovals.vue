@@ -43,17 +43,17 @@
               <p class="text-base font-bold text-slate-900 font-mono leading-none">{{ total }}</p>
             </div>
             <!-- زر تحديث -->
-            <LoadingButton
-              text=""
-              loadingText=""
-              :showTextDuringLoad="false"
-              icon="fas fa-sync-alt"
-              :isLoading="isLoading"
-              variant="secondary"
-              class="h-full px-3 rounded-none border-0 bg-transparent text-slate-400 hover:bg-blue-50/50 hover:text-blue-600"
+            <button
+              type="button"
+              :disabled="isLoading"
+              :aria-busy="isLoading"
+              class="h-full px-3 rounded-none border-0 bg-transparent text-slate-400 transition-all hover:bg-blue-50/50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               aria-label="تحديث الموافقات"
+              title="تحديث الموافقات"
               @click="manualRefresh"
-            />
+            >
+              <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoading }" aria-hidden="true"></i>
+            </button>
           </div>
         </template>
       </PageHeader>
@@ -85,7 +85,7 @@
               <thead>
                 <tr class="bg-slate-50/50 border-b border-slate-200">
                   <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-20">الرقم</th>
-                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت</th>
+                  <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                   <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">العميل</th>
                   <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الأصناف</th>
                   <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المبلغ</th>
@@ -168,26 +168,34 @@
     </div>
 
     <!-- Action Modal: Restructured for SaaS Standards -->
-    <transition name="fade">
-      <div v-if="actionModal.open" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn flex flex-col">
-          <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="actionModal.open" class="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto p-4 pt-20 md:pt-24 bg-slate-900/40 backdrop-blur-sm" dir="rtl" @click.self="closeAction">
+          <div class="bg-white w-full max-w-lg max-h-[calc(100vh-6rem)] md:max-h-[calc(100vh-7rem)] rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn flex flex-col">
+          <div class="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-3">
-              <div :class="[actionModal.mode === 'approve' ? 'bg-emerald-600' : 'bg-rose-600']" class="w-8 h-8 rounded-lg flex items-center justify-center text-white"><i :class="actionModal.mode === 'approve' ? 'fas fa-check-double' : 'fas fa-ban'" class="text-xs"></i></div>
-              <h3 class="text-sm font-bold text-slate-900 uppercase">{{ actionModal.mode === 'approve' ? 'مراجعة واعتماد الفاتورة' : 'رفض الطلب' }}</h3>
+              <div :class="actionModal.mode === 'approve' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'" class="w-9 h-9 rounded-lg border flex items-center justify-center"><i :class="actionModal.mode === 'approve' ? 'fas fa-check-double' : 'fas fa-ban'" class="text-xs"></i></div>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">{{ actionModal.mode === 'approve' ? 'مراجعة واعتماد الفاتورة' : 'رفض الفاتورة' }}</h3>
+                <p class="mt-1 text-[10px] font-medium text-slate-400">{{ actionModal.mode === 'approve' ? 'راجع بيانات التحصيل قبل تأكيد الاعتماد.' : 'سجّل سبب الرفض ليتمكن الكاشير من مراجعته.' }}</p>
+              </div>
             </div>
-            <button @click="closeAction" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times text-lg"></i></button>
+            <button @click="closeAction" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"><i class="fas fa-times text-sm"></i></button>
           </div>
 
-          <div class="p-8 space-y-6">
+          <div class="p-6 md:p-8 space-y-6 overflow-y-auto">
             <!-- Source Context -->
-            <div class="p-4 bg-slate-900 rounded-xl text-white flex justify-between items-center shadow-inner">
-               <div><p class="text-[9px] font-bold text-slate-400 uppercase mb-1">صافي الفاتورة</p><p class="text-xl font-bold font-mono tracking-tighter text-blue-400">{{ formatPrice(actionModal.invoiceTotal) }}</p></div>
-               <div class="text-left"><p class="text-[9px] font-bold text-slate-400 uppercase mb-1">رقم الطلب</p><p class="text-xs font-bold font-mono text-white">#{{ actionModal.id }}</p></div>
+            <div class="p-4 rounded-xl border border-blue-100 bg-blue-50/70 flex justify-between items-center">
+               <div><p class="text-[9px] font-bold text-blue-500 uppercase mb-1">إجمالي الفاتورة شامل الضريبة</p><p class="text-xl font-bold font-mono tracking-tighter text-blue-700">{{ formatPrice(actionModal.invoiceTotal) }}</p></div>
+               <div class="text-left"><p class="text-[9px] font-bold text-slate-400 uppercase mb-1">رقم الطلب</p><p class="text-xs font-bold font-mono text-slate-700">#{{ actionModal.id }}</p></div>
+            </div>
+            <div v-if="actionModal.mode === 'reject'" class="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <i class="fas fa-circle-exclamation mt-0.5 text-rose-500"></i>
+              <p class="text-xs leading-relaxed text-rose-700">سيتم إرجاع الفاتورة إلى حالة مرفوضة ولن يتم ترحيلها للبيع. اكتب ملاحظة مختصرة توضح سبب القرار.</p>
             </div>
             <div v-if="actionModal.mode === 'approve'" class="space-y-6 animate-fadeIn">
                <!-- Alert Box: Payment Type Info -->
-               <div v-if="actionModal.isCredit" class="p-4 rounded-xl border border-amber-200 bg-amber-50 text-right space-y-2">
+               <div v-if="approvalPaymentMethodIsCredit" class="p-4 rounded-xl border border-amber-200 bg-amber-50 text-right space-y-2">
                   <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">⚠️ فاتورة آجلة</p>
                   <p class="text-xs text-amber-700 leading-relaxed">هذه فاتورة بنظام الآجل (الاقتراض)، لا تتطلب تحصيل نقدي الآن. يمكن تحديث التاريخ المستحق لاحقاً.</p>
                </div>
@@ -196,7 +204,9 @@
                   <p class="text-xs text-emerald-700 leading-relaxed">هذه فاتورة بدفع فوري (نقدي). يجب تحديد طريقة الدفع والمبلغ المستلم فعلياً.</p>
                </div>
 
-               <div class="grid grid-cols-2 gap-4">
+               <div class="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                 <p class="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">بيانات التحصيل</p>
+                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                  <div class="space-y-1.5">
                    <label class="metadata-label">
                      طريقة الدفع
@@ -204,12 +214,25 @@
                    </label>
                    <select v-model="actionModal.paymentMethodId" class="filter-input-v2 h-10 font-bold"><option value="">-- اختر --</option><option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">{{ pm.name }}</option></select>
                  </div>
-                 <div class="space-y-1.5"><label class="metadata-label">المبلغ المستلم</label><input v-model.number="actionModal.paidAmount" type="number" class="h-10 w-full bg-white border border-slate-200 rounded-md px-3 text-sm font-black text-left text-emerald-600 outline-none focus:border-emerald-500 transition-all" /></div>
+                 <div class="space-y-1.5">
+                   <label class="metadata-label">المبلغ المدفوع</label>
+                   <input
+                     v-model.number="actionModal.paidAmount"
+                     type="number"
+                     min="0"
+                     step="0.01"
+                     :max="actionModal.invoiceTotal"
+                     :class="{ 'border-rose-300 text-rose-600 focus:border-rose-500': approvalPaymentError }"
+                     class="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-left text-sm font-black text-emerald-600 outline-none transition-all focus:border-emerald-500"
+                   />
+                   <p v-if="approvalPaymentError" class="text-[10px] font-bold text-rose-600">{{ approvalPaymentError }}</p>
+                 </div>
+                 </div>
                </div>
 
                <div v-if="actionModal.paidAmount > 0" class="grid grid-cols-3 gap-3">
                   <div class="p-3 rounded-lg bg-white border border-slate-200 text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">صافي الفاتورة</p>
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">إجمالي الفاتورة</p>
                     <p class="text-sm font-bold font-mono text-slate-900">{{ formatPrice(actionModal.invoiceTotal) }}</p>
                   </div>
                   <div class="p-3 rounded-lg bg-white border border-slate-200 text-center">
@@ -223,35 +246,43 @@
                </div>
             </div>
 
-            <div class="space-y-1.5"><label class="metadata-label">ملاحظات القرار</label><textarea v-model="actionModal.note" rows="2" class="filter-input-v2 h-auto py-2 italic" placeholder="أدخل تفاصيل القرار هنا..."></textarea></div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="metadata-label">ملاحظات القرار</label>
+                <span class="text-[9px] text-slate-400">{{ actionModal.note.length }}/500</span>
+              </div>
+              <textarea v-model="actionModal.note" rows="3" maxlength="500" class="filter-input-v2 h-auto py-2 italic resize-none" :placeholder="actionModal.mode === 'approve' ? 'أضف ملاحظة اختيارية عن الاعتماد...' : 'اذكر سبب رفض الفاتورة...'"></textarea>
+            </div>
           </div>
 
-          <div class="px-8 py-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 shrink-0">
+          <div class="px-6 md:px-8 py-4 md:py-5 bg-slate-50/70 border-t border-slate-200 flex justify-end gap-3 shrink-0">
              <button @click="closeAction" class="px-6 h-10 text-xs font-bold text-slate-500">إلغاء</button>
              <LoadingButton
                :text="actionModal.mode === 'approve' ? 'تأكيد الاعتماد' : 'تأكيد الرفض'"
                :isLoading="isSubmitting"
                loadingText="جاري..."
-               :disabled="actionModal.mode === 'approve' && actionModal.paidAmount > 0 && !actionModal.paymentMethodId"
-               variant="primary"
+               :disabled="actionModal.mode === 'approve' && (approvalPaymentError || (actionModal.paidAmount > 0 && (!actionModal.paymentMethodId || approvalPaymentMethodIsCredit)))"
+               :variant="actionModal.mode === 'approve' ? 'success' : 'danger'"
                loaderType="dots"
                @click="submitAction"
                class="px-10 h-10"
              />
           </div>
+          </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- Post-Approval Print: Restructured -->
-    <transition name="fade">
-      <div v-if="printModal.open" class="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn p-8 text-center space-y-6">
-           <div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner"><i class="fas fa-check-circle text-3xl"></i></div>
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="printModal.open" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn p-8 text-center space-y-6">
+           <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto"><i class="fas fa-check-circle text-3xl"></i></div>
            <div><h3 class="text-base font-bold text-slate-900 uppercase">تم الاعتماد والتحصيل</h3><p class="text-[10px] text-slate-400 mt-1 font-medium">فاتورة رقم #{{ printModal.saleId }} بانتظار الطباعة</p></div>
            
-           <div v-if="printModal.change > 0" class="p-3 rounded-lg bg-emerald-900 text-white flex justify-between items-center shadow-lg">
-              <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-400">الباقي للعميل:</span>
+           <div v-if="printModal.change > 0" class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex justify-between items-center">
+              <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-600">الباقي للعميل:</span>
               <span class="text-sm font-bold font-mono tracking-tighter">{{ formatPrice(printModal.change) }}</span>
            </div>
 
@@ -261,9 +292,10 @@
                  <i class="fas fa-print"></i> طباعة الفاتورة
               </button>
            </div>
+          </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <HistoryDetailsModal
       :show="showDetails && !!details"
@@ -275,9 +307,10 @@
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
               <div v-for="info in [
                 { l: 'العميل', v: details?.sale?.customer_name ?? details?.customer_name ?? 'عميل نقدي' },
-                { l: 'التاريخ', v: formatDateTime(details?.sale?.created_at ?? details?.created_at) },
+                { l: 'الوقت والتاريخ', v: formatDateTime(details?.sale?.created_at ?? details?.created_at) },
+                { l: 'الكاشير', v: details?.sale?.created_by_name ?? details?.created_by_name ?? details?.sale?.user_name ?? details?.user_name ?? '-' },
                 { l: 'طريقة الدفع', v: details?.sale?.payment_method_name ?? details?.payment_method_name ?? '-' },
-                { l: 'إجمالي الفاتورة', v: formatPrice(details?.sale?.net_total_amount ?? details?.net_total_amount), c: 'text-blue-600 font-bold' }
+                { l: 'إجمالي الفاتورة شامل الضريبة', v: formatPrice(getSaleGrossTotal(previewSale)), c: 'text-blue-600 font-bold' }
               ]" :key="info.l" class="min-w-0 space-y-1 rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{{ info.l }}</p>
                 <p :class="[info.c || 'text-slate-800', 'break-words text-[11px] font-bold leading-4']">{{ info.v }}</p>
@@ -286,24 +319,31 @@
 
             <div class="overflow-x-auto rounded-xl border border-slate-100 shadow-sm">
               <table class="w-full min-w-[560px] text-right text-xs">
-                <thead><tr class="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase tracking-tighter"><th class="px-4 py-3">الصنف</th><th class="px-4 py-3 text-center">الكمية</th><th class="px-4 py-3 text-center">سعر الوحدة</th><th class="px-4 py-3 text-left">الإجمالي</th></tr></thead>
+                <thead><tr class="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase tracking-tighter"><th class="px-4 py-3">الصنف</th><th class="px-4 py-3 text-center">الكمية</th><th class="px-4 py-3 text-center">قبل الخصم</th><th class="px-4 py-3 text-center">الخصم</th><th class="px-4 py-3 text-center">الضريبة</th><th class="px-4 py-3 text-left">الصافي</th></tr></thead>
                 <tbody class="divide-y divide-slate-100 font-medium">
                   <tr v-for="it in (details?.items || details?.sale?.items || [])" :key="it.id">
                     <td class="px-4 py-3 text-slate-800 font-bold">{{ it.name || it.product_name }}</td>
                     <td class="px-4 py-3 text-center font-bold text-slate-500">{{ it.quantity ?? it.qty }}</td>
-                    <td class="px-4 py-3 text-center font-mono text-slate-700">{{ formatPrice(itemPrice(it)) }}</td>
+                    <td class="px-4 py-3 text-center font-mono text-slate-700">{{ formatPrice(itemPrice(it) * itemQty(it)) }}</td>
+                    <td class="px-4 py-3 text-center font-mono text-rose-500">{{ formatPrice(itemDiscount(it)) }}</td>
+                    <td class="px-4 py-3 text-center font-mono text-indigo-500">{{ formatPrice(itemTax(it)) }}</td>
                     <td class="px-4 py-3 text-left font-bold font-mono text-slate-900">{{ formatPrice(itemTotal(it)) }}</td>
                   </tr>
                   <tr v-if="!(details?.items || details?.sale?.items || []).length">
-                    <td colspan="4" class="px-4 py-8 text-center text-xs text-slate-400">لا توجد أصناف لعرضها.</td>
+                    <td colspan="6" class="px-4 py-8 text-center text-xs text-slate-400">لا توجد أصناف لعرضها.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
             <div class="flex justify-end">
-              <div class="w-full rounded-xl bg-slate-900 p-6 text-white flex flex-col justify-center space-y-4 md:w-72">
-                <div class="flex justify-between text-[11px] font-medium text-white/50 uppercase"><span>الإجمالي الصافي</span><span class="text-white font-mono">{{ formatPrice(details?.sale?.net_total_amount ?? details?.net_total_amount) }}</span></div>
+              <div class="w-full rounded-xl border border-slate-200 bg-slate-50 p-5 text-slate-800 flex flex-col justify-center space-y-2.5 md:w-80">
+                <div class="flex justify-between text-[11px] font-medium text-slate-500"><span>المجموع قبل الخصم</span><span class="font-mono font-bold">{{ formatPrice(previewSale.total_amount ?? 0) }}</span></div>
+                <div class="flex justify-between text-[11px] font-medium text-slate-500"><span>الخصم</span><span class="font-mono font-bold text-rose-500">- {{ formatPrice(previewSale.discount_value ?? 0) }}</span></div>
+                <div class="flex justify-between text-[11px] font-medium text-slate-500 pb-2 border-b border-slate-200"><span>الضريبة ({{ Number(previewSale.tax_rate || 0).toFixed(2).replace(/\.?0+$/, '') }}%)</span><span class="font-mono font-bold">{{ formatPrice(previewSale.tax_amount ?? 0) }}</span></div>
+                <div class="flex justify-between items-center rounded-lg bg-blue-100 border border-blue-200 px-3 py-2.5 text-blue-800"><span class="text-[11px] font-bold">الإجمالي النهائي شامل الضريبة</span><span class="font-mono font-bold">{{ formatPrice(getSaleGrossTotal(previewSale)) }}</span></div>
+                <div class="flex justify-between text-[11px] font-medium text-slate-500"><span>المدفوع</span><span class="font-mono font-bold text-emerald-600">{{ formatPrice(previewSale.actual_paid_amount ?? previewSale.paid_amount ?? 0) }}</span></div>
+                <div class="flex justify-between text-[11px] font-medium text-slate-500"><span>المتبقي</span><span class="font-mono font-bold text-amber-600">{{ formatPrice(previewSale.remaining_balance ?? Math.max(0, getSaleGrossTotal(previewSale) - Number(previewSale.paid_amount || 0))) }}</span></div>
               </div>
             </div>
           </div>
@@ -311,7 +351,7 @@
             <div class="flex w-full items-center">
               <span class="rounded border border-amber-100 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-tighter text-amber-600">بانتظار القرار</span>
               <div dir="rtl" class="mr-auto flex flex-row-reverse flex-wrap items-center gap-3">
-                <button @click="showDetails = false" class="inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-md bg-slate-900 px-6 text-xs font-bold text-white transition-all hover:bg-black">إغلاق المعاينة</button>
+                <button @click="showDetails = false" class="inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-slate-200 bg-white px-6 text-xs font-bold text-slate-700 transition-all hover:bg-slate-50">إغلاق المعاينة</button>
               </div>
             </div>
           </template>
@@ -389,29 +429,56 @@ const lastUpdatedLabel = computed(() => {
   const diff = Math.floor((now - lastUpdatedAt.value) / 1000)
   if (diff < 5) return 'الآن'
   if (diff < 60) return `منذ ${diff} ث`
-  return lastUpdatedAt.value.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return lastUpdatedAt.value.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
 })
 
 const showDetails = ref(false)
 const details = ref(null)
 const isLoadingDetails = ref(false)
+const previewSale = computed(() => details.value?.sale ?? details.value ?? {})
 
 const actionModal = ref({ open: false, mode: 'approve', id: null, note: '', paymentMethodId: '', paidAmount: 0, invoiceTotal: 0 })
 const isSubmitting = ref(false)
 const printModal = ref({ open: false, saleId: null, invoiceTotal: 0, change: 0 })
 
 const changeAmount = computed(() => (actionModal.value.paidAmount || 0) - (actionModal.value.invoiceTotal || 0))
+const approvalPaymentMethodIsCredit = computed(() => {
+  const selectedMethod = paymentMethods.value.find(method =>
+    Number(method.id) === Number(actionModal.value.paymentMethodId)
+  )
+  return selectedMethod
+    ? String(selectedMethod.kind || '').toLowerCase() === 'credit'
+    : Boolean(actionModal.value.isCredit)
+})
+const approvalPaymentError = computed(() => {
+  const amount = Number(actionModal.value.paidAmount)
+  if (!Number.isFinite(amount) || amount < 0) return 'أدخل مبلغًا صحيحًا لا يقل عن صفر.'
+  if (amount > actionModal.value.invoiceTotal) return 'لا يمكن أن يتجاوز المبلغ إجمالي الفاتورة شامل الضريبة.'
+  if (amount > 0 && approvalPaymentMethodIsCredit.value) return 'اختر طريقة دفع فورية لتسجيل مبلغ مدفوع.'
+  return ''
+})
+
+const getSaleGrossTotal = (sale) => {
+  if (sale?.grand_total !== undefined && sale?.grand_total !== null) {
+    return Math.max(0, Number(sale.grand_total) || 0)
+  }
+  const net = Number(sale?.net_total_amount ?? sale?.total_amount ?? 0) || 0
+  const tax = Number(sale?.tax_amount ?? 0) || 0
+  return Math.max(0, Math.round((net + tax + Number.EPSILON) * 100) / 100)
+}
 
 const formatPrice = (amount) => formatCurrencyLocale(amount, 2)
 const formatDateTime = (val) => {
   if (!val) return ''
   try {
-    return new Date(val).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return new Date(val).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })
   } catch { return String(val) }
 }
 
 const itemPrice = (it) => { const v = it?.price ?? it?.sale_price ?? it?.unit_price; return Number(v ?? 0); }
 const itemQty = (it) => Number((it?.quantity ?? it?.qty ?? 1))
+const itemDiscount = (it) => Number(it?.discount_value ?? 0)
+const itemTax = (it) => Number(it?.tax_amount ?? 0)
 const itemTotal = (it) => {
   const v = it?.total ?? it?.net_total
   if (v != null) return Number(v)
@@ -535,7 +602,7 @@ const handleVisibilityChange = () => {
 
 const openAction = (mode, id) => {
   const row = rows.value.find(r => r.id === id)
-  const invoiceTotal = Number(row?.net_total_amount ?? row?.total_amount ?? 0)
+  const invoiceTotal = getSaleGrossTotal(row)
   const kind = String(row?.payment_method_kind ?? row?.sale?.payment_method_kind ?? row?.payment_method?.kind ?? '').toLowerCase()
   const isCredit = kind === 'credit'
   const defaultMethodId = isCredit ? '' : (row?.payment_method_id || (paymentMethods.value[0]?.id ?? ''))

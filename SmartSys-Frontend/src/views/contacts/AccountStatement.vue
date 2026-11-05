@@ -1788,7 +1788,7 @@ const exportPdf = async () => {
                     </tr></thead>
                     <tbody>${rowsHtml}</tbody>
                 </table>
-                <footer><span>عدد الحركات: ${rows.length}</span><span>تاريخ الطباعة: ${escapeHtml(new Date().toLocaleString('ar-EG'))}</span></footer>
+                <footer><span>عدد الحركات: ${rows.length}</span><span>تاريخ الطباعة: ${escapeHtml(new Date().toLocaleString('en-US'))}</span></footer>
             </body>
             </html>`;
 

@@ -66,20 +66,20 @@
 
       <!-- Inventory Summary: High Contrast context -->
       <section class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div class="bg-slate-900 rounded-xl p-6 text-white shadow-xl flex items-center justify-between border border-white/5 relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-32 h-32 bg-white/5 rounded-full -translate-x-12 -translate-y-12"></div>
+        <div class="bg-white rounded-xl p-6 text-slate-900 shadow-sm flex items-center justify-between border border-slate-200 relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-32 h-32 bg-blue-50 rounded-full -translate-x-12 -translate-y-12"></div>
           <div class="flex items-center gap-6 relative z-10">
             <div>
-              <p class="text-[9px] font-bold text-white/30 uppercase tracking-[0.2em] mb-1">إجمالي الكميات المسجلة</p>
-              <p class="text-2xl font-bold font-mono tracking-tighter leading-none text-blue-400">{{ formatNumber(totalQuantity) }}</p>
+              <p class="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-1">إجمالي الكميات المسجلة</p>
+              <p class="text-2xl font-bold font-mono tracking-tighter leading-none text-blue-700">{{ formatNumber(totalQuantity) }}</p>
             </div>
-            <div class="h-10 w-px bg-white/10 mx-2"></div>
+            <div class="h-10 w-px bg-slate-200 mx-2"></div>
             <div>
-              <p class="text-[9px] font-bold text-white/30 uppercase tracking-[0.2em] mb-1">إجمالي التكلفة التقديرية</p>
-              <p class="text-2xl font-bold font-mono tracking-tighter leading-none text-emerald-400">{{ formatMoney(totalCost) }}</p>
+              <p class="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-1">إجمالي التكلفة التقديرية</p>
+              <p class="text-2xl font-bold font-mono tracking-tighter leading-none text-emerald-700">{{ formatMoney(totalCost) }}</p>
             </div>
           </div>
-          <div v-if="lastSaveTime" class="hidden lg:block text-left opacity-30">
+          <div v-if="lastSaveTime" class="hidden lg:block text-left text-slate-500">
             <p class="text-[8px] font-bold uppercase tracking-widest">آخر حفظ تلقائي</p>
             <p class="text-[10px] font-mono">{{ lastSaveTime.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) }}</p>
           </div>

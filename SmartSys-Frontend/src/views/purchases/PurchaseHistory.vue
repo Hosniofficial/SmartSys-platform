@@ -133,7 +133,7 @@
             <thead>
               <tr class="bg-slate-50 border-b border-slate-200">
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">رقم الفاتورة</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التاريخ</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المورد</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الأصناف</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الإجمالي</th>
@@ -203,7 +203,7 @@
           <div v-for="info in [
             { l: 'المورد', v: selectedPurchase?.supplier_name || selectedPurchase?.supplier?.name || '-' },
             { l: 'الفرع', v: selectedPurchase?.branch_name || branches.find(branch => String(branch.id) === String(selectedPurchase?.branch_id))?.name || '-' },
-            { l: 'التاريخ', v: formatDateTime(selectedPurchase?.invoice_date || selectedPurchase?.created_at) },
+            { l: 'الوقت والتاريخ', v: formatDateTime(selectedPurchase?.invoice_date || selectedPurchase?.created_at) },
             { l: 'الكاشير', v: selectedPurchase?.created_by_name || 'النظام' },
             { l: 'الحالة', v: getStatusLabel(selectedPurchase?.dynamic_status || selectedPurchase?.status) }
           ]" :key="info.l" class="min-w-0 space-y-1 rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
@@ -443,7 +443,7 @@ const formatDateTime = (value) => {
   const parsed = new Date(String(value).replace(' ', 'T'));
   return Number.isNaN(parsed.getTime())
     ? String(value)
-    : parsed.toLocaleString('ar-EG', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+    : parsed.toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 const itemUnitPrice = (item) => Number(item?.price ?? item?.unit_price ?? item?.purchase_price ?? 0) || 0;

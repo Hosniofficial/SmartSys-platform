@@ -72,11 +72,11 @@ const buildReturnThermalHtml = (doc, options = {}) => {
 
     <div class="meta-grid">
       <div><strong>رقم المرتجع:</strong> ${esc(doc.return_number || doc.id)}</div>
-      <div><strong>تاريخ المرتجع:</strong> ${new Date(returnDate).toLocaleDateString('ar-EG')}</div>
+      <div><strong>تاريخ المرتجع:</strong> ${new Date(returnDate).toLocaleDateString('en-US')}</div>
       <div><strong>الفاتورة الأصلية:</strong> ${esc(doc.original_invoice_number || doc.invoice_number || 'غير محدد')}</div>
       <div><strong>${returnPartyLabel(doc)}:</strong> ${esc(returnPartyName(doc))}</div>
       <div><strong>أنشأه:</strong> ${esc(doc.created_by_name || 'النظام')}</div>
-      <div><strong>تاريخ ووقت الإنشاء:</strong> ${new Date(createdAt).toLocaleString('ar-EG')}</div>
+      <div><strong>تاريخ ووقت الإنشاء:</strong> ${new Date(createdAt).toLocaleString('en-US')}</div>
     </div>
 
     ${cfg.headerEnabled && cfg.headerText
@@ -158,12 +158,12 @@ const buildReturnA4Html = (doc, options = {}) => {
     </div>
 
     <div class="info-grid">
-      <div class="info-box"><label>تاريخ المرتجع</label>${new Date(returnDate).toLocaleDateString('ar-EG')}</div>
+      <div class="info-box"><label>تاريخ المرتجع</label>${new Date(returnDate).toLocaleDateString('en-US')}</div>
       <div class="info-box"><label>الفاتورة الأصلية</label>${esc(doc.original_invoice_number || doc.invoice_number || 'غير محدد')}</div>
       <div class="info-box"><label>${returnPartyLabel(doc)}</label>${esc(returnPartyName(doc))}</div>
       <div class="info-box"><label>الفرع</label>${esc(doc.branch_name || '-')}</div>
       <div class="info-box"><label>أنشأه</label>${esc(doc.created_by_name || 'النظام')}</div>
-      <div class="info-box"><label>تاريخ ووقت الإنشاء</label>${new Date(createdAt).toLocaleString('ar-EG')}</div>
+      <div class="info-box"><label>تاريخ ووقت الإنشاء</label>${new Date(createdAt).toLocaleString('en-US')}</div>
     </div>
 
     <p style="font-size:11px;color:#64748b;">مبالغ الأصناف قبل الضريبة؛ إجمالي المرتجع أدناه هو المبلغ النهائي شامل الضريبة.</p>

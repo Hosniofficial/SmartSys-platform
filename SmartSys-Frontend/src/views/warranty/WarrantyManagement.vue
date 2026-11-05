@@ -47,8 +47,11 @@
           <div class="lg:col-span-4 space-y-1.5 group">
             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">بحث سريع</label>
             <div class="relative">
-              <input v-model="search" type="text" class="filter-input-v2 h-9" style="padding-right: 2rem;" placeholder="رقم الطلب، العميل، الرقم التسلسلي..." />
+              <input v-model="search" type="text" class="filter-input-v2 h-9 text-[11px]" style="padding-right: 2rem; padding-left: 2rem;" placeholder="رقم الطلب، العميل، الرقم التسلسلي..." @keydown.enter.prevent="applyFilters" />
               <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+              <button v-if="search" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 transition hover:text-slate-600" aria-label="مسح البحث" @click="search = ''">
+                <i class="fas fa-times-circle text-xs"></i>
+              </button>
             </div>
           </div>
 
@@ -76,18 +79,18 @@
           </div>
 
           <div class="lg:col-span-1">
-            <LoadingButton
-              text="تحديث النتائج"
-              loadingText="جاري التحديث..."
-              icon="fas fa-sync-alt"
-              :isLoading="isLoading"
-              variant="secondary"
-              class="h-9 w-full rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm hover:text-blue-600"
-              @click="applyFilters"
-            />
+            <button
+              type="button"
+              :disabled="isLoading"
+              :aria-busy="isLoading"
+              aria-label="تحديث النتائج"
+              title="تحديث النتائج"
+              class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              @click="applyFilters(true)"
+            >
+              <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoading }" aria-hidden="true"></i>
+            </button>
           </div>
-
-
         </div>
         </div>
       </section>
@@ -183,23 +186,26 @@
       title="فتح تذكرة ضمان جديدة"
       subtitle="تسجيل طلب صيانة وضمان جديد"
       icon="fas fa-shield-halved"
-      maxWidth="3xl"
+      maxWidth="4xl"
     >
 
       <!-- Content -->
-      <div class="space-y-6">
+      <div class="space-y-5">
         <!-- Step 1: Customer & Invoice Info -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-4 sm:grid-cols-2">
           <div class="space-y-4">
             <div class="space-y-1.5 relative">
               <label class="metadata-label">العميل المستهدف <span class="text-rose-500">*</span></label>
               <div class="relative group">
-                <input v-model="customerQuery" type="text" class="filter-input-v2 h-10 font-bold pr-9" placeholder="ابحث بالاسم أو الهاتف..." @input="handleCustomerInput(customerQuery)" @focus="showCustomerDropdown = true; debouncedCustomerSearch(customerQuery)" @blur="scheduleHideCustomerDropdown" />
+                <input v-model="customerQuery" type="text" class="filter-input-v2 h-10 text-[11px] font-bold leading-4 placeholder:text-[11px] placeholder:font-bold placeholder:leading-4 pr-9 pl-8" placeholder="ابحث باسم العميل أو رقم الهاتف..." @input="customerActiveIndex = 0; handleCustomerInput(customerQuery)" @focus="showCustomerDropdown = true; debouncedCustomerSearch(customerQuery)" @blur="scheduleHideCustomerDropdown" @keydown.down.prevent="moveCustomerActive(1)" @keydown.up.prevent="moveCustomerActive(-1)" @keydown.enter.prevent="selectActiveCustomer" @keydown.esc.prevent="showCustomerDropdown = false" />
                 <i class="fas fa-user-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                <button v-if="customerQuery" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 transition hover:text-slate-600" aria-label="مسح بحث العميل" @mousedown.prevent="clearCustomerSearch">
+                  <i class="fas fa-times-circle text-xs"></i>
+                </button>
                 
                 <div v-if="showCustomerDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto py-2">
                   <div v-if="filteredCustomerResults.length === 0" class="px-4 py-2 text-[10px] text-slate-400 font-bold">{{ customerQuery.length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
-                  <li v-for="c in filteredCustomerResults" :key="c.id" @mousedown.prevent="selectCustomer(c)" class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 list-none transition-colors">
+                  <li v-for="(c, idx) in filteredCustomerResults" :key="c.id" @mousedown.prevent="selectCustomer(c)" :class="idx === customerActiveIndex ? 'bg-blue-50' : 'hover:bg-blue-50'" class="px-4 py-2.5 cursor-pointer border-b border-slate-50 last:border-0 list-none transition-colors">
                     <p class="text-xs font-bold text-slate-800">{{ c.name }}</p>
                     <p class="text-[9px] text-slate-400 font-mono">{{ c.phone || c.email || c.id }}</p>
                   </li>
@@ -209,30 +215,49 @@
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5"><label class="metadata-label">الرقم التسلسلي (SN)</label><input v-model="form.product_serial" type="text" class="filter-input-v2 h-10 font-mono uppercase" placeholder="SN-00000" /></div>
-              <div class="space-y-1.5"><label class="metadata-label">تاريخ الشراء</label><input ref="purchaseDateRef" v-model="form.purchase_date" type="date" class="filter-input-v2 h-10 font-mono" /></div>
+              <div class="space-y-1.5">
+                <label class="metadata-label h-8 flex items-center">الرقم التسلسلي (SN)</label>
+                <input v-model="form.product_serial" type="text" class="filter-input-v2 h-10 text-[11px] font-bold leading-4 placeholder:text-[11px] placeholder:font-bold placeholder:leading-4 uppercase" placeholder="أدخل الرقم التسلسلي..." />
+              </div>
+              <div class="space-y-1.5">
+                <label class="metadata-label h-8 flex items-center">تاريخ الشراء</label>
+                <input ref="purchaseDateRef" v-model="form.purchase_date" type="date" class="filter-input-v2 h-10 text-[11px] font-medium font-mono" />
+              </div>
             </div>
           </div>
 
           <div class="space-y-4">
-            <div class="space-y-1.5"><label class="metadata-label">أولوية المعالجة <span class="text-rose-500">*</span></label><select v-model="form.priority" class="filter-input-v2 h-10 font-bold"><option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="urgent">عاجل</option></select><p v-if="errors.priority" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.priority }}</p></div>
+            <div class="space-y-1.5">
+              <label class="metadata-label">أولوية المعالجة <span class="text-rose-500">*</span></label>
+              <select v-model="form.priority" class="filter-input-v2 h-10 text-[11px] font-medium">
+                <option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="urgent">عاجل</option>
+              </select>
+              <p v-if="errors.priority" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.priority }}</p>
+            </div>
             <div class="space-y-1.5 relative">
-              <label class="metadata-label">فاتورة البيع المرجعية <span class="text-slate-400 font-normal normal-case">(اختياري)</span></label>
+              <label class="metadata-label h-8 flex items-center">فاتورة البيع المرجعية <span class="text-slate-400 font-normal normal-case">(اختياري)</span></label>
               <input
                 v-model="invoiceQuery"
                 type="text"
-                class="filter-input-v2 h-10 font-mono"
+                class="filter-input-v2 h-10 text-[11px] font-bold leading-4 placeholder:text-[11px] placeholder:font-bold placeholder:leading-4"
                 :class="{ 'border-rose-300': errors.invoice_id }"
                 :disabled="!form.customer_id"
                 role="combobox"
                 aria-autocomplete="list"
                 aria-controls="warranty-sale-dropdown"
                 :aria-expanded="showInvoiceDropdown.toString()"
-                placeholder="اختر العميل أولاً ثم ابحث برقم الفاتورة..."
+                placeholder="ابحث برقم الفاتورة بعد اختيار العميل..."
                 @input="handleInvoiceInput"
                 @focus="showInvoiceDropdown = Boolean(form.customer_id); debouncedInvoiceSearch(invoiceQuery)"
                 @blur="scheduleHideInvoiceDropdown"
+                @keydown.down.prevent="moveInvoiceActive(1)"
+                @keydown.up.prevent="moveInvoiceActive(-1)"
+                @keydown.enter.prevent="selectActiveInvoice"
+                @keydown.esc.prevent="showInvoiceDropdown = false"
               />
+              <button v-if="invoiceQuery" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 transition hover:text-slate-600" aria-label="مسح بحث الفاتورة" @mousedown.prevent="clearSelectedInvoice">
+                <i class="fas fa-times-circle text-xs"></i>
+              </button>
               <div
                 v-if="showInvoiceDropdown && form.customer_id"
                 id="warranty-sale-dropdown"
@@ -245,12 +270,13 @@
                 <div v-else-if="invoiceQuery.trim().length === 1" role="status" class="px-4 py-2 text-[10px] text-slate-400 font-bold">اكتب حرفين على الأقل للبحث...</div>
                 <div v-else-if="invoiceResults.length === 0" role="status" class="px-4 py-2 text-[10px] text-slate-400 font-bold">لا توجد فواتير بيع لهذا العميل.</div>
                 <button
-                  v-for="sale in invoiceResults"
+                  v-for="(sale, idx) in invoiceResults"
                   :key="sale.id"
                   type="button"
                   role="option"
                   @mousedown.prevent="selectInvoice(sale)"
-                  class="w-full px-4 py-2.5 text-right hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors"
+                  :class="idx === invoiceActiveIndex ? 'bg-blue-50' : 'hover:bg-blue-50'"
+                  class="w-full px-4 py-2.5 text-right cursor-pointer border-b border-slate-50 last:border-0 transition-colors"
                 >
                   <span class="block text-xs font-bold text-slate-800">{{ sale.invoice_number || `فاتورة #${sale.id}` }}</span>
                   <span class="block text-[9px] text-slate-400 font-mono mt-1">#{{ sale.id }} · {{ formatDateTime(sale.created_at) }}</span>
@@ -263,14 +289,14 @@
         </div>
 
         <!-- Step 2: Description -->
-        <div class="space-y-1.5">
+        <div class="space-y-1.5 rounded-xl border border-slate-100 bg-white">
           <label class="metadata-label">تفاصيل المشكلة والعطل <span class="text-rose-500">*</span></label>
-          <textarea v-model="form.issue_description" rows="3" class="w-full rounded-lg border border-slate-200 p-4 text-xs font-bold bg-slate-50 focus:bg-white transition-all outline-none" placeholder="صف العطل الفني بدقة..."></textarea>
+          <textarea v-model="form.issue_description" rows="3" class="w-full rounded-lg border border-slate-200 bg-slate-50 p-4 text-[11px] font-bold text-slate-700 placeholder:text-[11px] placeholder:font-bold outline-none transition-all focus:bg-white" placeholder="اكتب وصف العطل أو المشكلة بالتفصيل..."></textarea>
           <p v-if="errors.issue_description" class="text-[9px] text-rose-500 font-bold px-1">{{ errors.issue_description }}</p>
         </div>
 
         <!-- Step 3: Dynamic Items -->
-        <div class="space-y-4 pt-4 border-t border-slate-100">
+        <div class="space-y-4 rounded-xl border border-slate-100 bg-slate-50/40 p-4">
           <div class="flex items-center justify-between">
             <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">العناصر المشمولة في الطلب</h4>
             <button type="button" @click="addItem" class="h-7 px-4 bg-slate-900 text-white rounded text-[10px] font-bold hover:bg-black transition-all">+ إضافة عنصر</button>
@@ -281,11 +307,11 @@
               <button v-if="form.items.length > 1" @click="removeItem(idx)" class="absolute -left-2 -top-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg"><i class="fas fa-times text-[8px]"></i></button>
               <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div class="md:col-span-6 relative">
-                  <input v-model="it._productQuery" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold" :class="{'border-rose-300': itemErrors[idx]?.product_id}" placeholder="بحث عن الصنف..." @input="debouncedProductSearch(idx, it._productQuery)" @focus="it._showProductDropdown = true; if (it._productQuery) debouncedProductSearch(idx, it._productQuery)" @blur="scheduleHideProductDropdown(it)" />
+                  <input v-model="it._productQuery" type="text" class="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 placeholder:text-[11px] placeholder:font-bold" :class="{'border-rose-300': itemErrors[idx]?.product_id}" placeholder="ابحث عن المنتج..." @input="it._productActiveIndex = 0; debouncedProductSearch(idx, it._productQuery)" @focus="it._showProductDropdown = true; if (it._productQuery) debouncedProductSearch(idx, it._productQuery)" @blur="scheduleHideProductDropdown(it)" @keydown.down.prevent="moveProductActive(it, 1)" @keydown.up.prevent="moveProductActive(it, -1)" @keydown.enter.prevent="selectActiveProduct(idx, it)" @keydown.esc.prevent="it._showProductDropdown = false" />
                   <div v-if="it._showProductDropdown" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-auto py-1">
                     <div v-if="it._productSearchError" role="alert" class="px-3 py-2 text-[10px] text-rose-600 font-bold">{{ it._productSearchError }}</div>
                     <div v-else-if="(it._productResults || []).length === 0" class="px-3 py-2 text-[10px] text-slate-400 font-bold">{{ (it._productQuery || '').length < 2 ? 'اكتب حرفين على الأقل للبحث...' : 'لا توجد نتائج...' }}</div>
-                    <li v-for="p in it._productResults" :key="p.id" @mousedown.prevent="selectProduct(idx, p)" class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-[10px] font-bold border-b border-slate-50 last:border-0 list-none">{{ p.name }}</li>
+                    <li v-for="(p, productIdx) in it._productResults" :key="p.id" @mousedown.prevent="selectProduct(idx, p)" :class="productIdx === (it._productActiveIndex || 0) ? 'bg-blue-50' : 'hover:bg-blue-50'" class="px-3 py-1.5 cursor-pointer text-[10px] font-bold border-b border-slate-50 last:border-0 list-none">{{ p.name }}</li>
                   </div>
                   <p v-if="itemErrors[idx]?.product_id" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].product_id }}</p>
                 </div>
@@ -294,7 +320,7 @@
                   <p v-if="itemErrors[idx]?.quantity" class="text-[9px] text-rose-500 font-bold mt-1 px-1">{{ itemErrors[idx].quantity }}</p>
                 </div>
                 <div class="md:col-span-4">
-                  <input v-model="it.issue_notes" type="text" class="h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-medium italic" placeholder="ملاحظات الصنف..." />
+                  <input v-model="it.issue_notes" type="text" class="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 placeholder:text-[11px] placeholder:font-bold" placeholder="أضف ملاحظات المنتج..." />
                 </div>
               </div>
             </div>
@@ -329,15 +355,15 @@
       icon="fas fa-shield-halved"
       maxWidth="5xl"
     >
-          <div class="space-y-10">
+          <div class="space-y-6">
             <!-- Header Identity Row -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
               <div v-for="info in [
                 { l: 'العميل', v: customerName || details.customer_id, c: 'text-slate-900' },
                 { l: 'الأولوية', v: priorityLabel(details.priority), b: priorityClass(details.priority) },
                 { l: 'الحالة الحالية', v: statusLabel(details.status), b: statusClass(details.status) },
                 { l: 'الرقم التسلسلي', v: details.product_serial || '—', c: 'text-indigo-600 font-mono' }
-              ]" :key="info.l" class="p-4 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-center">
+              ]" :key="info.l" class="rounded-lg border border-slate-100 bg-slate-50/60 p-3 flex flex-col justify-center">
                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{{ info.l }}</p>
                 <span v-if="info.b" :class="[info.b]" class="px-2 py-0.5 rounded text-[9px] font-bold border w-fit">{{ info.v }}</span>
                 <p v-else :class="[info.c, 'text-xs font-bold']">{{ info.v }}</p>
@@ -345,7 +371,7 @@
             </div>
 
             <!-- Problem Description Box -->
-            <div class="bg-blue-600 rounded-xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div class="relative overflow-hidden rounded-xl bg-blue-600 p-5 text-white shadow-lg">
                <div class="absolute top-0 left-0 w-24 h-24 bg-white/10 rounded-full -translate-x-6 -translate-y-6"></div>
                <div class="relative z-10 space-y-3">
                   <p class="text-[10px] font-bold text-blue-200 uppercase tracking-widest">وصف العطل المبلّغ عنه</p>
@@ -355,7 +381,7 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
               <!-- Activities & Actions -->
-              <div class="lg:col-span-7 space-y-10">
+              <div class="lg:col-span-7 space-y-6">
                 <div class="space-y-4">
                   <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">سجل التحديثات (Timeline)</h4>
                   <div class="mr-4 pr-6 border-r border-slate-100 space-y-8">
@@ -410,7 +436,7 @@
               </div>
 
               <!-- Attachments & Components Grid -->
-              <div class="lg:col-span-5 space-y-10">
+              <div class="lg:col-span-5 space-y-6">
                 <div class="space-y-4">
                    <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">القطع المشمولة</h4>
                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50 shadow-sm">
@@ -540,7 +566,7 @@ const form = ref({
   purchase_date: '',
   priority: 'medium',
   issue_description: '',
-  items: [{ product_id: null, quantity: 1, issue_notes: '', _productQuery: '', _productResults: [], _productSearchError: '', _showProductDropdown: false, _productName: '' }]
+  items: [{ product_id: null, quantity: 1, issue_notes: '', _productQuery: '', _productResults: [], _productSearchError: '', _showProductDropdown: false, _productActiveIndex: 0, _productName: '' }]
 });
 
 // Customer autocomplete
@@ -550,6 +576,7 @@ const customerStore = useCustomerStore();
 const salesStore = useSalesStore();
 const customers = computed(() => customerStore.customers);
 const customerSearchResults = ref([]);
+const customerActiveIndex = ref(0);
 const filteredCustomerResults = computed(() => {
   return Array.isArray(customerSearchResults.value)
     ? customerSearchResults.value.filter(c => c && c.id)
@@ -563,6 +590,7 @@ const invoiceResults = ref([]);
 const invoiceSearchLoading = ref(false);
 const invoiceSearchError = ref('');
 const showInvoiceDropdown = ref(false);
+const invoiceActiveIndex = ref(0);
 let invoiceSearchRequestId = 0;
 
 const pendingTimeouts = new Set();
@@ -702,8 +730,27 @@ function handleCustomerInput(query) {
   debouncedCustomerSearch(query);
 }
 
+function clearCustomerSearch() {
+  customerQuery.value = '';
+  customerActiveIndex.value = 0;
+  handleCustomerInput('');
+  showCustomerDropdown.value = true;
+}
+
+function moveCustomerActive(direction) {
+  const length = filteredCustomerResults.value.length;
+  if (!length) return;
+  customerActiveIndex.value = (customerActiveIndex.value + direction + length) % length;
+}
+
+function selectActiveCustomer() {
+  const customer = filteredCustomerResults.value[customerActiveIndex.value];
+  if (customer) selectCustomer(customer);
+}
+
 function handleInvoiceInput() {
   invoiceSearchRequestId += 1;
+  invoiceActiveIndex.value = 0;
   invoiceResults.value = [];
   invoiceSearchLoading.value = false;
   if (form.value.invoice_id) {
@@ -768,6 +815,17 @@ function selectInvoice(sale) {
   showInvoiceDropdown.value = false;
 }
 
+function moveInvoiceActive(direction) {
+  const length = invoiceResults.value.length;
+  if (!length) return;
+  invoiceActiveIndex.value = (invoiceActiveIndex.value + direction + length) % length;
+}
+
+function selectActiveInvoice() {
+  const sale = invoiceResults.value[invoiceActiveIndex.value];
+  if (sale) selectInvoice(sale);
+}
+
 const selectCustomer = (c) => {
   if (!c || !c.id) {
     console.warn('selectCustomer called with invalid customer:', c);
@@ -777,6 +835,7 @@ const selectCustomer = (c) => {
   customerQuery.value = c.name || c.phone || String(c.id);
   customerSelectionLabel.value = customerQuery.value;
   showCustomerDropdown.value = false;
+  customerActiveIndex.value = 0;
   clearSelectedInvoice();
   validateCustomer();
 };
@@ -813,6 +872,17 @@ const debouncedProductSearch = debounce((idx, q) => {
   searchProducts(idx, q);
 }, 300);
 
+function moveProductActive(item, direction) {
+  const length = item?._productResults?.length || 0;
+  if (!length) return;
+  item._productActiveIndex = ((item._productActiveIndex || 0) + direction + length) % length;
+}
+
+function selectActiveProduct(idx, item) {
+  const product = item?._productResults?.[item._productActiveIndex || 0];
+  if (product) selectProduct(idx, product);
+}
+
 const selectProduct = (idx, p) => {
   const it = form.value.items[idx];
   if (!it) return;
@@ -820,6 +890,7 @@ const selectProduct = (idx, p) => {
   it._productName = p.name;
   it._productQuery = `${p.name}${p.barcode ? ' - ' + p.barcode : ''}`;
   it._showProductDropdown = false;
+  it._productActiveIndex = 0;
   validateItem(idx);
 };
 
@@ -913,12 +984,14 @@ async function fetchList(forceRefresh = false) {
   }
 }
 
-function applyFilters() {
+function applyFilters(forceRefresh = false) {
   if (filters.page.value !== 1) {
     filters.page.value = 1;
   }
-  fetchList();
+  fetchList(forceRefresh);
 }
+
+const debouncedApplyFilters = debounce(applyFilters, 300);
 
 function changePage(page) {
   if (page >= 1 && page <= filters.totalPages.value && page !== filters.page.value) {
@@ -931,7 +1004,7 @@ function resetForm() {
   form.value = {
     customer_id: null, invoice_id: null, product_serial: '', purchase_date: '',
     priority: 'medium', issue_description: '',
-    items: [{ product_id: null, quantity: 1, issue_notes: '', _productQuery: '', _productResults: [], _productSearchError: '', _showProductDropdown: false, _productName: '' }]
+    items: [{ product_id: null, quantity: 1, issue_notes: '', _productQuery: '', _productResults: [], _productSearchError: '', _showProductDropdown: false, _productActiveIndex: 0, _productName: '' }]
   };
   customerQuery.value = '';
   customerSelectionLabel.value = '';
@@ -942,7 +1015,7 @@ function resetForm() {
 }
 
 function addItem() {
-  form.value.items.push({ product_id: null, quantity: 1, issue_notes: '', _productQuery: '', _productResults: [], _productSearchError: '', _showProductDropdown: false, _productName: '' });
+  form.value.items.push({ product_id: null, quantity: 1, issue_notes: '', _productQuery: '', _productResults: [], _productSearchError: '', _showProductDropdown: false, _productActiveIndex: 0, _productName: '' });
 }
 
 function removeItem(idx) {
@@ -1175,7 +1248,7 @@ onMounted(async () => {
 });
 
 watch([search, statusFilter, priorityFilter], () => {
-  applyFilters();
+  debouncedApplyFilters();
 });
 
 function statusLabel(s) {
@@ -1198,7 +1271,6 @@ function priorityClass(p) {
 .filter-input-v3 {
   @apply h-9 w-full bg-white border border-slate-200 rounded-md px-3 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all;
 }
-
 
 .status-badge { @apply px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center justify-center; }
 

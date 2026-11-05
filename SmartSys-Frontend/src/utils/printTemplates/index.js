@@ -4,6 +4,7 @@ import { buildA4SimpleHtml }         from './a4Simple';
 import { buildA4ProfessionalHtml }   from './a4Professional';
 import { buildReturnHtml }           from './returnTemplate';
 import { buildPurchaseHtml }         from './purchaseTemplate';
+import { buildSessionHtml }          from './sessionTemplate';
 
 export {
   buildThermalCompactHtml,
@@ -12,6 +13,7 @@ export {
   buildA4ProfessionalHtml,
   buildReturnHtml,
   buildPurchaseHtml,
+  buildSessionHtml,
 };
 
 export const getBuilderByTemplate = (template) => {

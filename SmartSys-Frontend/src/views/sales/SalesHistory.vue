@@ -174,7 +174,7 @@
                   الفاتورة <i :class="filters.sortKey.value==='id' ? (filters.sortAsc.value? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort'" class="fas ml-1 opacity-20 group-hover:opacity-100 transition-opacity"></i>
                 </th>
                 <th @click="toggleSort('created_at')" class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer group">
-                  التاريخ <i :class="filters.sortKey.value==='created_at' ? (filters.sortAsc.value? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort'" class="fas ml-1 opacity-20 group-hover:opacity-100 transition-opacity"></i>
+                  الوقت والتاريخ <i :class="filters.sortKey.value==='created_at' ? (filters.sortAsc.value? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort'" class="fas ml-1 opacity-20 group-hover:opacity-100 transition-opacity"></i>
                 </th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">العميل</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الأصناف</th>
@@ -284,11 +284,22 @@
               لا يمكن تغيير طريقة الدفع بعد تسجيل دفعة.
             </span>
           </label>
+          <label v-if="canSelectBranch" class="space-y-1.5">
+            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">الفرع</span>
+            <select v-model="saleEditForm.branch_id" class="filter-input" @change="onSaleEditBranchChange">
+              <option v-for="branch in branches" :key="branch.id" :value="String(branch.id)">
+                {{ branch.name }}
+              </option>
+            </select>
+            <span class="block text-[10px] text-slate-500">
+              نقل الفاتورة متاح قبل تسجيل أي تحصيل.
+            </span>
+          </label>
           <label class="space-y-1.5">
             <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">مركز التكلفة</span>
             <select v-model="saleEditForm.cost_center_id" class="filter-input" :disabled="!costCenters.length">
               <option value="">بدون مركز تكلفة</option>
-              <option v-for="center in costCenters" :key="center.id" :value="String(center.id)">
+              <option v-for="center in saleEditCostCenters" :key="center.id" :value="String(center.id)">
                 {{ center.name }}
               </option>
             </select>
@@ -297,12 +308,100 @@
             </span>
           </label>
         </div>
+        <section class="space-y-3 rounded-xl border border-slate-200 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-xs font-bold text-slate-800">أصناف الفاتورة</h4>
+              <p class="mt-1 text-[10px] text-slate-500">عدّل الكمية أو السعر، أو ابحث لإضافة صنف. ستتم إعادة حساب الإجمالي والضريبة عند الحفظ.</p>
+            </div>
+            <span class="text-[10px] font-bold text-slate-500">{{ saleEditForm.items.length }} أصناف</span>
+          </div>
+          <div class="flex gap-2">
+            <input
+              v-model="saleEditProductQuery"
+              type="search"
+              minlength="2"
+              class="filter-input min-w-0 flex-1"
+              placeholder="ابحث باسم المنتج أو الباركود"
+              @keydown.enter.prevent="searchSaleEditProducts"
+            />
+            <button type="button" class="rounded-md border border-blue-200 px-3 text-xs font-bold text-blue-700 disabled:opacity-50" :disabled="isSearchingSaleEditProducts || saleEditProductQuery.trim().length < 2" @click="searchSaleEditProducts">
+              {{ isSearchingSaleEditProducts ? 'بحث...' : 'بحث' }}
+            </button>
+          </div>
+          <p v-if="saleEditProductError" class="text-[10px] font-bold text-rose-600">{{ saleEditProductError }}</p>
+          <div v-if="saleEditProductResults.length" class="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-100 p-1">
+            <button
+              v-for="product in saleEditProductResults"
+              :key="product.id"
+              type="button"
+              class="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-right hover:bg-blue-50"
+              @click="addSaleEditProduct(product)"
+            >
+              <span class="min-w-0 truncate text-[11px] font-bold text-slate-700">{{ product.name }}</span>
+              <span class="shrink-0 text-[10px] font-mono text-blue-700">{{ formatPrice(product.campaign_price ?? product.sale_price) }}</span>
+            </button>
+          </div>
+          <div class="overflow-x-auto rounded-lg border border-slate-100">
+            <table class="w-full min-w-[620px] text-right text-xs">
+              <thead class="bg-slate-50 text-[9px] font-bold text-slate-400">
+                <tr>
+                  <th class="px-2 py-2">المنتج</th>
+                  <th class="px-2 py-2">الوحدة</th>
+                  <th class="px-2 py-2">الكمية</th>
+                  <th class="px-2 py-2">سعر الوحدة</th>
+                  <th class="px-2 py-2">الإجمالي</th>
+                  <th class="px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="(item, index) in saleEditForm.items" :key="`${item.product_id}-${item.unit_id}-${index}`">
+                  <td class="px-2 py-2">
+                    <p class="font-bold text-slate-700">{{ item.product_name }}</p>
+                    <input v-if="item.has_serial_number" v-model="item.serial" class="filter-input mt-1 h-8" placeholder="الرقم المسلسل مطلوب" />
+                    <input v-if="item.has_batch_number" v-model="item.batch_number" class="filter-input mt-1 h-8" placeholder="رقم الدفعة (اختياري)" />
+                    <label class="mt-1 flex items-center gap-1 text-[9px] text-amber-700">
+                      <input v-model="item.price_override_confirmed" type="checkbox" class="rounded border-amber-300" />
+                      تأكيد مراجعة السعر
+                    </label>
+                  </td>
+                  <td class="px-2 py-2 text-[10px] text-slate-500">{{ item.unit_name || '-' }}</td>
+                  <td class="px-2 py-2">
+                    <input v-model.number="item.quantity" type="number" min="0.001" step="0.001" class="filter-input h-9 w-24" />
+                  </td>
+                  <td class="px-2 py-2">
+                    <input v-model.number="item.sale_price" type="number" min="0" step="0.01" class="filter-input h-9 w-28" />
+                  </td>
+                  <td class="px-2 py-2 font-mono font-bold text-slate-700">{{ formatPrice(Number(item.quantity || 0) * Number(item.sale_price || 0)) }}</td>
+                  <td class="px-2 py-2">
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" aria-label="حذف الصنف" title="حذف الصنف" @click="removeSaleEditItem(index)">
+                      <i class="fas fa-trash text-[10px]"></i>
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!saleEditForm.items.length">
+                  <td colspan="6" class="px-3 py-6 text-center text-[10px] font-bold text-rose-600">أضف صنفًا واحدًا على الأقل قبل الحفظ.</td>
+                </tr>
+              </tbody>
+              <tfoot class="border-t border-slate-200 bg-slate-50">
+                <tr>
+                  <td colspan="4" class="px-2 py-2 text-[10px] font-bold text-slate-600">الإجمالي التقديري قبل الضريبة</td>
+                  <td colspan="2" class="px-2 py-2 font-mono text-xs font-black text-blue-700">{{ formatPrice(saleEditSubtotal) }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <label v-if="saleEditForm.items.some(item => item.price_override_confirmed)" class="block space-y-1">
+            <span class="text-[10px] font-bold text-slate-500">سبب اعتماد سعر منخفض (إن انطبق)</span>
+            <textarea v-model="saleEditForm.below_cost_reason" rows="2" maxlength="500" class="filter-input h-auto py-2" placeholder="اذكر السبب عند تجاوز تكلفة المنتج"></textarea>
+          </label>
+        </section>
         <label class="block space-y-1.5">
           <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">ملاحظات الفاتورة</span>
           <textarea v-model="saleEditForm.notes" rows="3" class="filter-input h-auto py-2"></textarea>
         </label>
         <p class="text-[10px] text-slate-500">
-          التعديل متاح للفواتير غير المعتمدة وغير المرحلة محاسبياً، ولا يشمل الأصناف أو الكميات.
+          تعديل الأصناف والأسعار متاح قبل الاعتماد والترحيل فقط. أي تعديل يعيد الفاتورة المعدّلة إلى قائمة الاعتماد، ولا يمكن تعديل فاتورة عليها تحصيل.
         </p>
       </form>
 
@@ -311,7 +410,7 @@
           <div v-for="info in [
             { l: 'العميل', v: selectedSale?.customer_name || 'عميل نقدي' },
             { l: 'الفرع', v: selectedSale?.branch_name || '-' },
-            { l: 'التاريخ', v: formatDateTime(selectedSale?.sale_date || selectedSale?.created_at) },
+            { l: 'الوقت والتاريخ', v: formatDateTime(selectedSale?.sale_date || selectedSale?.created_at) },
             { l: 'الكاشير', v: selectedSale?.created_by_name || '-' },
             { l: 'طريقة الدفع', v: getPaymentMethodName(selectedSalePaymentMethodId) },
             { l: 'حالة الفاتورة', v: getStatusLabel(selectedSale?.status === 'canceled' ? 'canceled' : selectedSale?.dynamic_status) },
@@ -613,6 +712,7 @@ import { useCustomerStore } from '@/stores/customer/customerStore';
 import { usePaymentStore } from '@/stores/payment/paymentStore';
 import { useBootstrapStore } from '@/stores/bootstrap/bootstrapStore';
 import { useCostCenterStore } from '@/stores/costCenter/costCenterStore';
+import { useProductStore } from '@/stores/product/productStore';
 import AlertService from '@/services/AlertService';
 import { useToast } from '@/composables/useToast';
 import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
@@ -633,6 +733,7 @@ const customerStore = useCustomerStore();
 const paymentStore = usePaymentStore();
 const bootstrapStore = useBootstrapStore();
 const costCenterStore = useCostCenterStore();
+const productStore = useProductStore();
 const route = useRoute();
 const router = useRouter();
 const { ensureLoaded: ensureExemptionLoaded } = useSessionExemption();
@@ -708,7 +809,23 @@ const isMarkingPaid = ref(false);
 const isVoidingSale = ref(false);
 const isUpdatingSale = ref(false);
 const isEditingSale = ref(false);
-const saleEditForm = ref({ sale_date: '', notes: '', payment_method_id: '', cost_center_id: '' });
+const saleEditForm = ref({
+  sale_date: '',
+  notes: '',
+  payment_method_id: '',
+  cost_center_id: '',
+  branch_id: '',
+  below_cost_reason: '',
+  items: [],
+});
+const saleEditProductQuery = ref('');
+const saleEditProductResults = ref([]);
+const saleEditProductError = ref('');
+const isSearchingSaleEditProducts = ref(false);
+const saleEditSubtotal = computed(() => saleEditForm.value.items.reduce(
+  (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.sale_price) || 0),
+  0
+));
 const isDataStale = ref(false);
 const lastSuccessfulUpdate = ref(null);
 let listAbortCtrl = null;
@@ -775,6 +892,12 @@ const canEditSelectedSale = computed(() => {
   return hasPermission
     && ['draft', 'pending_approval', 'rejected'].includes(String(sale.status || '').toLowerCase())
     && !Number(sale.journal_entry_id || 0);
+});
+const saleEditCostCenters = computed(() => {
+  const branchId = Number(saleEditForm.value.branch_id);
+  return costCenters.value.filter(center =>
+    !center.branch_id || Number(center.branch_id) === branchId
+  );
 });
 const hasSalePayment = computed(() =>
   selectedSale.value?.has_payment_records === true
@@ -936,7 +1059,7 @@ watch(showDetailsModal, (val) => {
 const formatDateTime = (dateTimeString) => {
   if (!dateTimeString) return '';
   const date = dateTimeString instanceof Date ? dateTimeString : new Date(dateTimeString);
-  return date.toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 const getStatusLabel = (status) => {
@@ -1125,8 +1248,114 @@ const openSaleEdit = async () => {
     notes: sale.notes || '',
     payment_method_id: sale.payment_method_id ? String(sale.payment_method_id) : '',
     cost_center_id: sale.cost_center_id ? String(sale.cost_center_id) : '',
+    branch_id: sale.branch_id ? String(sale.branch_id) : '',
+    below_cost_reason: '',
+    items: (sale.items || []).map(item => {
+      const quantity = Number(item.quantity) || 0;
+      const savedPrice = Number(item.sale_price) || 0;
+      const savedDiscount = Number(item.discount_value) || 0;
+      return {
+        product_id: Number(item.product_id),
+        product_name: item.product_name || '',
+        unit_id: Number(item.unit_id),
+        unit_name: item.unit_name || '',
+        quantity,
+        sale_price: quantity > 0 ? Math.max(0, savedPrice - savedDiscount / quantity) : savedPrice,
+        purchase_price: Number(item.purchase_price) || 0,
+        conversion_factor: Number(item.conversion_factor) || 1,
+        min_sale_price: Number(item.min_sale_price) || 0,
+        has_batch_number: Number(item.has_batch_number) === 1,
+        has_serial_number: Number(item.has_serial_number) === 1,
+        batch_number: item.batch_number || '',
+        expiry_date: item.expiry_date || '',
+        serial: item.serial || '',
+        price_override_confirmed: false,
+      };
+    }),
   };
+  saleEditProductQuery.value = '';
+  saleEditProductResults.value = [];
+  saleEditProductError.value = '';
   isEditingSale.value = true;
+};
+
+const searchSaleEditProducts = async () => {
+  const query = saleEditProductQuery.value.trim();
+  if (query.length < 2) {
+    saleEditProductResults.value = [];
+    return;
+  }
+  const branchId = saleEditForm.value.branch_id || selectedSale.value?.branch_id;
+  if (!branchId) {
+    saleEditProductError.value = 'حدد الفرع قبل البحث عن المنتجات.';
+    return;
+  }
+  isSearchingSaleEditProducts.value = true;
+  saleEditProductError.value = '';
+  try {
+    const result = await productStore.searchProducts({
+      query,
+      branchId,
+      limit: 50,
+      force: true,
+    });
+    if (result.status !== 'success') {
+      throw new Error(result.message || 'تعذر البحث عن المنتجات.');
+    }
+    saleEditProductResults.value = Array.isArray(result.data) ? result.data : [];
+  } catch (error) {
+    saleEditProductError.value = error.message || 'تعذر البحث عن المنتجات.';
+  } finally {
+    isSearchingSaleEditProducts.value = false;
+  }
+};
+
+const addSaleEditProduct = (product) => {
+  if (!product?.unit_id) {
+    saleEditProductError.value = 'لا توجد وحدة بيع أساسية مرتبطة بهذا المنتج.';
+    return;
+  }
+  const existing = saleEditForm.value.items.find(item =>
+    Number(item.product_id) === Number(product.id)
+    && Number(item.unit_id) === Number(product.unit_id)
+  );
+  if (existing) {
+    existing.quantity = (Number(existing.quantity) || 0) + 1;
+  } else {
+    saleEditForm.value.items.push({
+      product_id: Number(product.id),
+      product_name: product.name || '',
+      unit_id: Number(product.unit_id),
+      unit_name: product.unit_name || '',
+      quantity: 1,
+      sale_price: Number(product.campaign_price ?? product.sale_price) || 0,
+      purchase_price: Number(product.purchase_price) || 0,
+      conversion_factor: Number(product.conversion_factor) || 1,
+      min_sale_price: Number(product.min_sale_price) || 0,
+      has_batch_number: Number(product.has_batch_number) === 1,
+      has_serial_number: Number(product.has_serial_number) === 1,
+      batch_number: '',
+      expiry_date: '',
+      serial: '',
+      price_override_confirmed: false,
+    });
+  }
+  saleEditProductQuery.value = '';
+  saleEditProductResults.value = [];
+  saleEditProductError.value = '';
+};
+
+const removeSaleEditItem = (index) => {
+  saleEditForm.value.items.splice(index, 1);
+};
+
+const onSaleEditBranchChange = () => {
+  const selectedCostCenter = saleEditCostCenters.value.some(
+    center => String(center.id) === String(saleEditForm.value.cost_center_id)
+  );
+  if (!selectedCostCenter) {
+    saleEditForm.value.cost_center_id = '';
+  }
 };
 
 const cancelSaleEdit = () => {
@@ -1140,6 +1369,17 @@ const submitSaleEdit = async () => {
     showToast('حدد تاريخ الفاتورة', 'error');
     return;
   }
+  if (!saleEditForm.value.items.length) {
+    showToast('يجب أن تحتوي الفاتورة على صنف واحد على الأقل.', 'error');
+    return;
+  }
+  if (saleEditForm.value.items.some(item =>
+    !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0
+    || !Number.isFinite(Number(item.sale_price)) || Number(item.sale_price) < 0
+  )) {
+    showToast('راجع كميات وأسعار الأصناف قبل الحفظ.', 'error');
+    return;
+  }
 
   isUpdatingSale.value = true;
   try {
@@ -1147,7 +1387,25 @@ const submitSaleEdit = async () => {
       sale_date: saleEditForm.value.sale_date,
       notes: saleEditForm.value.notes,
       cost_center_id: saleEditForm.value.cost_center_id || null,
+      items: saleEditForm.value.items.map(item => ({
+        product_id: Number(item.product_id),
+        unit_id: Number(item.unit_id),
+        quantity: Number(item.quantity),
+        sale_price: Number(item.sale_price),
+        below_cost_confirmed: Boolean(item.price_override_confirmed),
+        below_minimum_price_confirmed: Boolean(item.price_override_confirmed),
+        batch_number: item.batch_number || null,
+        expiry_date: item.expiry_date || null,
+        serial: item.serial || null,
+      })),
+      below_cost_reason: saleEditForm.value.below_cost_reason,
     };
+    if (
+      canSelectBranch.value
+      && String(saleEditForm.value.branch_id) !== String(sale.branch_id || '')
+    ) {
+      payload.branch_id = Number(saleEditForm.value.branch_id);
+    }
     if (!hasSalePayment.value) {
       payload.payment_method_id = saleEditForm.value.payment_method_id || null;
     }
@@ -1307,7 +1565,7 @@ const printSelected = () => {
   if (!rows.length) return;
   const win = window.open('', '_blank');
   const totalSelected = rows.reduce((sum, s) => sum + parseFloat(getSaleGross(s) || 0), 0);
-  const html = `<!DOCTYPE html><html lang="ar"><head><meta charset="utf-8"/><title>طباعة فواتير</title><style>body{font-family:Tahoma,Arial,sans-serif;direction:rtl}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:center}th{background:#f5f5f5}</style></head><body><h3>فواتير مختارة</h3><table><thead><tr><th>#</th><th>التاريخ</th><th>العميل</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th></tr></thead><tbody>${rows.map(s => `<tr><td>${s.id}</td><td>${formatDateTime(s.created_at)}</td><td>${s.customer_name || 'عميل نقدي'}</td><td>${s.total_items}</td><td>${formatPrice(getSaleGross(s))}</td><td>${getStatusLabel(s.dynamic_status)}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="3">الملخص</th><th>${rows.length} فاتورة</th><th>${formatPrice(totalSelected)}</th><th></th></tr></tfoot></table></body></html>`;
+  const html = `<!DOCTYPE html><html lang="ar"><head><meta charset="utf-8"/><title>طباعة فواتير</title><style>body{font-family:Tahoma,Arial,sans-serif;direction:rtl}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:center}th{background:#f5f5f5}</style></head><body><h3>فواتير مختارة</h3><table><thead><tr><th>#</th><th>الوقت والتاريخ</th><th>العميل</th><th>الأصناف</th><th>الإجمالي</th><th>الحالة</th></tr></thead><tbody>${rows.map(s => `<tr><td>${s.id}</td><td>${formatDateTime(s.created_at)}</td><td>${s.customer_name || 'عميل نقدي'}</td><td>${s.total_items}</td><td>${formatPrice(getSaleGross(s))}</td><td>${getStatusLabel(s.dynamic_status)}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="3">الملخص</th><th>${rows.length} فاتورة</th><th>${formatPrice(totalSelected)}</th><th></th></tr></tfoot></table></body></html>`;
   win.document.open(); win.document.write(html); win.document.close();
   win.onload = () => { win.print(); setTimeout(() => { try { win.close(); } catch {} }, 300); };
 };

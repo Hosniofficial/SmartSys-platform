@@ -344,7 +344,9 @@ class SalesHandler extends BaseHandler
             }
 
             $stmt = $this->db->prepare("
-                SELECT si.*, p.name AS product_name, p.barcode, c.name AS category_name,
+                SELECT si.*, p.name AS product_name, p.barcode, p.min_sale_price,
+                       p.has_batch_number, p.has_serial_number, u.name AS unit_name,
+                       c.name AS category_name,
                        ROUND(
                            (CASE WHEN COALESCE(s.tax_inclusive, 0) = 1
                                  THEN si.net_total - COALESCE(si.tax_amount, 0)
@@ -355,6 +357,7 @@ class SalesHandler extends BaseHandler
                 FROM sales_items si
                 JOIN sales s ON s.id = si.sale_id AND s.tenant_id = si.tenant_id
                 JOIN products p ON si.product_id = p.id
+                LEFT JOIN units u ON si.unit_id = u.id
                 LEFT JOIN categories c ON p.category_id = c.id
                 WHERE si.sale_id = ? AND si.tenant_id = ?
             ");
@@ -914,10 +917,13 @@ class SalesHandler extends BaseHandler
                 'update_fields' => array_keys($data)
             ]);
 
-            $this->applyDefaultCostCenter($data, $request);
+            if (!array_key_exists('branch_id', $data)) {
+                $this->applyDefaultCostCenter($data, $request);
+            }
+            $branchScope = $this->resolveSalesBranchScope($request, (int) $tenantId);
 
             $svc = $this->services->sales((int) $tenantId, $userId);
-            $res = $svc->updateSale($tenantId, $saleId, $data);
+            $res = $svc->updateSale($tenantId, $saleId, $data, $branchScope);
 
             $this->logger->info('Sales invoice updated successfully', [
                 'tenant_id' => $tenantId,

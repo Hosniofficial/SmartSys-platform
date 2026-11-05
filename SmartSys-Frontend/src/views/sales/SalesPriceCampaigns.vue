@@ -527,7 +527,7 @@ function formatPrice(value) {
 function formatDate(value) {
   if (!value) return '-';
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('ar-EG');
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-US');
 }
 
 function priorityLabel(value) {

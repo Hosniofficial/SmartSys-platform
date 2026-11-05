@@ -15,7 +15,7 @@
           @keydown.up="selectPrevResult"
           @keydown.enter.prevent="selectHighlightedResult"
           @keydown.escape="showInvoiceDropdown = false"
-          class="h-11 w-full bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+          class="h-11 w-full bg-white border border-slate-200 rounded-lg text-[11px] font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
           style="padding-right: 2rem; padding-left: 2rem;"
           placeholder="ابحث بـ: رقم الفاتورة أو اسم الطرف..."
           autocomplete="off"
@@ -64,26 +64,26 @@
       </div>
 
       <!-- Selected Invoice Card Header -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 bg-slate-900 rounded-xl p-4 sm:p-6 text-white shadow-lg overflow-hidden relative">
-        <div class="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full translate-x-10 -translate-y-10"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-6 text-slate-900 shadow-sm overflow-hidden relative">
+        <div class="absolute right-0 top-0 w-32 h-32 bg-blue-100/40 rounded-full translate-x-10 -translate-y-10"></div>
         <div class="space-y-3 relative z-10">
           <div class="flex items-center gap-3">
-             <span class="text-[10px] font-bold text-white/40 uppercase tracking-widest">مستند المصدر</span>
-             <span class="px-2 py-0.5 bg-white/10 rounded text-[9px] font-bold border border-white/10 font-mono">#{{ selectedInvoice.invoice_number || selectedInvoice.id }}</span>
+             <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">مستند المصدر</span>
+             <span class="px-2 py-0.5 bg-white rounded text-[9px] font-bold border border-slate-200 font-mono">#{{ selectedInvoice.invoice_number || selectedInvoice.id }}</span>
           </div>
           <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-2 sm:gap-4">
-            <span class="text-[10px] font-medium text-white/50">تاريخ الإصدار: {{ selectedInvoice.invoice_date || selectedInvoice.sale_date || selectedInvoice.purchase_date }}</span>
-            <span class="text-[10px] font-medium text-white/50">الذمة المتبقية: {{ formatPrice(outstanding) }}</span>
+            <span class="text-[10px] font-medium text-slate-500">تاريخ الإصدار: {{ selectedInvoice.invoice_date || selectedInvoice.sale_date || selectedInvoice.purchase_date }}</span>
+            <span class="text-[10px] font-medium text-slate-500">الذمة المتبقية: {{ formatPrice(outstanding) }}</span>
           </div>
-          <div class="flex flex-wrap gap-x-4 gap-y-2 border-t border-white/10 pt-3 text-[10px] text-white/70">
-            <span><i class="fas fa-user ml-1 text-white/40"></i>{{ selectedInvoice.customer_name || 'بدون عميل' }}</span>
-            <span v-if="selectedInvoice.branch_name"><i class="fas fa-code-branch ml-1 text-white/40"></i>{{ selectedInvoice.branch_name }}</span>
-            <span v-if="selectedInvoice.payment_method_name"><i class="fas fa-credit-card ml-1 text-white/40"></i>الدفع الأصلي: {{ selectedInvoice.payment_method_name }}</span>
+          <div class="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-200 pt-3 text-[10px] text-slate-600">
+            <span><i class="fas fa-user ml-1 text-slate-400"></i>{{ selectedInvoice.customer_name || 'بدون عميل' }}</span>
+            <span v-if="selectedInvoice.branch_name"><i class="fas fa-code-branch ml-1 text-slate-400"></i>{{ selectedInvoice.branch_name }}</span>
+            <span v-if="selectedInvoice.payment_method_name"><i class="fas fa-credit-card ml-1 text-slate-400"></i>الدفع الأصلي: {{ selectedInvoice.payment_method_name }}</span>
           </div>
         </div>
-        <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 relative z-10 border-t border-white/10 pt-4 md:border-0 md:pt-0">
-           <p class="text-[9px] font-bold text-rose-300 uppercase tracking-widest mb-1">قيمة الكميات المضافة للمرتجع</p>
-           <p class="text-2xl sm:text-3xl font-bold font-mono tracking-tighter whitespace-nowrap">{{ formatPrice(totalReturnAmount) }}</p>
+        <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 relative z-10 border-t border-slate-200 pt-4 md:border-0 md:pt-0">
+           <p class="text-[9px] font-bold text-rose-600 uppercase tracking-widest mb-1">قيمة الكميات المضافة للمرتجع</p>
+           <p class="text-2xl sm:text-3xl font-bold font-mono tracking-tighter whitespace-nowrap text-slate-900">{{ formatPrice(totalReturnAmount) }}</p>
         </div>
       </div>
 
@@ -304,7 +304,7 @@
               رد الفائض النقدي يتطلب صلاحية اعتماد المرتجعات.
             </p>
           </div>
-          <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">سبب الإرجاع</label><textarea v-model="returnReason" rows="2" class="filter-input-v2 h-auto py-2" placeholder="اكتب التفاصيل هنا..."></textarea></div>
+          <div class="space-y-1.5"><label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">سبب الإرجاع</label><textarea v-model="returnReason" rows="2" class="filter-input-v2 h-auto py-2 text-[11px]" placeholder="اكتب التفاصيل هنا..."></textarea></div>
         </div>
       </div>
 

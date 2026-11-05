@@ -639,8 +639,8 @@ const formatRelativeTime = (date) => {
 
 const updateDateTime = () => {
   const now = new Date();
-  currentTime.value = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-  currentDate.value = now.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' });
+  currentTime.value = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  currentDate.value = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
 const getDeviceIdentity = () => {

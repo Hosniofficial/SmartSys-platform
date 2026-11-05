@@ -272,29 +272,61 @@ class SaleApprovalService
                 throw new Exception('لا يمكن اعتماد فاتورة ليست قيد الموافقة');
             }
             $previousStatus = (string) $sale['status'];
+            $grossTotal = round(
+                (float) $sale['net_total_amount'] + (float) ($sale['tax_amount'] ?? 0),
+                2
+            );
+            $overridePaidAmount = isset($paymentOverride['paid_amount'])
+                ? (float) $paymentOverride['paid_amount']
+                : null;
+            $overrideMethodId = !empty($paymentOverride['payment_method_id'])
+                ? (int) $paymentOverride['payment_method_id']
+                : null;
+            $effectiveMethodId = $overrideMethodId ?? (int) ($sale['payment_method_id'] ?? 0);
+            $effectiveMethodKind = null;
+
+            if ($effectiveMethodId > 0) {
+                $effectiveMethodStmt = $this->pdo->prepare(
+                    'SELECT kind FROM payment_methods WHERE id = ? AND tenant_id = ?'
+                );
+                $effectiveMethodStmt->execute([$effectiveMethodId, $tenantId]);
+                $effectiveMethodKind = $effectiveMethodStmt->fetchColumn();
+                if ($effectiveMethodKind === false && $overrideMethodId !== null) {
+                    throw new \DomainException('طريقة الدفع المحددة غير صالحة.');
+                }
+            }
+
+            if ($overridePaidAmount !== null) {
+                if (!is_finite($overridePaidAmount) || $overridePaidAmount < 0) {
+                    throw new \DomainException('مبلغ التحصيل غير صالح.');
+                }
+                if (round($overridePaidAmount, 2) > $grossTotal) {
+                    throw new \DomainException('لا يمكن أن يتجاوز مبلغ التحصيل إجمالي الفاتورة شامل الضريبة.');
+                }
+
+                if ($overridePaidAmount > 0) {
+                    if ($effectiveMethodId <= 0 || $effectiveMethodKind === false || $effectiveMethodKind === null) {
+                        throw new \DomainException('حدد طريقة دفع فورية لتسجيل مبلغ مدفوع.');
+                    }
+                    if (strtolower((string) $effectiveMethodKind) === 'credit') {
+                        throw new \DomainException('لا يمكن تسجيل مبلغ مدفوع على طريقة دفع آجلة.');
+                    }
+                }
+            }
 
             // 2. التحقق: فواتير الآجل تحتاج عميلاً
-            if (!empty($sale['payment_method_id'])) {
-                $pmStmt = $this->pdo->prepare(
-                    "SELECT kind FROM payment_methods WHERE id = ? AND tenant_id = ?"
+            if (
+                strtolower((string) $effectiveMethodKind) === 'credit'
+                && empty($sale['customer_id'])
+            ) {
+                throw new Exception(
+                    'لا يمكن اعتماد فاتورة آجل بدون تحديد عميل — يجب تعيين عميل لفواتير الذمم قبل الاعتماد.'
                 );
-                $pmStmt->execute([$sale['payment_method_id'], $tenantId]);
-                $pmKind = $pmStmt->fetchColumn();
-                if ($pmKind === 'credit' && empty($sale['customer_id'])) {
-                    throw new Exception(
-                        'لا يمكن اعتماد فاتورة آجل بدون تحديد عميل — يجب تعيين عميل لفواتير الذمم قبل الاعتماد.'
-                    );
-                }
             }
 
             $branchId = (int) $sale['branch_id'];
 
             // 3. تطبيق تجاوز طريقة الدفع / المبلغ من الكاشير
-            $overrideMethodId   = !empty($paymentOverride['payment_method_id'])
-                ? (int) $paymentOverride['payment_method_id'] : null;
-            $overridePaidAmount = isset($paymentOverride['paid_amount'])
-                ? (float) $paymentOverride['paid_amount'] : null;
-
             if ($overrideMethodId) {
                 $sale['payment_method_id'] = $overrideMethodId;
                 $this->pdo->prepare(

@@ -112,7 +112,7 @@
           <table class="w-full text-right border-collapse">
             <thead>
               <tr class="bg-slate-50/50 border-b border-slate-200">
-                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت والمدة</th>
+                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ والمدة</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الموقع والمحطة</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الموظف</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الافتتاحي</th>

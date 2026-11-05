@@ -79,7 +79,7 @@
               <tr class="bg-slate-50 border-b border-slate-200">
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">رقم العرض</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">العميل</th>
-                <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">تاريخ الإنشاء</th>
+                <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">صالح حتى</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الإجمالي</th>
                 <th class="px-5 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
@@ -243,7 +243,7 @@ async function convertQuotation(quote) {
 function formatDate(value) {
   if (!value) return '-';
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('ar-EG');
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-US');
 }
 
 function formatPrice(value) {

@@ -23,6 +23,55 @@
         </template>
       </PageHeader>
 
+      <!-- Open Invoices -->
+      <section class="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div class="flex items-center gap-2 overflow-x-auto custom-scroll">
+          <div
+            v-for="tab in invoiceTabs"
+            :key="tab.id"
+            :class="activeInvoiceTabId === tab.id
+              ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-sm'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100 hover:bg-slate-50'"
+            class="group flex min-w-[150px] max-w-[220px] shrink-0 items-center gap-2 rounded-lg border px-2 py-1 text-right transition-all"
+          >
+            <button type="button" :disabled="isSaving" class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-right disabled:cursor-not-allowed" @click="switchInvoiceTab(tab.id)">
+              <i class="fas fa-file-invoice text-[10px] opacity-70"></i>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[11px] font-bold">{{ invoiceTabLabel(tab) }}</span>
+                <span class="block truncate text-[9px] font-medium text-slate-400">
+                  {{ tab.customer_id ? tab.customer_name : (tab.customer_query || 'عميل نقدي') }} · {{ tab.items.length }} أصناف
+                </span>
+              </span>
+            </button>
+            <span v-if="hasUnsavedInvoiceData(tab)" class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" :aria-label="`الفاتورة ${invoiceTabLabel(tab)} غير محفوظة`" title="فاتورة غير محفوظة"></span>
+            <button
+              v-if="invoiceTabs.length > 1 || hasUnsavedInvoiceData(tab)"
+              type="button"
+              :disabled="isSaving"
+              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+              :aria-label="`إغلاق ${invoiceTabLabel(tab)}`"
+              title="إغلاق الفاتورة المفتوحة"
+              @click.stop="closeInvoiceTab(tab.id)"
+            >
+              <i class="fas fa-times text-[10px]"></i>
+            </button>
+          </div>
+          <button
+            type="button"
+            :disabled="isSaving"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-blue-300 text-blue-600 transition-all hover:bg-blue-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            title="فتح فاتورة جديدة"
+            aria-label="فتح فاتورة جديدة"
+            @click="addInvoiceTab"
+          >
+            <i class="fas fa-plus text-xs"></i>
+          </button>
+          <span class="mr-auto hidden whitespace-nowrap px-2 text-[10px] font-medium text-slate-400 sm:inline">
+            {{ invoiceTabs.length }}/{{ MAX_INVOICE_TABS }} فواتير مفتوحة
+          </span>
+        </div>
+      </section>
+
       <div v-if="importedQuotationNumber" class="flex flex-col gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <strong>عرض السعر {{ importedQuotationNumber }} جاهز للمراجعة.</strong>
@@ -579,8 +628,8 @@
                     <span class="text-xs font-bold uppercase tracking-wider text-slate-900">
                       {{ showTaxInPrice && taxValue > 0 ? 'الإجمالي شامل الضريبة' : 'الإجمالي النهائي' }}
                     </span>
-                    <span :class="['text-[9px] font-bold px-2 py-0.5 rounded-full border', saleStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : saleStatus === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200']">
-                      {{ saleStatus === 'paid' ? 'مدفوعة' : saleStatus === 'partial' ? 'جزئي' : 'مستحقة' }}
+                    <span :class="['text-[9px] font-bold px-2 py-0.5 rounded-full border', requireApproval ? 'bg-amber-50 text-amber-700 border-amber-200' : saleStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : saleStatus === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200']">
+                      {{ requireApproval ? 'بانتظار الاعتماد' : saleStatus === 'paid' ? 'مدفوعة' : saleStatus === 'partial' ? 'جزئي' : 'مستحقة' }}
                     </span>
                   </div>
                   <span class="text-xl font-bold font-mono tracking-tight text-blue-600">{{ formatPrice(finalTotal) }}</span>
@@ -611,9 +660,12 @@
                   <span>المبلغ المدفوع يتجاوز إجمالي الفاتورة!</span>
                 </div>
 
-                <div v-if="remainingAmount > 0" class="flex justify-between items-center p-2 rounded-md bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold font-mono">
+                <div v-if="!requireApproval && remainingAmount > 0" class="flex justify-between items-center p-2 rounded-md bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold font-mono">
                   <span>المتبقي (ذمم آجلة):</span>
                   <span>{{ formatPrice(remainingAmount) }}</span>
+                </div>
+                <div v-else-if="requireApproval" class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
+                  سيتم تحديد المبلغ المستلم والمتبقي عند مراجعة الفاتورة واعتمادها.
                 </div>
 
                 <!-- Action Execute Buttons -->
@@ -1193,6 +1245,10 @@ const filteredCustomers = computed(() => {
 });
 const invoice = ref([]);
 const heldInvoices = ref([]);
+const invoiceTabs = ref([]);
+const activeInvoiceTabId = ref('');
+const MAX_INVOICE_TABS = 10;
+let invoiceTabSequence = 0;
 const discountType = ref('مبلغ');
 const discountValue = ref(0);
 const taxValue = ref(0);
@@ -1202,7 +1258,7 @@ const showTaxInPrice = ref(true);
 const requireApproval = ref(false);
 const paymentMethods = computed(() => paymentStore.paymentMethods);
 const selectedPaymentMethod = ref('');
-const setDefaultCashPaymentMethod = () => {
+const getDefaultCashPaymentMethodId = () => {
   const methods = paymentMethods.value || [];
   const isCashMethod = (method) => {
     const kind = String(method.kind || method.type || method.method_type || '').trim().toLowerCase();
@@ -1215,7 +1271,19 @@ const setDefaultCashPaymentMethod = () => {
       || ['نقدي', 'نقدا', 'نقداً', 'نقدًا'].includes(name);
   };
   const cashMethod = methods.find(isCashMethod);
-  selectedPaymentMethod.value = cashMethod?.id ?? methods[0]?.id ?? '';
+  return cashMethod?.id ?? methods[0]?.id ?? '';
+};
+const setDefaultCashPaymentMethod = () => {
+  selectedPaymentMethod.value = getDefaultCashPaymentMethodId();
+};
+const ensureSelectedPaymentMethod = () => {
+  const selectedId = selectedPaymentMethod.value;
+  const methodExists = (paymentMethods.value || []).some(
+    method => String(method.id) === String(selectedId)
+  );
+  if (!selectedId || !methodExists) {
+    setDefaultCashPaymentMethod();
+  }
 };
 const actualPaidAmount = ref(0);
 const isSaving = ref(false);
@@ -1224,6 +1292,192 @@ const showBelowCostReasonModal = ref(false);
 const belowCostReason = ref('');
 const belowCostApprovalItems = ref([]);
 let resolveBelowCostReason = null;
+
+function createInvoiceTab() {
+  invoiceTabSequence += 1;
+  return {
+    id: `invoice-${Date.now()}-${invoiceTabSequence}`,
+    items: [],
+    customer_id: '',
+    customer_name: 'عميل نقدي',
+    customer_query: '',
+    discountType: 'مبلغ',
+    discountValue: 0,
+    taxValue: taxEnabled.value ? taxRate.value : 0,
+    selectedPaymentMethod: getDefaultCashPaymentMethodId(),
+    actualPaidAmount: 0,
+    importedQuotationNumber: '',
+  };
+}
+
+function snapshotInvoiceTab() {
+  return {
+    items: JSON.parse(JSON.stringify(invoice.value || [])),
+    customer_id: selectedCustomer.value,
+    customer_name: selectedCustomerData.value?.name || customerQuery.value || 'عميل نقدي',
+    customer_query: customerQuery.value,
+    discountType: discountType.value,
+    discountValue: discountValue.value,
+    taxValue: taxValue.value,
+    selectedPaymentMethod: selectedPaymentMethod.value,
+    actualPaidAmount: actualPaidAmount.value,
+    importedQuotationNumber: importedQuotationNumber.value,
+  };
+}
+
+function saveActiveInvoiceTab() {
+  const activeTab = invoiceTabs.value.find(tab => tab.id === activeInvoiceTabId.value);
+  if (!activeTab) return;
+  Object.assign(activeTab, snapshotInvoiceTab());
+}
+
+function restoreInvoiceTab(tab) {
+  invoice.value = JSON.parse(JSON.stringify(tab.items || []));
+  selectedCustomer.value = tab.customer_id || '';
+  customerQuery.value = tab.customer_id
+    ? (tab.customer_name || '')
+    : (tab.customer_query || (tab.customer_name !== 'عميل نقدي' ? tab.customer_name : ''));
+  discountType.value = tab.discountType || 'مبلغ';
+  discountValue.value = Number(tab.discountValue) || 0;
+  taxValue.value = Number(tab.taxValue) || 0;
+  selectedPaymentMethod.value = tab.selectedPaymentMethod || '';
+  actualPaidAmount.value = Number(tab.actualPaidAmount) || 0;
+  importedQuotationNumber.value = tab.importedQuotationNumber || '';
+}
+
+function invoiceTabLabel(tab) {
+  const tabNumber = invoiceTabs.value.findIndex(item => item.id === tab.id) + 1;
+  return tab.importedQuotationNumber
+    ? `فاتورة ${tabNumber} · عرض ${tab.importedQuotationNumber}`
+    : `فاتورة ${tabNumber}`;
+}
+
+function hasUnsavedInvoiceData(tab) {
+  const defaultTaxValue = taxEnabled.value ? Number(taxRate.value) || 0 : 0;
+  return Boolean(
+    tab.items?.length
+    || tab.customer_id
+    || tab.customer_query?.trim()
+    || tab.importedQuotationNumber
+    || Number(tab.discountValue) > 0
+    || (tab.discountType && tab.discountType !== 'مبلغ')
+    || Number(tab.actualPaidAmount) > 0
+    || (tab.selectedPaymentMethod
+      && String(tab.selectedPaymentMethod) !== String(getDefaultCashPaymentMethodId()))
+    || Number(tab.taxValue || 0) !== defaultTaxValue
+  );
+}
+
+function persistInvoiceTabs() {
+  if (!invoiceTabs.value.length || !activeInvoiceTabId.value) return;
+  saveActiveInvoiceTab();
+  try {
+    const storageKeys = getInvoiceTabStorageKeys();
+    if (!storageKeys) return;
+    sessionStorage.setItem(storageKeys.tabs, JSON.stringify(invoiceTabs.value));
+    sessionStorage.setItem(storageKeys.active, activeInvoiceTabId.value);
+  } catch (error) {
+    console.warn('[SalesPoint] تعذر حفظ الفواتير المفتوحة مؤقتًا:', error);
+  }
+}
+
+function getInvoiceTabStorageKeys() {
+  const tenantId = authStore.user?.tenant_id;
+  const userId = authStore.user?.id ?? authStore.user?.user_id;
+  if (!userId) return null;
+  const scope = `${tenantId ?? 'system'}_${userId}`;
+  return {
+    tabs: `pos_open_invoice_tabs_${scope}`,
+    active: `pos_active_invoice_tab_${scope}`,
+  };
+}
+
+function initializeInvoiceTabs() {
+  let restoredTabs = [];
+  const storageKeys = getInvoiceTabStorageKeys();
+  try {
+    const storedTabs = JSON.parse(storageKeys ? sessionStorage.getItem(storageKeys.tabs) || '[]' : '[]');
+    if (Array.isArray(storedTabs)) {
+      restoredTabs = storedTabs
+        .filter(tab => tab && typeof tab.id === 'string' && Array.isArray(tab.items))
+        .map(tab => ({
+          ...tab,
+          customer_query: typeof tab.customer_query === 'string'
+            ? tab.customer_query
+            : (!tab.customer_id && tab.customer_name !== 'عميل نقدي' ? String(tab.customer_name || '') : ''),
+        }))
+        .slice(0, MAX_INVOICE_TABS);
+    }
+  } catch (error) {
+    console.warn('[SalesPoint] تعذر استعادة الفواتير المفتوحة:', error);
+  }
+  invoiceTabs.value = restoredTabs.length ? restoredTabs : [createInvoiceTab()];
+  const storedActiveId = storageKeys ? sessionStorage.getItem(storageKeys.active) : null;
+  activeInvoiceTabId.value = invoiceTabs.value.some(tab => tab.id === storedActiveId)
+    ? storedActiveId
+    : invoiceTabs.value[0].id;
+  restoreInvoiceTab(invoiceTabs.value.find(tab => tab.id === activeInvoiceTabId.value));
+}
+
+function resetInvoiceTabs() {
+  const newTab = createInvoiceTab();
+  invoiceTabs.value = [newTab];
+  activeInvoiceTabId.value = newTab.id;
+  restoreInvoiceTab(newTab);
+  persistInvoiceTabs();
+}
+
+function addInvoiceTab() {
+  if (isSaving.value) return;
+  if (invoiceTabs.value.length >= MAX_INVOICE_TABS) {
+    showToast(`يمكن فتح ${MAX_INVOICE_TABS} فواتير كحد أقصى.`, 'warning');
+    return;
+  }
+  saveActiveInvoiceTab();
+  const newTab = createInvoiceTab();
+  invoiceTabs.value.push(newTab);
+  activeInvoiceTabId.value = newTab.id;
+  restoreInvoiceTab(newTab);
+  persistInvoiceTabs();
+}
+
+function switchInvoiceTab(tabId) {
+  if (isSaving.value || tabId === activeInvoiceTabId.value) return;
+  saveActiveInvoiceTab();
+  const nextTab = invoiceTabs.value.find(tab => tab.id === tabId);
+  if (!nextTab) return;
+  activeInvoiceTabId.value = tabId;
+  restoreInvoiceTab(nextTab);
+  persistInvoiceTabs();
+}
+
+async function closeInvoiceTab(tabId) {
+  if (isSaving.value) return;
+  if (tabId === activeInvoiceTabId.value) saveActiveInvoiceTab();
+  const tab = invoiceTabs.value.find(item => item.id === tabId);
+  if (!tab) return;
+  if (hasUnsavedInvoiceData(tab)) {
+    const confirmed = await AlertService.confirm(
+      'تحتوي هذه الفاتورة على بيانات غير محفوظة. هل تريد إغلاقها وفقدان هذه البيانات؟',
+      'إغلاق الفاتورة',
+      { confirmText: 'إغلاق الفاتورة', cancelText: 'العودة' }
+    );
+    if (!confirmed) return;
+  }
+  if (invoiceTabs.value.length === 1) {
+    resetInvoiceState();
+    persistInvoiceTabs();
+    return;
+  }
+  const tabIndex = invoiceTabs.value.findIndex(item => item.id === tabId);
+  invoiceTabs.value.splice(tabIndex, 1);
+  if (activeInvoiceTabId.value === tabId) {
+    const nextTab = invoiceTabs.value[Math.max(0, tabIndex - 1)] || invoiceTabs.value[0];
+    activeInvoiceTabId.value = nextTab.id;
+    restoreInvoiceTab(nextTab);
+  }
+  persistInvoiceTabs();
+}
 
 const enteredSubtotal = computed(() => invoice.value.reduce((sum, item) => sum + item.sale_price * item.selectedQuantity, 0));
 const totalAmount = computed(() => invoice.value.reduce(
@@ -1732,6 +1986,7 @@ const resetInvoiceState = () => {
   actualPaidAmount.value = 0;
   importedQuotationNumber.value = '';
   setDefaultCashPaymentMethod();
+  saveActiveInvoiceTab();
 };
 
 const clearImportedQuotation = () => {
@@ -2204,21 +2459,29 @@ watch(selectedPaymentMethod, (newVal) => { if (!newVal) return; const pm = Numbe
 watch(requireApproval, (v) => { actualPaidAmount.value = v ? 0 : parseFloat(finalTotal.value.toFixed(2)); });
 const handleBranchChange = async (newBranchId) => {
   if (!settingsLoaded.value || !newBranchId) return;
+  if (isSaving.value) {
+    showToast('انتظر حتى يكتمل حفظ الفاتورة قبل تغيير الفرع.', 'warning');
+    return;
+  }
+  saveActiveInvoiceTab();
   
   const oldBranchId = branchStore.selectedBranchId;
+  const openItemsCount = invoiceTabs.value.reduce((count, tab) => count + (tab.items?.length || 0), 0);
+  const hasOpenInvoiceData = invoiceTabs.value.some(tab =>
+    hasUnsavedInvoiceData(tab)
+  );
   
-  // تحذير لو في فاتورة مفتوحة عند تغيير المخزن
-  if (oldBranchId && newBranchId !== oldBranchId && invoice.value.length > 0) {
+  if (oldBranchId && newBranchId !== oldBranchId && hasOpenInvoiceData) {
     const confirmed = await AlertService.confirm(
-      `لديك ${invoice.value.length} منتج في الفاتورة الحالية.\nتغيير المخزن سيمسح الفاتورة. هل تريد المتابعة؟`,
+      `لديك ${openItemsCount} صنف في الفواتير المفتوحة.\nتغيير الفرع سيمسح الفواتير الحالية. هل تريد المتابعة؟`,
       'تأكيد تغيير الفرع',
-      { confirmText: 'تغيير الفرع ومسح الفاتورة', cancelText: 'العودة للفاتورة' }
+      { confirmText: 'تغيير الفرع ومسح الفواتير', cancelText: 'العودة للفواتير' }
     );
     if (!confirmed) {
       return;
     }
-    resetInvoiceState();
   }
+  if (oldBranchId && newBranchId !== oldBranchId) resetInvoiceTabs();
   
   // ✅ حفظ الاختيار بشكل دائم
   branchStore.setSelectedBranch(newBranchId);
@@ -2247,6 +2510,11 @@ watch(discountType, (v) => { try { localStorage.setItem('pos_discountType', v ||
 watch(showInactive, (v) => { try { localStorage.setItem('pos_showInactive', v ? '1' : '0'); } catch {} });
 watch(showExpiring, (v) => { try { localStorage.setItem('pos_showExpiring', v ? '1' : '0'); } catch {} });
 watch(heldInvoices, (v) => { try { localStorage.setItem('held_invoices', JSON.stringify(v)); } catch {} }, { deep: true });
+watch(
+  [invoice, selectedCustomer, customerQuery, discountType, discountValue, taxValue, selectedPaymentMethod, actualPaidAmount, importedQuotationNumber],
+  persistInvoiceTabs,
+  { deep: true }
+);
 const showBranchRequiredModal = ref(false);
 const tempBranchId = ref(null);
 
@@ -2264,7 +2532,7 @@ const confirmBranchSelection = async () => {
   branchStore.setSelectedBranch(branchId);
   showBranchRequiredModal.value = false;
   await Promise.all([loadInitial(), refreshSession(), fetchTerminals()]);
-  setDefaultCashPaymentMethod();
+  ensureSelectedPaymentMethod();
   debouncedSearch();
   await importQuotationToInvoice();
 };
@@ -2312,13 +2580,13 @@ onMounted(async () => {
   await loadAllSettings();
 
   try {
-    // لا نستعيد وسيلة دفع قديمة: الافتراضي النقدي يحدد بعد تحميل القائمة.
     discountType.value = localStorage.getItem('pos_discountType') || discountType.value;
     showInactive.value = localStorage.getItem('pos_showInactive') === '1';
     showExpiring.value = localStorage.getItem('pos_showExpiring') === '1';
     const held = localStorage.getItem('held_invoices');
     if (held) heldInvoices.value = JSON.parse(held);
   } catch {}
+  initializeInvoiceTabs();
 
   // Sync with branch store if available
   if (branchStore.selectedBranchId) {
@@ -2343,7 +2611,7 @@ onMounted(async () => {
 
   // branch is set — run all initial requests
   await Promise.all([loadInitial(), refreshSession(), fetchTerminals()]);
-  setDefaultCashPaymentMethod();
+  ensureSelectedPaymentMethod();
   debouncedSearch();
   await importQuotationToInvoice();
 

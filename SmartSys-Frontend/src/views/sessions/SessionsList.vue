@@ -138,7 +138,7 @@
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الجلسة والكاشير</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوردية</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المحطة / الجهاز</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">ملخص الخزينة</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الفرق</th>
@@ -217,8 +217,9 @@
                 </td>
                 <td class="px-4 py-4 text-center">
                   <div class="flex items-center justify-center gap-2">
-                    <button @click="toggleDetails(row)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center"><i class="fas fa-ellipsis-v text-[10px]"></i></button>
-                    <button class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-900 transition-all flex items-center justify-center"><i class="fas fa-print text-[10px]"></i></button>
+                    <button @click="toggleDetails(row)" :disabled="loadingDetailsId === row.id" title="معاينة تفاصيل الجلسة" :aria-label="`معاينة تفاصيل الجلسة ${row.id}`" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center mx-auto disabled:opacity-50">
+                      <i class="text-[10px]" :class="loadingDetailsId === row.id ? 'fas fa-sync-alt animate-spin' : 'fas fa-eye'"></i>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -263,27 +264,27 @@
     >
       <template v-if="detailsSession">
           <div class="flex items-center gap-3 mb-6">
-            <div class="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white text-xs font-bold">{{ detailsSession.id }}</div>
+            <div class="w-8 h-8 bg-blue-100 border border-blue-200 rounded-lg flex items-center justify-center text-blue-700 text-xs font-bold">{{ detailsSession.id }}</div>
             <div>
               <p class="text-xs font-bold text-slate-900">{{ getbranchName(detailsSession.branch_id) }}</p>
               <p class="text-[10px] text-slate-400 font-medium mt-0.5">محطة: {{ deviceLabel(detailsSession) }}</p>
             </div>
           </div>
 
-          <div class="bg-slate-900 rounded-xl p-5 space-y-3">
+          <div class="rounded-xl border border-blue-100 bg-blue-50/70 p-5 space-y-3">
             <div class="flex items-center justify-between">
-              <span :class="[detailsSession.status === 'open' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/40 text-slate-300 border-slate-600/50', 'px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-widest']">
+              <span :class="[detailsSession.status === 'open' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200', 'px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-widest']">
                 {{ statusLabel(detailsSession.status) }}
               </span>
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ formatDate(detailsSession.start_time) }}</span>
+              <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{{ formatDate(detailsSession.start_time) }}</span>
             </div>
-            <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
-              <i class="fas fa-clock text-slate-500"></i>
+            <div class="flex items-center gap-2 text-xs font-bold text-slate-700">
+              <i class="fas fa-clock text-blue-500"></i>
               <span>{{ formatTime(detailsSession.start_time) }}</span>
-              <span class="text-slate-600 mx-1">→</span>
+              <span class="text-slate-300 mx-1">→</span>
               <span v-if="detailsSession.end_time">{{ formatTime(detailsSession.end_time) }}</span>
-              <span v-else class="text-emerald-400 flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> الآن
+              <span v-else class="text-emerald-600 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> الآن
               </span>
             </div>
           </div>
@@ -331,7 +332,12 @@
           </div>
       </template>
       <template #footer>
-        <button @click="detailsSession = null" class="h-10 px-8 rounded-md bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold transition-all">إغلاق</button>
+        <div class="flex items-center gap-3">
+          <button @click="printSession(detailsSession)" :disabled="printingSessionId === detailsSession?.id" class="h-10 px-6 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50">
+            <i class="fas fa-print ml-1.5"></i> طباعة التقرير
+          </button>
+          <button @click="detailsSession = null" class="h-10 px-8 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all">إغلاق</button>
+        </div>
       </template>
     </HistoryDetailsModal>
 
@@ -367,7 +373,9 @@ import { useCompanyCurrency } from '@/composables/useCompanyCurrency';
 import { useDateValidation } from '@/composables/useDateValidation';
 import { useSessionExemption } from '@/composables/useCashierSessionGuard';
 import { useHistoryFilters } from '@/composables/useHistoryFilters';
-import { getLocalDateISO } from '@/utils';
+import { getLocalDateISO, printDocument } from '@/utils';
+import { buildSessionHtml } from '@/utils/printTemplates';
+import { resolvePrintOptions } from '@/utils/printTemplates/branchPrintSettings';
 
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue';
 import HistoryDetailsModal from '@/components/HistoryDetailsModal.vue';
@@ -409,6 +417,8 @@ const items      = ref([]);
 const summaries  = ref({});
 const transactions = ref({});
 const detailsSession = ref(null);
+const printingSessionId = ref(null);
+const loadingDetailsId = ref(null);
 const totalCount = ref(0);
 const kpiTotalExpectedCash    = ref(0);
 const kpiSessionsWithVariance = ref(0);
@@ -502,20 +512,52 @@ async function fetchData() {
 async function toggleDetails(row) {
   const sessionStore = useSessionStore();
   detailsSession.value = row;
-  if (!summaries.value[row.id] || summaries.value[row.id]?._partial) {
-    try {
+  loadingDetailsId.value = row.id;
+  try {
+    if (!summaries.value[row.id] || summaries.value[row.id]?._partial) {
       const result = await sessionStore.getSessionSummary(row.id);
       if (result.status === 'success') summaries.value[row.id] = result.data;
-    } catch {}
+    }
+  } catch {
+    showToast('تعذر تحميل تفاصيل الجلسة.', 'error');
+  } finally {
+    loadingDetailsId.value = null;
   }
   transactions.value[row.id] = summaries.value[row.id]?.transactions || [];
+}
+
+async function printSession(row) {
+  if (!row || printingSessionId.value) return;
+  printingSessionId.value = row.id;
+  try {
+    const sessionStore = useSessionStore();
+    if (!summaries.value[row.id] || summaries.value[row.id]?._partial) {
+      const result = await sessionStore.getSessionSummary(row.id);
+      if (result.status !== 'success') throw new Error(result.message || 'تعذر تحميل ملخص الجلسة.');
+      summaries.value[row.id] = result.data;
+    }
+    const summary = summaries.value[row.id] || {};
+    const sessionTransactions = summary.transactions || transactions.value[row.id] || [];
+    const printOptions = await resolvePrintOptions(row, row.branch_id || selectedBranch.value);
+    const html = buildSessionHtml({
+      ...row,
+      branch_name: getbranchName(row.branch_id),
+      summary,
+      transactions: sessionTransactions,
+    }, printOptions);
+    await printDocument(html);
+  } catch (error) {
+    showToast(error?.message || 'تعذر تجهيز تقرير الجلسة للطباعة.', 'error');
+  } finally {
+    printingSessionId.value = null;
+  }
 }
 
 watch([dateFrom, dateTo, perPage, selectedBranch, () => filters.statusFilter.value], () => { currentPage.value = 1; fetchData(); });
 watch([sessionType, deviceFilter, hasVariance], () => { currentPage.value = 1; fetchData(); });
 watch(currentPage, fetchData);
 
-const formatDateTime = (v) => v ? new Date(v).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const formatDateTime = (v) => v ? new Date(v).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }) : '—';
 const formatDate = (v) => v ? new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 const formatTime = (v) => v ? new Date(v).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
 

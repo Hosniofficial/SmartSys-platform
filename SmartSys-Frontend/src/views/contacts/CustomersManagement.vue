@@ -78,8 +78,8 @@
                 <div class="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blue-600 transition-colors border border-slate-100 group-hover:border-blue-100">
                   <i class="fas fa-user text-sm"></i>
                 </div>
-                <button v-if="contact.balance !== 0" @click="openPaymentModal(contact)" class="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="تحصيل دفعة">
-                  <i class="fas fa-hand-holding-usd text-[10px]"></i>
+                <button v-if="contact.balance !== 0" @click="openPaymentModal(contact)" aria-label="تحصيل دفعة من العميل" class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white hover:shadow-md active:scale-95 transition-all" title="تحصيل دفعة">
+                  <i class="fas fa-hand-holding-usd text-xs"></i>
                 </button>
               </div>
               <div>
@@ -96,11 +96,14 @@
             </div>
             
             <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-              <button @click="goToStatement(contact)" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 uppercase tracking-widest transition-colors">كشف الحساب</button>
+              <button @click="goToStatement(contact)" class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10px] font-bold text-indigo-500 uppercase tracking-widest transition-all hover:bg-indigo-50 hover:text-indigo-700 hover:shadow-sm active:scale-95">
+                <i class="fas fa-file-invoice-dollar text-[9px]"></i>
+                كشف الحساب
+              </button>
               <div class="flex items-center gap-2">
-                <button @click="viewContact(contact)" class="w-7 h-7 rounded border border-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"><i class="fas fa-eye text-[10px]"></i></button>
-                <button @click="editContact(contact)" class="w-7 h-7 rounded border border-slate-100 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"><i class="fas fa-pen text-[10px]"></i></button>
-                <button @click="deleteContact(contact)" class="w-7 h-7 rounded border border-slate-100 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                <button @click="viewContact(contact)" aria-label="عرض تفاصيل العميل" class="w-8 h-8 rounded-lg border border-slate-100 text-slate-400 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm active:scale-95"><i class="fas fa-eye text-xs"></i></button>
+                <button @click="editContact(contact)" aria-label="تعديل العميل" class="w-8 h-8 rounded-lg border border-slate-100 text-slate-400 transition-all hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600 hover:shadow-sm active:scale-95"><i class="fas fa-pen text-xs"></i></button>
+                <button @click="deleteContact(contact)" aria-label="حذف العميل" class="w-8 h-8 rounded-lg border border-slate-100 text-slate-400 transition-all hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:shadow-sm active:scale-95"><i class="fas fa-trash-alt text-xs"></i></button>
               </div>
             </div>
           </div>
@@ -135,10 +138,10 @@
                   </td>
                   <td class="px-8 py-4 text-center">
                     <div class="flex items-center justify-center gap-1.5">
-                      <button @click="viewContact(contact)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center"><i class="fas fa-eye text-[10px]"></i></button>
-                      <button @click="goToStatement(contact)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-all flex items-center justify-center"><i class="fas fa-file-invoice-dollar text-[10px]"></i></button>
-                      <button @click="editContact(contact)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200 transition-all flex items-center justify-center"><i class="fas fa-pen text-[10px]"></i></button>
-                      <button @click="deleteContact(contact)" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all flex items-center justify-center"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                      <button @click="viewContact(contact)" aria-label="عرض تفاصيل العميل" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 transition-all hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 hover:shadow-sm active:scale-95 flex items-center justify-center"><i class="fas fa-eye text-[10px]"></i></button>
+                      <button @click="goToStatement(contact)" aria-label="فتح كشف حساب العميل" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-sm active:scale-95 flex items-center justify-center"><i class="fas fa-file-invoice-dollar text-[10px]"></i></button>
+                      <button @click="editContact(contact)" aria-label="تعديل العميل" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 transition-all hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 hover:shadow-sm active:scale-95 flex items-center justify-center"><i class="fas fa-pen text-[10px]"></i></button>
+                      <button @click="deleteContact(contact)" aria-label="حذف العميل" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 hover:shadow-sm active:scale-95 flex items-center justify-center"><i class="fas fa-trash-alt text-[10px]"></i></button>
                     </div>
                   </td>
                 </tr>
@@ -184,26 +187,53 @@
           <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white"><i :class="selectedContact?.id ? 'fas fa-user-edit' : 'fas fa-user-plus'" class="text-xs"></i></div>
-              <h3 class="text-sm font-bold text-slate-900 uppercase">{{ selectedContact?.id ? 'تحديث ملف العميل' : 'إضافة عميل جديد' }}</h3>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">{{ selectedContact?.id ? 'تحديث ملف العميل' : 'إضافة عميل جديد' }}</h3>
+                <p class="text-[10px] text-slate-400 mt-1">أدخل بيانات العميل الأساسية</p>
+              </div>
             </div>
-            <button @click="showFormModal = false" class="text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times text-lg"></i></button>
+            <button type="button" @click="showFormModal = false" aria-label="إغلاق النافذة" class="w-8 h-8 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors active:scale-95 shadow-none"><i class="fas fa-times text-sm"></i></button>
           </div>
           <form @submit.prevent="handleFormSubmit(selectedContact)" class="p-8 space-y-6 overflow-y-auto">
-            <div class="space-y-1.5"><label class="metadata-label">الاسم بالكامل <span class="text-rose-500">*</span></label><input type="text" v-model="selectedContact.name" class="filter-input-v2 h-10 font-bold" required /></div>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5"><label class="metadata-label">رقم الهاتف</label><input type="text" v-model="selectedContact.phone" class="filter-input-v2 h-10 font-mono" /></div>
-              <div class="space-y-1.5"><label class="metadata-label">البريد الإلكتروني</label><input type="email" v-model="selectedContact.email" class="filter-input-v2 h-10" /></div>
+            <div class="space-y-1.5">
+              <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">البيانات الأساسية</h4>
+            </div>
+            <div class="space-y-1.5">
+              <label class="metadata-label">اسم العميل <span class="text-rose-500">*</span></label>
+              <input type="text" v-model.trim="selectedContact.name" class="filter-input-v2 h-10 font-bold placeholder:text-[11px] placeholder:font-bold" placeholder="أدخل اسم العميل" required />
+              <p v-if="customerFormErrors.name" class="text-[10px] font-bold text-rose-500 px-1">{{ customerFormErrors.name }}</p>
             </div>
             <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5"><label class="metadata-label">الرقم الضريبي</label><input type="text" v-model="selectedContact.tax_number" class="filter-input-v2 h-10 font-mono" /></div>
-              <div class="space-y-1.5"><label class="metadata-label">حد الائتمان</label><input type="number" v-model.number="selectedContact.credit_limit" class="filter-input-v2 h-10 font-mono text-blue-600" /></div>
+              <div class="space-y-1.5">
+                <label class="metadata-label">رقم الهاتف</label>
+                <input type="tel" v-model.trim="selectedContact.phone" class="filter-input-v2 h-10 font-mono placeholder:text-[11px] placeholder:font-bold" placeholder="01xxxxxxxxx" @blur="validateCustomerField('phone')" />
+                <p v-if="customerFormErrors.phone" class="text-[10px] font-bold text-rose-500 px-1">{{ customerFormErrors.phone }}</p>
+              </div>
+              <div class="space-y-1.5">
+                <label class="metadata-label">البريد الإلكتروني</label>
+                <input type="email" v-model.trim="selectedContact.email" class="filter-input-v2 h-10 placeholder:text-[11px] placeholder:font-bold" placeholder="example@mail.com" @blur="validateCustomerField('email')" />
+                <p v-if="customerFormErrors.email" class="text-[10px] font-bold text-rose-500 px-1">{{ customerFormErrors.email }}</p>
+              </div>
             </div>
-            <div class="space-y-1.5"><label class="metadata-label">العنوان</label><textarea rows="2" v-model="selectedContact.address" class="filter-input-v2 h-auto py-2"></textarea></div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1.5">
+                <label class="metadata-label">الرقم الضريبي</label>
+                <input type="text" dir="rtl" v-model.trim="selectedContact.tax_number" class="filter-input-v2 h-10 text-right font-sans font-bold leading-4 placeholder:text-[11px] placeholder:font-sans placeholder:font-bold placeholder:leading-4" placeholder="أدخل الرقم الضريبي" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="metadata-label">حد الائتمان</label>
+                <input type="number" v-model.number="selectedContact.credit_limit" min="0" class="filter-input-v2 h-10 font-mono text-blue-600 placeholder:text-[11px] placeholder:font-bold" placeholder="0" />
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <label class="metadata-label">العنوان</label>
+              <textarea rows="2" v-model.trim="selectedContact.address" class="filter-input-v2 h-auto py-2 placeholder:text-[11px] placeholder:font-bold" placeholder="أدخل عنوان العميل بالتفصيل..."></textarea>
+            </div>
             <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
-              <button type="button" @click="showFormModal = false" class="px-6 h-10 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">إلغاء</button>
+              <button type="button" @click="showFormModal = false" class="px-6 h-10 rounded-md border border-slate-200 text-xs font-bold text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 transition-all active:scale-95">إلغاء</button>
               <LoadingButton
                 type="submit"
-                text="حفظ التغييرات"
+                text="حفظ العميل"
                 loadingText="جارٍ الحفظ..."
                 :isLoading="isSavingContact"
                 class="px-10 h-10 rounded-md text-xs shadow-lg shadow-blue-900/20"
@@ -220,11 +250,11 @@
       <Transition name="fade">
         <div
           v-if="showPaymentModal"
-          class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+          class="fixed inset-0 z-[300] flex items-start justify-center p-4 pt-20 md:pt-24 bg-slate-900/60 backdrop-blur-md"
           @click.self="showPaymentModal = false"
           @keydown.esc="showPaymentModal = false"
         >
-          <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-slate-200 animate-modalIn" dir="rtl">
+          <div class="bg-white w-full max-w-md max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl shadow-2xl border border-slate-200 animate-modalIn" dir="rtl">
             <!-- Header -->
             <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <div>
@@ -411,6 +441,7 @@ const showFormModal = ref(false);
 const isLoading = ref(false);
 const isSavingContact = ref(false);
 const selectedContact = ref(null);
+const customerFormErrors = ref({ name: '', phone: '', email: '' });
 const viewMode = ref('cards'); 
 const showPaymentModal = ref(false);
 const isSubmittingCustomerPayment = ref(false);
@@ -491,10 +522,48 @@ const openAddModal = () => {
     branchId = selectedBranch.value || null; // null when 'all' → admin must explicitly pick branch in form
   }
   selectedContact.value = { name: '', phone: '', email: '', tax_number: '', address: '', credit_limit: 0, branch_id: branchId };
+  customerFormErrors.value = { name: '', phone: '', email: '' };
   showFormModal.value = true;
 };
-const editContact = (c) => { selectedContact.value = { ...c }; showFormModal.value = true; };
+const editContact = (c) => {
+  selectedContact.value = { ...c, credit_limit: Number(c.credit_limit) || 0 };
+  customerFormErrors.value = { name: '', phone: '', email: '' };
+  showFormModal.value = true;
+};
 const viewContact = (c) => { try { sessionStorage.setItem('selectedContact', JSON.stringify(c)); } catch {} router.push({ name: 'ContactDetails', params: { type: 'customers', id: c.id } }); };
+
+const validateCustomerField = (field) => {
+  if (!selectedContact.value) return false;
+  if (field === 'name') {
+    customerFormErrors.value.name = selectedContact.value.name?.trim()
+      ? ''
+      : 'اسم العميل مطلوب.';
+  }
+  if (field === 'phone') {
+    const phone = String(selectedContact.value.phone || '').trim();
+    const digits = phone.replace(/\D/g, '');
+    customerFormErrors.value.phone = phone && (digits.length < 7 || digits.length > 15)
+      ? 'أدخل رقم هاتف صحيحًا.'
+      : '';
+  }
+  if (field === 'email') {
+    const email = String(selectedContact.value.email || '').trim();
+    customerFormErrors.value.email = email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? 'أدخل بريدًا إلكترونيًا صحيحًا.'
+      : '';
+  }
+  return !customerFormErrors.value[field];
+};
+
+const validateCustomerForm = () => {
+  validateCustomerField('name');
+  validateCustomerField('phone');
+  validateCustomerField('email');
+  if (Number(selectedContact.value?.credit_limit) < 0) {
+    selectedContact.value.credit_limit = 0;
+  }
+  return !Object.values(customerFormErrors.value).some(Boolean);
+};
 
 const deleteContact = async (c) => {
   if (await AlertService.confirm(`هل أنت متأكد من حذف ${c.name}?`, 'حذف العميل')) {
@@ -512,6 +581,7 @@ const deleteContact = async (c) => {
 
 const handleFormSubmit = async (formData) => {
   if (isSavingContact.value) return;
+  if (!validateCustomerForm()) return;
   isSavingContact.value = true;
   try {
     if (formData.id) await customerStore.updateCustomer(formData.id, formData);

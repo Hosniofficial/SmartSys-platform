@@ -17,10 +17,21 @@
         @branch-changed="onBranchChange"
       >
         <template #controls>
-          <button v-if="canCreateReturn" @click="showCreateForm = true"
+          <button v-if="canCreateReturn" @click="openCreateForm"
             class="h-9 px-6 rounded-md bg-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-900/20 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-2">
             <i class="fas fa-plus text-[10px]"></i>
             تسجيل مرتجع جديد
+          </button>
+          <button
+            type="button"
+            :disabled="isLoading"
+            :aria-busy="isLoading"
+            class="h-9 w-9 rounded-md border border-slate-200 bg-white p-0 text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="تحديث المرتجعات"
+            title="تحديث المرتجعات"
+            @click="manualRefresh"
+          >
+            <i class="fas fa-sync-alt text-xs transition-transform duration-500" :class="{ 'animate-spin': isLoading }" aria-hidden="true"></i>
           </button>
         </template>
       </PageHeader>
@@ -50,11 +61,11 @@
         <div class="p-6 bg-slate-50/30 border-b border-slate-100 space-y-6">
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
             
-            <div class="lg:col-span-4 space-y-1.5 relative group">
+            <div class="lg:col-span-5 space-y-1.5 relative group">
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">بحث سريع</label>
               <div class="relative">
-                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2 h-9" style="padding-right: 2rem;" placeholder="رقم المرتجع أو الفاتورة..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
-                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] pointer-events-none"></i>
+                <input ref="searchInputRef" v-model="search" type="text" class="filter-input-v2 h-10 text-[11px]" style="padding-right: 2.25rem;" placeholder="رقم المرتجع أو الفاتورة..." @focus="showSearchDropdown = true" @blur="handleSearchBlur" />
+                <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
                 
                 <Teleport to="body">
                   <transition name="dropdown">
@@ -96,7 +107,7 @@
 
             <div class="lg:col-span-3 space-y-1.5">
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">نوع المرتجع</label>
-              <select v-model="activeType" class="filter-input-v2 h-9 appearance-none font-bold">
+              <select v-model="activeType" class="filter-input-v2 h-10 appearance-none font-bold">
                 <option v-for="type in returnTypes" :key="type.id" :value="type.id">{{ type.name }}</option>
               </select>
             </div>
@@ -105,7 +116,7 @@
             <div class="lg:col-span-2 space-y-1.5">
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">من تاريخ</label>
               <div class="relative">
-                <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2 h-9" style="padding-left: 2rem;" />
+                <input ref="dateFromRef" type="date" v-model="dateFrom" class="filter-input-v2 h-10" style="padding-left: 2rem;" />
                 <i @click="dateFromRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
               </div>
             </div>
@@ -114,25 +125,9 @@
             <div class="lg:col-span-2 space-y-1.5">
               <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">إلى تاريخ</label>
               <div class="relative">
-                <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2 h-9" style="padding-left: 2rem;" />
+                <input ref="dateToRef" type="date" v-model="dateTo" class="filter-input-v2 h-10" style="padding-left: 2rem;" />
                 <i @click="dateToRef?.showPicker?.()" class="fas fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px] cursor-pointer hover:text-slate-500 transition-colors"></i>
               </div>
-            </div>
-
-
-
-            <div class="lg:col-span-1">
-              <LoadingButton
-                text=""
-                loadingText=""
-                :showTextDuringLoad="false"
-                icon="fas fa-sync-alt"
-                :isLoading="isLoading"
-                variant="secondary"
-                class="h-9 w-full rounded-md border border-slate-200 bg-white p-0 text-slate-400 shadow-sm hover:text-blue-600"
-                aria-label="تحديث المرتجعات"
-                @click="loadReturns"
-              />
             </div>
           </div>
         </div>
@@ -144,7 +139,7 @@
               <tr class="bg-slate-50 border-b border-slate-200">
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">رقم المرتجع</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الفاتورة الأصلية</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">تاريخ المرتجع</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">عدد الأصناف</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">إجمالي المرتجع</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الحالة</th>
@@ -304,27 +299,71 @@
 
     <BaseModal
       :show="showCreateForm && canCreateReturn"
-      maxWidth="6xl"
-      align="center"
+      maxWidth="5xl"
+      align="start"
+      variant="standard"
       @close="closeCreateForm"
     >
       <template #header>
         <div class="flex min-w-0 items-center gap-3 pl-10">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600">
-            <i class="fas fa-undo text-sm"></i>
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-600 text-xs text-white shadow-sm">
+            <i class="fas fa-undo"></i>
           </div>
           <div class="min-w-0">
-            <h2 class="text-base font-bold text-slate-900 sm:text-lg">
-              تسجيل مرتجع {{ activeType === 'sales' ? 'مبيعات' : 'مشتريات' }}
-            </h2>
-            <p class="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">ابحث عن الفاتورة، راجع الأصناف والتسوية، ثم أكد التسجيل.</p>
+            <div class="mb-1 flex flex-wrap items-center gap-2">
+              <h3 class="truncate text-sm font-bold text-slate-900 sm:text-base">
+                تسجيل مرتجع {{ createReturnType === 'sales' ? 'مبيعات' : 'مشتريات' }}
+              </h3>
+              <span class="rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-bold text-rose-600">
+                {{ createReturnType === 'sales' ? 'مبيعات' : 'مشتريات' }}
+              </span>
+            </div>
+            <p class="mt-1 text-[10px] font-medium text-slate-500">ابحث عن الفاتورة، راجع الأصناف والتسوية، ثم أكد التسجيل.</p>
           </div>
         </div>
       </template>
+      <div class="mb-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+        <div class="mb-2.5 flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-bold text-slate-800">نوع المرتجع</p>
+            <p class="mt-1 text-[10px] text-slate-500">حدد نوع العملية قبل اختيار الفاتورة.</p>
+          </div>
+          <span class="hidden rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-500 shadow-sm sm:inline-flex">
+            الخطوة 1 من 2
+          </span>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            v-for="returnType in returnTypes"
+            :key="returnType.id"
+            type="button"
+            :class="createReturnType === returnType.id
+              ? 'border-rose-500 bg-white text-rose-700 ring-2 ring-rose-100'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50/40'"
+            class="flex items-center gap-3 rounded-xl border px-4 py-3 text-right transition-all active:scale-[.99]"
+            @click="selectCreateReturnType(returnType.id)"
+          >
+            <span
+              :class="createReturnType === returnType.id ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-400'"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs transition-colors"
+            >
+              <i :class="returnType.icon"></i>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-xs font-bold">{{ returnType.name }}</span>
+              <span class="mt-1 block text-[10px] text-slate-400">
+                {{ returnType.id === 'sales' ? 'إرجاع أصناف من فاتورة بيع' : 'إرجاع أصناف إلى المورد' }}
+              </span>
+            </span>
+            <i v-if="createReturnType === returnType.id" class="fas fa-check-circle text-rose-600"></i>
+          </button>
+        </div>
+      </div>
       <ReturnForm
         v-if="showCreateForm && canCreateReturn"
         ref="returnFormRef"
-        :type="activeType"
+        :key="createReturnFormKey"
+        :type="createReturnType"
         :submit-in-footer="true"
         :can-refund-excess="canRefundExcess"
         :branch-id="branchId"
@@ -332,12 +371,12 @@
       />
       <template #footer>
         <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p class="flex items-center gap-2 text-[10px] leading-5 text-slate-500">
-            <i class="fas fa-info-circle shrink-0 text-rose-500"></i>
-            لا يُسجّل المرتجع إلا بعد تأكيدك.
+          <p class="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[10px] leading-5 text-amber-800">
+            <i class="fas fa-info-circle mt-0.5 shrink-0 text-amber-600"></i>
+            <span>راجع الأصناف والمبالغ قبل التأكيد. لا يُسجّل المرتجع إلا بعد اعتمادك.</span>
           </p>
           <div class="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <button @click="closeCreateForm" class="h-10 w-full rounded-md border border-slate-200 bg-white px-5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 sm:w-auto">
+            <button @click="closeCreateForm" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-5 text-xs font-bold text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95 sm:w-auto">
               إلغاء
             </button>
             <LoadingButton
@@ -349,7 +388,7 @@
               loaderType="dots"
               :disabled="!returnFormRef?.canSubmitReturn"
               @click="returnFormRef?.submitReturn()"
-              class="h-10 w-full !bg-rose-600 hover:!bg-rose-700 sm:w-auto sm:min-w-44"
+              class="h-10 w-full !rounded-lg !bg-rose-600 shadow-md shadow-rose-900/15 hover:!bg-rose-700 active:scale-[.98] sm:w-auto sm:min-w-44"
             />
           </div>
         </div>
@@ -411,6 +450,8 @@ const onBranchChange = (newBranchId) => {
   loadReturns();
 };
 
+const manualRefresh = () => loadReturns(true);
+
 // --- Initialize Composables
 const {
   dateFrom,
@@ -455,6 +496,8 @@ const returns = ref([]);
 const totalAmountFromAPI = ref(0);
 const showCreateForm = ref(false);
 const returnFormRef = ref(null);
+const createReturnType = ref('sales');
+const createReturnFormKey = ref(0);
 const showDetailsModal = ref(false);
 const selectedReturn = ref(null);
 const isLoading = ref(false);
@@ -465,6 +508,19 @@ const returnTypes = [
   { id: 'sales', name: 'مرتجعات المبيعات', icon: 'fas fa-shopping-cart' },
   { id: 'purchases', name: 'مرتجعات المشتريات', icon: 'fas fa-truck' }
 ];
+
+const openCreateForm = () => {
+  createReturnType.value = activeType.value;
+  createReturnFormKey.value += 1;
+  showCreateForm.value = true;
+};
+
+const selectCreateReturnType = (type) => {
+  if (createReturnType.value === type) return;
+  createReturnType.value = type;
+  returnFormRef.value = null;
+  createReturnFormKey.value += 1;
+};
 
 const isPurchaseReturn = computed(() => {
   const type = String(selectedReturn.value?.return_type || selectedReturn.value?.type || '').toLowerCase();
@@ -527,10 +583,18 @@ const returnSettlementLabel = computed(() => {
 });
 const returnDetailFacts = computed(() => {
   const purchaseReturn = isPurchaseReturn.value;
+  const partyName = [
+    selectedReturn.value?.party_name,
+    purchaseReturn ? selectedReturn.value?.supplier_name : selectedReturn.value?.customer_name,
+    purchaseReturn ? selectedReturn.value?.supplier?.name : selectedReturn.value?.customer?.name
+  ].find((name) => {
+    const normalizedName = String(name ?? '').trim();
+    return normalizedName && !['-', '—', 'null', 'undefined'].includes(normalizedName.toLowerCase());
+  });
   return [
-    { l: purchaseReturn ? 'المورد' : 'العميل', v: selectedReturn.value?.party_name || (purchaseReturn ? 'غير محدد' : 'عميل نقدي') },
+    { l: purchaseReturn ? 'المورد' : 'العميل', v: partyName || (purchaseReturn ? 'غير محدد' : 'عميل نقدي') },
     { l: 'الفاتورة الأصلية', v: selectedReturn.value?.original_invoice_number || selectedReturn.value?.invoice_number || 'غير محدد' },
-    { l: 'تاريخ المرتجع', v: formatReturnDateTime(selectedReturn.value?.return_date, selectedReturn.value?.created_at) },
+    { l: 'الوقت والتاريخ', v: formatReturnDateTime(selectedReturn.value?.return_date, selectedReturn.value?.created_at) },
     { l: 'الفرع', v: selectedReturn.value?.branch_name || branches.value.find(branch => String(branch.id) === String(selectedReturn.value?.branch_id))?.name || '-' },
     { l: 'الكاشير', v: selectedReturn.value?.created_by_name || 'النظام' },
     { l: 'نوع العملية', v: selectedReturn.value?.return_type_label || (purchaseReturn ? 'مرتجع مشتريات' : 'مرتجع مبيعات') },
@@ -585,7 +649,7 @@ const returnStatusClass = (status) => {
   return classes[String(status || '').toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
 };
 const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 const formatReturnDateTime = (returnDate, createdAt) => {
   const dateValue = String(returnDate || createdAt || '');
   if (!dateValue) return '';
@@ -598,7 +662,7 @@ const formatReturnDateTime = (returnDate, createdAt) => {
   const date = new Date(`${datePart}T${normalizedTime}`);
   return Number.isNaN(date.getTime())
     ? formatDate(datePart)
-    : date.toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    : date.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 // --- API: Load Returns List ---
@@ -740,7 +804,9 @@ const viewReturnDetails = async (r) => {
     if (res?.status === 'success' && res.data) {
       selectedReturn.value = { ...r, ...res.data };
     }
-  } catch (_) { /* keep list data */ }
+  } catch (error) {
+    showToast(error?.response?.data?.message || error?.message || 'فشل في تحميل تفاصيل المرتجع', 'error');
+  }
   finally { isLoadingDetails.value = false; }
 };
 

@@ -50,6 +50,7 @@ class ProductListResource
             'quantity'              => $currentQty,
             'unit_name'             => $mainUnit['name'] ?? 'قطعة',
             'unit_id'               => $mainUnit['id'] ?? null,
+            'conversion_factor'     => isset($mainUnit['conversion_factor']) ? (float) $mainUnit['conversion_factor'] : 1.0,
             'min_quantity'          => $minQty,
 
             'purchase_price'        => $includeCostData ? (float) $product['purchase_price'] : null,
@@ -75,6 +76,8 @@ class ProductListResource
                 : null,
 
             'product_type'          => $product['product_type'] ?? 'stock',
+            'has_batch_number'      => (int) ($product['has_batch_number'] ?? 0),
+            'has_serial_number'     => (int) ($product['has_serial_number'] ?? 0),
             'active'                => (int) ($product['active'] ?? 0),
 
             'inventory_status'      => self::calculateInventoryStatus($currentQty, $minQty, $product['product_type'] ?? 'stock'),
@@ -119,6 +122,7 @@ class ProductListResource
                 return [
                     'id' => (int) $unit['unit_id'],
                     'name' => $unit['unit_name'] ?? $unit['name'] ?? 'قطعة',
+                    'conversion_factor' => (float) ($unit['conversion_factor'] ?? 1),
                 ];
             }
         }
@@ -127,6 +131,7 @@ class ProductListResource
         return isset($units[0]) ? [
             'id' => (int) ($units[0]['unit_id'] ?? 1),
             'name' => $units[0]['unit_name'] ?? $units[0]['name'] ?? 'قطعة',
+            'conversion_factor' => (float) ($units[0]['conversion_factor'] ?? 1),
         ] : null;
     }
 

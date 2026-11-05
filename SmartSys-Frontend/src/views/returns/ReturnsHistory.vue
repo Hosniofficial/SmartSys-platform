@@ -123,7 +123,7 @@
               <tr class="bg-slate-50 border-b border-slate-200">
                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">رقم المرتجع</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الفاتورة الأصلية</th>
-                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">تاريخ المرتجع</th>
+                <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">عدد الأصناف</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">إجمالي المرتجع</th>
                 <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">النوع</th>
@@ -382,7 +382,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil((filters.total.value || 
 
 const formatPrice = (amount) => formatCurrencyLocale(amount, 2);
 const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 const formatReturnDateTime = (returnDate, createdAt) => {
   const dateValue = String(returnDate || createdAt || '');
   if (!dateValue) return '';
@@ -395,7 +395,7 @@ const formatReturnDateTime = (returnDate, createdAt) => {
   const date = new Date(`${datePart}T${normalizedTime}`);
   return Number.isNaN(date.getTime())
     ? formatDate(datePart)
-    : date.toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    : date.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 const isPurchaseReturn = computed(() => {
   const returnType = String(selectedReturn.value?.return_type || selectedReturn.value?.type || '').toLowerCase();
@@ -472,7 +472,7 @@ const returnSettlementLabel = computed(() => {
 const returnDetailFacts = computed(() => [
   { l: isPurchaseReturn.value ? 'المورد' : 'العميل', v: returnPartyName.value },
   { l: 'الفاتورة الأصلية', v: selectedReturn.value?.original_invoice_number || selectedReturn.value?.invoice_number || 'غير محدد' },
-  { l: 'تاريخ المرتجع', v: formatReturnDateTime(selectedReturn.value?.return_date, selectedReturn.value?.created_at) },
+  { l: 'الوقت والتاريخ', v: formatReturnDateTime(selectedReturn.value?.return_date, selectedReturn.value?.created_at) },
   { l: 'الفرع', v: selectedReturn.value?.branch_name || branches.value.find(branch => String(branch.id) === String(selectedReturn.value?.branch_id))?.name || '-' },
   { l: 'الكاشير', v: selectedReturn.value?.created_by_name || 'النظام' },
   { l: 'نوع العملية', v: selectedReturn.value?.return_type_label || (isPurchaseReturn.value ? 'مرتجع مشتريات' : 'مرتجع مبيعات') },

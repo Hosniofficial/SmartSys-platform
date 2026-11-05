@@ -344,7 +344,7 @@
                 <table class="w-full text-right border-collapse">
                   <thead>
                     <tr class="bg-slate-50/50 border-b border-slate-200">
-                      <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">التاريخ والوقت</th>
+                      <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الوقت والتاريخ</th>
                       <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">الصنف والباركود</th>
                       <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">المسار (من ← إلى)</th>
                       <th class="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">الكمية</th>
@@ -375,7 +375,7 @@
                     </tr>
 
                     <tr v-for="t in transfers" :key="t.id" class="hover:bg-blue-50/10 transition-all group">
-                      <td class="px-6 py-4 text-xs font-mono text-slate-400">{{ new Date(t.created_at).toLocaleString('ar-EG') }}</td>
+                      <td class="px-6 py-4 text-xs font-mono text-slate-400">{{ new Date(t.created_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }) }}</td>
                       <td class="px-4 py-4">
                         <div class="font-bold text-slate-900 text-xs">{{ t.product_name }}</div>
                         <span class="text-[9px] text-slate-400 font-mono block mt-0.5" v-if="t.barcode">{{ t.barcode }}</span>
@@ -466,7 +466,7 @@
                     </tr>
 
                     <tr v-for="t in stockTransfers" :key="t.id" class="hover:bg-blue-50/10 transition-all group">
-                      <td class="px-6 py-4 text-xs font-mono text-slate-400">{{ new Date(t.created_at).toLocaleString('ar-EG') }}</td>
+                      <td class="px-6 py-4 text-xs font-mono text-slate-400">{{ new Date(t.created_at).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }) }}</td>
                       <td class="px-4 py-4 text-xs font-bold text-slate-900">{{ t.product_name }}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2 text-xs font-bold">
@@ -566,7 +566,7 @@
             </div>
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-center">
               <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">تاريخ النقل</p>
-              <p class="text-slate-700 font-mono">{{ new Date(stockTransferDetails.created_at).toLocaleDateString('ar-EG') }}</p>
+              <p class="text-slate-700 font-mono">{{ new Date(stockTransferDetails.created_at).toLocaleDateString('en-US') }}</p>
             </div>
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-center">
               <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">المسؤول</p>
@@ -591,7 +591,7 @@
               </thead>
               <tbody class="divide-y divide-slate-50">
                 <tr v-for="it in stockTransferDetails.inventory_transactions" :key="it.id" class="hover:bg-slate-50 transition-colors font-medium">
-                  <td class="px-4 py-3 text-slate-400 font-mono">{{ new Date(it.created_at || it.movement_date).toLocaleTimeString('ar-EG') }}</td>
+                  <td class="px-4 py-3 text-slate-400 font-mono">{{ new Date(it.created_at || it.movement_date).toLocaleTimeString('en-US') }}</td>
                   <td class="px-4 py-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-[10px] font-bold text-slate-600 font-mono">{{ it.movement_type }}</span></td>
                   <td class="px-4 py-3 text-slate-600">{{ it.branch_from || '-' }} ← {{ it.branch_to || '-' }}</td>
                   <td class="px-4 py-3 text-center font-bold font-mono text-indigo-600">{{ it.quantity }}</td>

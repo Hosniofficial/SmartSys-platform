@@ -70,7 +70,7 @@ export function formatDateTime(dateString, options = {}) {
     day:    '2-digit',
     hour:   '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hour12: true,
   };
 
   // Use Intl.DateTimeFormat to reliably render both date and time parts

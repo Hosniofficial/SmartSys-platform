@@ -721,8 +721,8 @@ function closeCustomerDropdownOnOutsideClick(event) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDateTime(value) {
   if (!value) return '—'
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium', timeStyle: 'short',
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium', timeStyle: 'short', hour12: true,
   }).format(new Date(value))
 }
 
