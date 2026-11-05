@@ -220,18 +220,12 @@ class SalesService
 
             if (array_key_exists('cost_center_id', $data) && $data['cost_center_id'] !== null && $data['cost_center_id'] !== '') {
                 $costCenterStmt = $this->pdo->prepare(
-                    'SELECT id, branch_id FROM cost_centers WHERE id = ? AND tenant_id = ?'
+                    'SELECT id FROM cost_centers WHERE id = ? AND tenant_id = ?'
                 );
                 $costCenterStmt->execute([(int) $data['cost_center_id'], $tenantId]);
                 $costCenter = $costCenterStmt->fetch(PDO::FETCH_ASSOC);
                 if (!$costCenter) {
                     throw new \DomainException('مركز التكلفة المحدد غير صالح.');
-                }
-                if (
-                    $costCenter['branch_id'] !== null
-                    && (int) $costCenter['branch_id'] !== $newBranchId
-                ) {
-                    throw new \DomainException('مركز التكلفة المحدد لا يتبع فرع الفاتورة.');
                 }
             }
 
