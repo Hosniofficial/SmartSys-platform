@@ -9,6 +9,7 @@ use Throwable;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\MonologHandler;
+use App\Security\SaleWorkflowPolicy;
 
 /**
  * Builds tenant-scoped profit-and-loss reports from sales, returns, configured expenses, and optional COGS.
@@ -16,9 +17,6 @@ use App\Services\MonologHandler;
  */
 class AdvancedReportsHandler extends BaseHandler
 {
-    private const NON_REPORTABLE_SALE_STATUSES =
-        "'draft', 'pending', 'pending_approval', 'awaiting_approval', 'rejected', 'canceled', 'cancelled', 'returned'";
-
     public function __construct(PDO $db)
     {
         parent::__construct($db);
@@ -71,7 +69,7 @@ class AdvancedReportsHandler extends BaseHandler
                 WHERE s.tenant_id = :tenant_id
                   AND s.created_at >= :from
                   AND s.created_at <  :to_exclusive
-                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ")
+                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
                   {$salesBranchClause}
             ";
 
@@ -212,7 +210,7 @@ class AdvancedReportsHandler extends BaseHandler
                     WHERE s.tenant_id = :tenant_id
                       AND s.created_at >= :from
                       AND s.created_at < :to_exclusive
-                      AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ")
+                      AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
                       {$salesBranchClause}
                 ");
                 $stmt->execute([

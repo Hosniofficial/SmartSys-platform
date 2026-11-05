@@ -10,6 +10,7 @@ use PDO;
 use App\Services\MonologHandler;
 use App\Services\LabelService;
 use App\Services\BalanceCalculationService;
+use App\Security\SaleWorkflowPolicy;
 
 /**
  * Builds account statements from journal entry lines and optional party references.
@@ -695,7 +696,7 @@ class AccountStatementHandler extends BaseHandler
             WHERE s.tenant_id = :tenant_id 
               AND s.customer_id = :customer_id
               AND s.created_at >= :start_date AND s.created_at <= :end_date_full
-              AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')
+              AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
               {$branchFilterSql}
             GROUP BY s.id
             ORDER BY s.created_at ASC, s.id ASC
@@ -828,7 +829,7 @@ class AccountStatementHandler extends BaseHandler
             WHERE s.tenant_id = :tenant_id 
               AND s.customer_id = :customer_id
               AND s.created_at >= :start_date AND s.created_at <= :end_date_full
-              AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')
+              AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
               {$costCenterFilterSql}
               {$branchFilterSql}
             GROUP BY s.id

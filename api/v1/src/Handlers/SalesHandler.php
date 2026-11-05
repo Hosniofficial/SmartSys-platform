@@ -18,6 +18,7 @@ use App\Handlers\AuditHandler;
 use App\Utils\ApiResponseEnvelope;
 use App\Utils\PaginationHelper;
 use App\Repositories\SaleRepository;
+use App\Security\SaleWorkflowPolicy;
 
 /**
  * Exposes tenant-scoped sale, approval, status, and payment endpoints.
@@ -263,7 +264,7 @@ class SalesHandler extends BaseHandler
                                 ELSE s.discount_value
                             END
                         )), 0) AS sum_discount
-                     " . $from . $whereSql . " AND s.status NOT IN ('canceled', 'cancelled')"
+                     " . $from . $whereSql . " AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")"
                 );
                 $stmt->execute($params);
                 $summary = $stmt->fetch(PDO::FETCH_ASSOC) ?: [

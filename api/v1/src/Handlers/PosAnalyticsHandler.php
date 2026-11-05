@@ -8,6 +8,7 @@ use PDO;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use App\Services\MonologHandler;
+use App\Security\SaleWorkflowPolicy;
 
 /**
  * Provides cashier-dashboard and point-of-sale performance summaries.
@@ -86,10 +87,7 @@ class PosAnalyticsHandler extends BaseHandler
                         CONCAT('فاتورة مبيعات #', s.invoice_number) COLLATE utf8mb4_unicode_ci as description
                  FROM sales s WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ?
                  {$activitySalesBranchFilter} {$activitySalesSessionFilter}
-                   AND LOWER(COALESCE(s.status, '')) NOT IN (
-                       'draft', 'pending', 'pending_approval', 'awaiting_approval',
-                       'rejected', 'canceled', 'cancelled'
-                   ))
+                 AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . "))
                 UNION ALL
                 (SELECT r.id, 'return' COLLATE utf8mb4_unicode_ci as type, r.id as reference_id,
                         CAST(r.return_number AS CHAR) COLLATE utf8mb4_unicode_ci as reference_code,
@@ -154,9 +152,8 @@ class PosAnalyticsHandler extends BaseHandler
             $stmt->execute($recentParams);
             $recentActivities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Sales volume includes open and partially paid invoices; payment totals
-            // below are derived separately from completed payment records.
-            $stmt = $this->db->prepare("SELECT COALESCE(SUM(COALESCE(net_total_amount, total_amount) + COALESCE(tax_amount,0)),0) as total_sales, COUNT(*) as sales_count FROM sales s WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ? {$branchFilter} {$sessionFilter} AND LOWER(COALESCE(s.status, '')) NOT IN ('draft', 'pending', 'pending_approval', 'awaiting_approval', 'rejected', 'canceled', 'cancelled')");
+            // Report approved sales only; pending invoices have not affected inventory or accounting.
+            $stmt = $this->db->prepare("SELECT COALESCE(SUM(COALESCE(net_total_amount, total_amount) + COALESCE(tax_amount,0)),0) as total_sales, COUNT(*) as sales_count FROM sales s WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ? {$branchFilter} {$sessionFilter} AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")");
             $stmt->execute($queryParams);
             $salesData = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -166,10 +163,7 @@ class PosAnalyticsHandler extends BaseHandler
                 FROM sales s
                 WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ?
                   {$branchFilter} {$sessionFilter}
-                  AND LOWER(COALESCE(s.status, '')) NOT IN (
-                      'draft', 'pending', 'pending_approval', 'awaiting_approval',
-                      'rejected', 'canceled', 'cancelled'
-                  )
+                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
                 GROUP BY DATE_FORMAT(s.created_at, '%H')
                 ORDER BY DATE_FORMAT(s.created_at, '%H')
             ");
@@ -288,7 +282,10 @@ class PosAnalyticsHandler extends BaseHandler
             }
 
             $params = $request->getQueryParams();
-            $where  = ['s.tenant_id = ?', "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')"];
+            $where  = [
+                's.tenant_id = ?',
+                "LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ')',
+            ];
             $qp     = [$tenantId];
 
             if (!empty($params['start_date'])) {
@@ -339,7 +336,7 @@ class PosAnalyticsHandler extends BaseHandler
             $endDate = date('Y-m-d', strtotime($toExclusive . ' -1 day'));
             $where = [
                 's.tenant_id = ?',
-                "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')",
+                "LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ')',
                 's.created_at >= ?',
                 's.created_at < ?',
             ];

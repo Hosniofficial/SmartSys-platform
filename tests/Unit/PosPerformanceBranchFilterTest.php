@@ -88,7 +88,8 @@ final class PosPerformanceBranchFilterTest extends TestCase
             (1, 3, 4, 4, 12, '2026-09-28 15:00:00', 1500, NULL, NULL, 'paid'),
             (2, 3, 5, 5, 12, '2026-09-28 16:00:00', 900, NULL, NULL, 'paid'),
             (3, 3, 4, 4, 13, '2026-09-28 17:00:00', 700, NULL, NULL, 'paid'),
-            (4, 3, 4, 4, 12, '2026-09-28 18:00:00', 3500, NULL, NULL, 'canceled')");
+            (4, 3, 4, 4, 12, '2026-09-28 18:00:00', 3500, NULL, NULL, 'canceled'),
+            (5, 3, 4, 4, 12, '2026-09-28 19:00:00', 1300, NULL, NULL, 'pending_approval')");
         $db->exec("INSERT INTO returns VALUES
             (1, 3, 1, 'sale', 'approved', '2026-09-28 17:00:00', 900),
             (2, 3, 1, 'sale', 'cancelled', '2026-09-28 17:30:00', 300)");

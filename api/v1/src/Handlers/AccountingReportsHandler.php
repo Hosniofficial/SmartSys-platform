@@ -10,6 +10,7 @@ use DateTimeImmutable;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Services\MonologHandler;
+use App\Security\SaleWorkflowPolicy;
 
 /**
  * Builds tenant-scoped financial and receivables reports from journal, sales, and inventory data.
@@ -614,7 +615,7 @@ class AccountingReportsHandler extends BaseHandler
                 LEFT JOIN customers c ON c.id = s.customer_id AND c.tenant_id = s.tenant_id
                 LEFT JOIN return_credit_allocations rca ON rca.sale_id = s.id AND rca.tenant_id = s.tenant_id
                 WHERE s.tenant_id = ?
-                  AND s.status NOT IN ('cancelled','draft')
+                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
                   AND s.sale_date <= ?
                   {$branchClause}
                 GROUP BY s.id

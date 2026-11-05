@@ -9,6 +9,7 @@ use Throwable;
 use DateTimeImmutable;
 use App\Services\MonologHandler;
 use App\Repositories\SettingsRepository;
+use App\Security\SaleWorkflowPolicy;
 
 /**
  * Thrown by CashierSessionService on business-rule violations.
@@ -516,7 +517,7 @@ class CashierSessionService
 
         $stmt = $this->db->prepare(
             "SELECT COALESCE(SUM(s.net_total_amount + COALESCE(s.tax_amount, 0)), 0) AS total_sales
-             FROM sales s WHERE s.tenant_id = ? AND s.session_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')"
+             FROM sales s WHERE s.tenant_id = ? AND s.session_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")"
         );
         $stmt->execute([$tenantId, $sessionId]);
         $totalSales = (float)$stmt->fetchColumn();
@@ -718,7 +719,7 @@ class CashierSessionService
         $salesStmt = $this->db->prepare("
             SELECT s.session_id, COALESCE(SUM(s.net_total_amount + COALESCE(s.tax_amount, 0)), 0) AS total_sales
             FROM sales s
-            WHERE s.tenant_id = ? AND s.session_id IN ($placeholders) AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')
+            WHERE s.tenant_id = ? AND s.session_id IN ($placeholders) AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
             GROUP BY s.session_id
         ");
         $salesParams = array_merge([$tenantId], $sessionIds);

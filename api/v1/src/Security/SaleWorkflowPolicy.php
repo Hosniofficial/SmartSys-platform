@@ -9,6 +9,9 @@ use DomainException;
 /** Defines the sale states allowed for payment, returns, editing, and transitions. */
 final class SaleWorkflowPolicy
 {
+    public const NON_REPORTABLE_STATUSES_SQL =
+        "'draft', 'pending', 'pending_approval', 'awaiting_approval', 'rejected', 'canceled', 'cancelled', 'returned'";
+
     private const PAYABLE_STATUSES = ['pending_payment', 'partial', 'due'];
     private const EDITABLE_STATUSES = ['draft', 'pending_approval', 'rejected'];
     private const APPROVAL_PENDING_STATUS = 'pending_approval';
