@@ -16,6 +16,9 @@ use App\Services\MonologHandler;
  */
 class AdvancedReportsHandler extends BaseHandler
 {
+    private const NON_REPORTABLE_SALE_STATUSES =
+        "'draft', 'pending', 'pending_approval', 'awaiting_approval', 'rejected', 'canceled', 'cancelled', 'returned'";
+
     public function __construct(PDO $db)
     {
         parent::__construct($db);
@@ -68,7 +71,7 @@ class AdvancedReportsHandler extends BaseHandler
                 WHERE s.tenant_id = :tenant_id
                   AND s.created_at >= :from
                   AND s.created_at <  :to_exclusive
-                                    AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')
+                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ")
                   {$salesBranchClause}
             ";
 
@@ -209,7 +212,7 @@ class AdvancedReportsHandler extends BaseHandler
                     WHERE s.tenant_id = :tenant_id
                       AND s.created_at >= :from
                       AND s.created_at < :to_exclusive
-                      AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')
+                      AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ")
                       {$salesBranchClause}
                 ");
                 $stmt->execute([

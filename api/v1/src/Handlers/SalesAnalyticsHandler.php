@@ -20,6 +20,9 @@ use App\Services\ReturnCostingService;
  */
 class SalesAnalyticsHandler extends BaseHandler
 {
+    private const NON_REPORTABLE_SALE_STATUSES =
+        "'draft', 'pending', 'pending_approval', 'awaiting_approval', 'rejected', 'canceled', 'cancelled', 'returned'";
+
     public function __construct(PDO $db)
     {
         parent::__construct($db);
@@ -86,7 +89,11 @@ class SalesAnalyticsHandler extends BaseHandler
                 $categoryId = (int) $params['category_id'];
             }
 
-            $whereSales  = ['s.tenant_id = ?', "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')", 's.created_at >= ? AND s.created_at < ?'];
+            $whereSales  = [
+                's.tenant_id = ?',
+                "LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ')',
+                's.created_at >= ? AND s.created_at < ?',
+            ];
             $salesParams = [$tenantId, $dayStart, $dayEndExclusive];
             $joins       = ['JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id'];
 
@@ -128,7 +135,11 @@ class SalesAnalyticsHandler extends BaseHandler
             $cogsTotal = 0.0;
             try {
                 $costing    = new CostingService($this->db);
-                $whereIds   = ['s.tenant_id = ?', "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')", 's.created_at >= ? AND s.created_at < ?'];
+                $whereIds   = [
+                    's.tenant_id = ?',
+                    "LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ')',
+                    's.created_at >= ? AND s.created_at < ?',
+                ];
                 $idParams   = [$tenantId, $dayStart, $dayEndExclusive];
                 $idJoins    = [];
 
@@ -224,7 +235,7 @@ class SalesAnalyticsHandler extends BaseHandler
                          FROM sales s 
                          JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id
                          LEFT JOIN branches b ON b.id = s.branch_id AND b.tenant_id = s.tenant_id
-                         WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled') AND s.created_at >= ? AND s.created_at < ? {$branchClause}
+                         WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ") AND s.created_at >= ? AND s.created_at < ? {$branchClause}
                          GROUP BY s.branch_id, b.name";
             $stmt = $this->db->prepare($sqlByPos);
             $stmt->execute([$tenantId, $dayStart, $dayEndExclusive]);
@@ -246,7 +257,7 @@ class SalesAnalyticsHandler extends BaseHandler
                              WHERE pmt.tenant_id = ?
                              AND pmt.is_draft = 0 
                              AND pmt.status = 'completed'
-                             AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')
+                             AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ")
                              AND s.created_at >= ? AND s.created_at < ? {$branchClause}
                              GROUP BY pm.id, pm.name, pm.kind";
             $stmt = $this->db->prepare($sqlByPayment);
@@ -265,7 +276,7 @@ class SalesAnalyticsHandler extends BaseHandler
                           FROM sales s
                           LEFT JOIN branches b ON b.id = s.branch_id AND b.tenant_id = s.tenant_id
                           LEFT JOIN payment_methods pm ON pm.id = s.payment_method_id AND pm.tenant_id = s.tenant_id
-                          WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled') AND s.created_at >= ? AND s.created_at < ? {$branchClause}
+                          WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ") AND s.created_at >= ? AND s.created_at < ? {$branchClause}
                           ORDER BY s.created_at DESC
                           LIMIT 20";
             $stmt = $this->db->prepare($sqlRecent);
@@ -335,7 +346,10 @@ class SalesAnalyticsHandler extends BaseHandler
             }
 
             $params      = $request->getQueryParams();
-            $where       = ['s.tenant_id = ?', "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')"];
+            $where       = [
+                's.tenant_id = ?',
+                "LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ')',
+            ];
             $queryParams = [$tenantId];
 
             $hasStartDate = !empty($params['start_date']);
@@ -370,10 +384,7 @@ class SalesAnalyticsHandler extends BaseHandler
                 SELECT {$invoiceOutstandingSql} AS remaining
                 FROM sales s
                 {$whereSql}
-                  AND LOWER(COALESCE(s.status, '')) NOT IN (
-                      'draft', 'pending', 'pending_approval', 'awaiting_approval',
-                      'rejected', 'canceled', 'cancelled', 'returned'
-                  )
+                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ")
             ");
             $stmt->execute($queryParams);
             $creditSales = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -424,7 +435,7 @@ class SalesAnalyticsHandler extends BaseHandler
                 "p.status = 'completed'",
                 'COALESCE(p.is_draft, 0) = 0',
                 "(p.sale_id IS NOT NULL OR p.type IN ('debt_payment', 'customer', 'return_payment'))",
-                "(p.sale_id IS NULL OR LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled'))",
+                "(p.sale_id IS NULL OR LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . '))',
             ];
             $paymentParams = [$tenantId];
             if ($hasStartDate || $hasEndDate) {
@@ -543,7 +554,9 @@ class SalesAnalyticsHandler extends BaseHandler
                 $filters['category_id'] = $params['category_id'];
             }
 
-            $whereSales   = ["LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')"];
+            $whereSales   = [
+                "LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ')',
+            ];
             $whereReturns = [
                 "r.return_type = 'sale'",
                 "LOWER(COALESCE(r.status, '')) NOT IN ('canceled', 'cancelled', 'rejected')",
@@ -719,7 +732,10 @@ class SalesAnalyticsHandler extends BaseHandler
 
             $byPos = [];
             try {
-                $posWhere = ['s.tenant_id = ?', "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')"];
+                $posWhere = [
+                    's.tenant_id = ?',
+                    "LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ')',
+                ];
                 $posParams = [$tenantId];
                 if ($hasStartDate) {
                     $posWhere[] = 's.created_at >= ?';
@@ -746,7 +762,10 @@ class SalesAnalyticsHandler extends BaseHandler
 
             $latestTx = [];
             try {
-                $ltWhere = ['s.tenant_id = ?', "LOWER(COALESCE(s.status, '')) NOT IN ('canceled', 'cancelled')"];
+                $ltWhere = [
+                    's.tenant_id = ?',
+                    "LOWER(COALESCE(s.status, '')) NOT IN (" . self::NON_REPORTABLE_SALE_STATUSES . ')',
+                ];
                 $ltParams = [$tenantId];
                 if ($hasStartDate) {
                     $ltWhere[] = 's.created_at >= ?';

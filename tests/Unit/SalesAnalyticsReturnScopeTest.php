@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Handlers\SalesAnalyticsHandler;
+use App\Handlers\AdvancedReportsHandler;
 use PHPUnit\Framework\TestCase;
 
 use Slim\Psr7\Factory\ServerRequestFactory;
@@ -142,6 +143,77 @@ final class SalesAnalyticsReturnScopeTest extends TestCase
         self::assertEquals(1500, $decoded['data']['total_sales_amount']);
         self::assertSame(1, (int) $decoded['data']['invoices_count']);
         self::assertEquals(500, $decoded['data']['gross_profit']);
+    }
+
+    public function testPendingApprovalSaleIsExcludedFromAnalyticsAndDailySummary(): void
+    {
+        $db = $this->databaseWithPurchaseReturnAndSale();
+        $db->exec("INSERT INTO sales (
+            id, tenant_id, created_at, sale_date, branch_id, session_id,
+            total_amount, tax_amount, payment_method_id, status
+        ) VALUES (9, 3, '2026-09-28 16:30:00', '2026-09-28', 4, NULL, 1300, 0, NULL, 'pending_approval')");
+        $db->exec('INSERT INTO sales_items (
+            id, sale_id, tenant_id, product_id, unit_id, quantity,
+            sale_price, purchase_price, conversion_factor
+        ) VALUES (3, 9, 3, 6, 7, 1, 1300, 1000, 1)');
+
+        $analytics = $this->analyze($db);
+        self::assertEquals(1500, $analytics['total_sales_amount']);
+        self::assertSame(1, (int) $analytics['invoices_count']);
+        self::assertEquals(1000, $analytics['cogs_total']);
+        self::assertSame(7, (int) $analytics['latest'][0]['sale_id']);
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/v1/reports/sales/daily-summary')
+            ->withAttribute('tenant_id', 3)
+            ->withQueryParams(['date' => '2026-09-28', 'branch_id' => 4]);
+        $response = (new SalesAnalyticsHandler($db))->dailySalesSummary($request, new Response());
+        $decoded = json_decode((string) $response->getBody(), true);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame('success', $decoded['status'] ?? null);
+        self::assertEquals(1500, $decoded['data']['total_sales_amount']);
+        self::assertSame(1, (int) $decoded['data']['order_count']);
+        self::assertSame(7, (int) $decoded['data']['recentTransactions'][0]['id']);
+    }
+
+    public function testPendingApprovalSaleIsExcludedFromProfitLossRevenueAndCogs(): void
+    {
+        $db = $this->databaseWithPurchaseReturnAndSale();
+        $db->exec("INSERT INTO sales (
+            id, tenant_id, created_at, sale_date, branch_id, session_id,
+            total_amount, tax_amount, payment_method_id, status
+        ) VALUES (9, 3, '2026-09-28 16:30:00', '2026-09-28', 4, NULL, 1300, 0, NULL, 'pending_approval')");
+        $db->exec('INSERT INTO sales_items (
+            id, sale_id, tenant_id, product_id, unit_id, quantity,
+            sale_price, purchase_price, conversion_factor
+        ) VALUES (3, 9, 3, 6, 7, 1, 1300, 1000, 1)');
+        $db->exec('CREATE TABLE settings (
+            tenant_id INTEGER, key_name TEXT, value TEXT, updated_at TEXT
+        )');
+        $db->exec('CREATE TABLE accounts (id INTEGER PRIMARY KEY, tenant_id INTEGER, name TEXT, type TEXT)');
+        $db->exec('CREATE TABLE cash_vouchers (
+            tenant_id INTEGER, status TEXT, type TEXT, account_id INTEGER,
+            amount REAL, date TEXT, branch_id INTEGER
+        )');
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/v1/reports/profit-loss')
+            ->withAttribute('tenant_id', 3)
+            ->withQueryParams([
+                'start_date' => '2026-09-28',
+                'end_date' => '2026-09-28',
+                'mode' => 'cogs',
+                'branch_id' => 4,
+            ]);
+        $response = (new AdvancedReportsHandler($db))->getProfitLossReport($request, new Response());
+        $decoded = json_decode((string) $response->getBody(), true);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame('success', $decoded['status'] ?? null);
+        self::assertEquals(1500, $decoded['data']['revenue']['total_revenue']);
+        self::assertEquals(1000, $decoded['data']['revenue']['cogs']);
+        self::assertEquals(500, $decoded['data']['summary']['net_profit']);
     }
 
     private function analyze(PDO $db): array
