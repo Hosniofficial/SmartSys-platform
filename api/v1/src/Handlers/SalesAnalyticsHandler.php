@@ -90,7 +90,7 @@ class SalesAnalyticsHandler extends BaseHandler
             $whereSales  = [
                 's.tenant_id = ?',
                 "LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ')',
-                's.created_at >= ? AND s.created_at < ?',
+                SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ? AND ' . SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?',
             ];
             $salesParams = [$tenantId, $dayStart, $dayEndExclusive];
             $joins       = ['JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id'];
@@ -136,7 +136,7 @@ class SalesAnalyticsHandler extends BaseHandler
                 $whereIds   = [
                     's.tenant_id = ?',
                     "LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ')',
-                    's.created_at >= ? AND s.created_at < ?',
+                    SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ? AND ' . SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?',
                 ];
                 $idParams   = [$tenantId, $dayStart, $dayEndExclusive];
                 $idJoins    = [];
@@ -169,7 +169,7 @@ class SalesAnalyticsHandler extends BaseHandler
                     $idParams[] = $paymentKind;
                 }
 
-                $sqlIds = 'SELECT s.id, s.created_at FROM sales s ' . implode(' ', $idJoins) . ' WHERE ' . implode(' AND ', $whereIds);
+                $sqlIds = 'SELECT s.id, ' . SaleWorkflowPolicy::REPORT_DATE_SQL . ' AS created_at FROM sales s ' . implode(' ', $idJoins) . ' WHERE ' . implode(' AND ', $whereIds);
                 $stmt   = $this->db->prepare($sqlIds);
                 $stmt->execute($idParams);
                 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
@@ -233,7 +233,7 @@ class SalesAnalyticsHandler extends BaseHandler
                          FROM sales s 
                          JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id
                          LEFT JOIN branches b ON b.id = s.branch_id AND b.tenant_id = s.tenant_id
-                         WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ") AND s.created_at >= ? AND s.created_at < ? {$branchClause}
+                         WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ") AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ? {$branchClause}
                          GROUP BY s.branch_id, b.name";
             $stmt = $this->db->prepare($sqlByPos);
             $stmt->execute([$tenantId, $dayStart, $dayEndExclusive]);
@@ -256,7 +256,7 @@ class SalesAnalyticsHandler extends BaseHandler
                              AND pmt.is_draft = 0 
                              AND pmt.status = 'completed'
                              AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
-                             AND s.created_at >= ? AND s.created_at < ? {$branchClause}
+                             AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ? {$branchClause}
                              GROUP BY pm.id, pm.name, pm.kind";
             $stmt = $this->db->prepare($sqlByPayment);
             $stmt->execute([$tenantId, $dayStart, $dayEndExclusive]);
@@ -268,14 +268,14 @@ class SalesAnalyticsHandler extends BaseHandler
             }
 
             $recentTransactions = [];
-            $sqlRecent = "SELECT s.id, s.created_at, COALESCE(s.net_total_amount, s.total_amount) AS net_total_amount, b.name as pos_name,
+            $sqlRecent = "SELECT s.id, " . SaleWorkflowPolicy::REPORT_DATE_SQL . " AS created_at, COALESCE(s.net_total_amount, s.total_amount) AS net_total_amount, b.name as pos_name,
                           COALESCE(pm.name, pm.kind, 'غير محدد') as payment_method,
                           s.payment_method_id
                           FROM sales s
                           LEFT JOIN branches b ON b.id = s.branch_id AND b.tenant_id = s.tenant_id
                           LEFT JOIN payment_methods pm ON pm.id = s.payment_method_id AND pm.tenant_id = s.tenant_id
-                          WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ") AND s.created_at >= ? AND s.created_at < ? {$branchClause}
-                          ORDER BY s.created_at DESC
+                          WHERE s.tenant_id = ? AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ") AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ? {$branchClause}
+                          ORDER BY " . SaleWorkflowPolicy::REPORT_DATE_SQL . " DESC
                           LIMIT 20";
             $stmt = $this->db->prepare($sqlRecent);
             $stmt->execute([$tenantId, $dayStart, $dayEndExclusive]);
@@ -359,11 +359,11 @@ class SalesAnalyticsHandler extends BaseHandler
                     $hasEndDate ? (string) $params['end_date'] : null
                 );
                 if ($hasStartDate) {
-                    $where[] = 's.created_at >= ?';
+                    $where[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ?';
                     $queryParams[] = $from;
                 }
                 if ($hasEndDate) {
-                    $where[] = 's.created_at < ?';
+                    $where[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?';
                     $queryParams[] = $toExclusive;
                 }
             }
@@ -571,12 +571,12 @@ class SalesAnalyticsHandler extends BaseHandler
                     $hasEndDate ? (string) $filters['end_date'] : null
                 );
                 if ($hasStartDate) {
-                    $whereSales[] = 's.created_at >= ?';
+                    $whereSales[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ?';
                     $whereReturns[] = 'r.created_at >= ?';
                     $queryParams[] = $from;
                 }
                 if ($hasEndDate) {
-                    $whereSales[] = 's.created_at < ?';
+                    $whereSales[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?';
                     $whereReturns[] = 'r.created_at < ?';
                     $queryParams[] = $toExclusive;
                 }
@@ -677,7 +677,7 @@ class SalesAnalyticsHandler extends BaseHandler
             $breakdownData = json_decode($breakdownResp->getBody()->__toString(), true)['data'] ?? [];
             $cashInDrawer  = (float) ($breakdownData['cash_drawer'] ?? 0);
 
-            $stmt = $this->db->prepare("SELECT DATE(s.created_at) as date, COUNT(DISTINCT s.id) as total_orders, SUM(si.quantity) as total_items, SUM(COALESCE(si.net_total, si.quantity * si.sale_price)) as total_revenue FROM sales s JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id JOIN products p ON p.id = si.product_id AND p.tenant_id = s.tenant_id {$clauseSales} GROUP BY DATE(s.created_at) ORDER BY s.created_at DESC");
+            $stmt = $this->db->prepare("SELECT DATE(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ") as date, COUNT(DISTINCT s.id) as total_orders, SUM(si.quantity) as total_items, SUM(COALESCE(si.net_total, si.quantity * si.sale_price)) as total_revenue FROM sales s JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id JOIN products p ON p.id = si.product_id AND p.tenant_id = s.tenant_id {$clauseSales} GROUP BY DATE(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ") ORDER BY DATE(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ") DESC");
             $stmt->execute($paramsSales);
             $dailySales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -736,11 +736,11 @@ class SalesAnalyticsHandler extends BaseHandler
                 ];
                 $posParams = [$tenantId];
                 if ($hasStartDate) {
-                    $posWhere[] = 's.created_at >= ?';
+                    $posWhere[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ?';
                     $posParams[] = $from;
                 }
                 if ($hasEndDate) {
-                    $posWhere[] = 's.created_at < ?';
+                    $posWhere[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?';
                     $posParams[] = $toExclusive;
                 }
                 if (!empty($posIds)) {
@@ -766,11 +766,11 @@ class SalesAnalyticsHandler extends BaseHandler
                 ];
                 $ltParams = [$tenantId];
                 if ($hasStartDate) {
-                    $ltWhere[] = 's.created_at >= ?';
+                    $ltWhere[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ?';
                     $ltParams[] = $from;
                 }
                 if ($hasEndDate) {
-                    $ltWhere[] = 's.created_at < ?';
+                    $ltWhere[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?';
                     $ltParams[] = $toExclusive;
                 }
                 if (!empty($posIds)) {
@@ -778,7 +778,7 @@ class SalesAnalyticsHandler extends BaseHandler
                     array_push($ltParams, ...$posIds);
                 }
                 $pkExist = $paymentKind ? " AND EXISTS (SELECT 1 FROM payments p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.tenant_id = s.tenant_id WHERE p.sale_id = s.id AND p.is_draft = 0 AND p.status = 'completed' AND LOWER(pm.kind) = ?)" : '';
-                $stmt = $this->db->prepare("SELECT s.id as sale_id, s.created_at as time, s.branch_id as pos_id, (SELECT pm.name FROM payments p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.tenant_id = s.tenant_id WHERE p.sale_id = s.id AND p.is_draft = 0 AND p.status = 'completed' ORDER BY p.amount DESC LIMIT 1) as payment_method, COALESCE(s.net_total_amount, s.total_amount) as amount FROM sales s WHERE " . implode(' AND ', $ltWhere) . $pkExist . " ORDER BY s.created_at DESC LIMIT 10");
+                $stmt = $this->db->prepare("SELECT s.id as sale_id, " . SaleWorkflowPolicy::REPORT_DATE_SQL . " as time, s.branch_id as pos_id, (SELECT pm.name FROM payments p LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id AND pm.tenant_id = s.tenant_id WHERE p.sale_id = s.id AND p.is_draft = 0 AND p.status = 'completed' ORDER BY p.amount DESC LIMIT 1) as payment_method, COALESCE(s.net_total_amount, s.total_amount) as amount FROM sales s WHERE " . implode(' AND ', $ltWhere) . $pkExist . " ORDER BY " . SaleWorkflowPolicy::REPORT_DATE_SQL . " DESC LIMIT 10");
                 $stmt->execute($paymentKind ? array_merge($ltParams, [$paymentKind]) : $ltParams);
                 $latestTx = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -807,7 +807,7 @@ class SalesAnalyticsHandler extends BaseHandler
                 $costing  = new CostingService($this->db);
                 $siJoin   = (!empty($filters['product_id']) || !empty($filters['category_id'])) ? ' JOIN sales_items si ON si.sale_id = s.id AND si.tenant_id = s.tenant_id ' : '';
                 $pJoin    = !empty($filters['category_id']) ? ' JOIN products p ON p.id = si.product_id AND p.tenant_id = si.tenant_id ' : '';
-                $stmt     = $this->db->prepare("SELECT s.id, s.created_at FROM sales s {$siJoin}{$pJoin} {$clauseSales} GROUP BY s.id, s.created_at");
+                $stmt     = $this->db->prepare("SELECT s.id, " . SaleWorkflowPolicy::REPORT_DATE_SQL . " AS created_at FROM sales s {$siJoin}{$pJoin} {$clauseSales} GROUP BY s.id, " . SaleWorkflowPolicy::REPORT_DATE_SQL);
                 $stmt->execute($paramsSales);
                 $salesRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 

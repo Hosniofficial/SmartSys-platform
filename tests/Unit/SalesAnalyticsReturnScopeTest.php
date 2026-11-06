@@ -216,6 +216,49 @@ final class SalesAnalyticsReturnScopeTest extends TestCase
         self::assertEquals(500, $decoded['data']['summary']['net_profit']);
     }
 
+    public function testApprovedSaleIsReportedOnApprovalDateInsteadOfCreationDate(): void
+    {
+        $db = $this->databaseWithPurchaseReturnAndSale();
+        $db->exec("INSERT INTO sales (
+            id, tenant_id, created_at, sale_date, branch_id, session_id,
+            total_amount, tax_amount, payment_method_id, status, approved_at
+        ) VALUES (9, 3, '2026-09-27 16:30:00', '2026-09-27', 4, NULL, 1300, 0, NULL, 'paid', '2026-09-28 09:00:00')");
+        $db->exec('INSERT INTO sales_items (
+            id, sale_id, tenant_id, product_id, unit_id, quantity,
+            sale_price, purchase_price, conversion_factor
+        ) VALUES (3, 9, 3, 6, 7, 1, 1300, 1000, 1)');
+
+        $handler = new SalesAnalyticsHandler($db);
+        $requestFactory = new ServerRequestFactory();
+
+        $creationDateRequest = $requestFactory
+            ->createServerRequest('GET', '/api/v1/reports/sales/daily-summary')
+            ->withAttribute('tenant_id', 3)
+            ->withQueryParams(['date' => '2026-09-27', 'branch_id' => 4]);
+        $creationDateResponse = $handler->dailySalesSummary($creationDateRequest, new Response());
+        $creationDateData = json_decode((string) $creationDateResponse->getBody(), true)['data'] ?? [];
+
+        self::assertSame(200, $creationDateResponse->getStatusCode());
+        self::assertEquals(0, $creationDateData['total_sales_amount']);
+        self::assertSame(0, $creationDateData['order_count']);
+
+        $approvalDateRequest = $requestFactory
+            ->createServerRequest('GET', '/api/v1/reports/sales/daily-summary')
+            ->withAttribute('tenant_id', 3)
+            ->withQueryParams(['date' => '2026-09-28', 'branch_id' => 4]);
+        $approvalDateResponse = $handler->dailySalesSummary($approvalDateRequest, new Response());
+        $approvalDateData = json_decode((string) $approvalDateResponse->getBody(), true)['data'] ?? [];
+
+        self::assertSame(200, $approvalDateResponse->getStatusCode());
+        self::assertEquals(2800, $approvalDateData['total_sales_amount']);
+        self::assertSame(2, $approvalDateData['order_count']);
+        $approvedSale = array_values(array_filter(
+            $approvalDateData['recentTransactions'],
+            static fn (array $transaction): bool => (int) $transaction['id'] === 9
+        ));
+        self::assertSame('2026-09-28 09:00:00', $approvedSale[0]['time'] ?? null);
+    }
+
     private function analyze(PDO $db): array
     {
         $request = (new ServerRequestFactory())
@@ -313,6 +356,7 @@ final class SalesAnalyticsReturnScopeTest extends TestCase
         $db->exec("INSERT INTO payments VALUES (2, 8, 3, 3000, 5, 0, 'completed', 'sale', '2026-09-28 16:00:00', NULL, 4)");
         $db->exec('ALTER TABLE sales_items ADD COLUMN net_total REAL NULL');
         $db->exec('ALTER TABLE sales ADD COLUMN net_total_amount REAL NULL');
+        $db->exec('ALTER TABLE sales ADD COLUMN approved_at TEXT NULL');
 
         return $db;
     }

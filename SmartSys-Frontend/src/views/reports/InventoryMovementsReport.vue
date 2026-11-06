@@ -193,9 +193,9 @@
                 <td class="px-6 py-4 text-[10px] font-mono font-bold text-slate-400 group-hover:text-slate-900 transition-colors">{{ formatDate(m.date) }}</td>
                 <td class="px-4 py-4">
                   <router-link v-if="getReferenceRoute(m)" :to="getReferenceRoute(m)" class="text-blue-600 font-bold hover:underline decoration-blue-200">
-                    {{ m.reference }}
+                    {{ getReferenceLabel(m.reference) }}
                   </router-link>
-                  <span v-else class="text-slate-400 font-mono text-[10px] uppercase">{{ m.reference }}</span>
+                  <span v-else class="text-slate-400 font-mono text-[10px]">{{ getReferenceLabel(m.reference) }}</span>
                 </td>
                 <td class="px-4 py-4 text-slate-700 font-bold truncate max-w-[150px]">{{ m.product }}</td>
                 <td class="px-4 py-4 text-center">
@@ -384,7 +384,7 @@ const exportCsv = () => {
   const rows = [
     columns.map(([, label]) => escapeCsv(label)).join(','),
     ...sortedMovements.value.map((movement) => columns
-      .map(([key]) => escapeCsv(movement[key]))
+      .map(([key]) => escapeCsv(formatMovementField(movement, key)))
       .join(','))
   ];
   const blob = new Blob(['\uFEFF', rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -400,7 +400,7 @@ const formatCurrency = (v) => formatCurrencyLocale(v, 2);
 const formatNumber = (v) => (Number(v) || 0).toLocaleString('en-US');
 const formatDate = (v, o = {}) => v ? new Date(v).toLocaleDateString('en-US', o) : '';
 const movementValue = (mv) => (Number(mv.in || 0) - Number(mv.out || 0)) * Number(mv.cost || 0);
-const getMovementTypeClass = (t) => ({ purchase: 'text-emerald-600 border-emerald-100 bg-emerald-50', sale: 'text-blue-600 border-blue-100 bg-blue-50', sale_cancel: 'text-rose-600 border-rose-100 bg-rose-50', return: 'text-amber-600 border-amber-100 bg-amber-50', adjustment: 'text-purple-600 border-purple-100 bg-purple-50' }[t] || 'text-slate-400 bg-slate-50 border-slate-100');
+const getMovementTypeClass = (t) => ({ purchase: 'text-emerald-600 border-emerald-100 bg-emerald-50', sale: 'text-blue-600 border-blue-100 bg-blue-50', sale_cancel: 'text-rose-600 border-rose-100 bg-rose-50', opening_balance_reversal: 'text-rose-600 border-rose-100 bg-rose-50', return: 'text-amber-600 border-amber-100 bg-amber-50', adjustment: 'text-purple-600 border-purple-100 bg-purple-50' }[t] || 'text-slate-400 bg-slate-50 border-slate-100');
 const getMovementTypeLabel = (t) => ({
   purchase: 'مشتريات',
   sale: 'مبيعات',
@@ -410,8 +410,30 @@ const getMovementTypeLabel = (t) => ({
   initial_stock: 'إدخال مخزون أولي',
   opening_balance: 'رصيد افتتاحي',
   opening_balance_manual: 'رصيد افتتاحي يدوي',
-  opening_balance_bulk: 'رصيد افتتاحي دفعي'
-}[t] || t);
+  opening_balance_bulk: 'رصيد افتتاحي دفعي',
+  opening_balance_reversal: 'عكس رصيد افتتاحي'
+}[t] || 'حركة أخرى');
+const getReferenceLabel = (reference) => {
+  if (!reference) return '—';
+  const [kind, ...idParts] = String(reference || '').split('#');
+  const labels = {
+    sale: 'فاتورة مبيعات',
+    purchase: 'فاتورة مشتريات',
+    return: 'مرتجع',
+    initial_stock: 'إدخال مخزون أولي',
+    opening_balance: 'رصيد افتتاحي',
+    opening_balance_manual: 'رصيد افتتاحي يدوي',
+    opening_balance_bulk: 'رصيد افتتاحي دفعي',
+    opening_balance_reversal: 'عكس رصيد افتتاحي'
+  };
+  const label = labels[kind] || 'مستند';
+  return idParts.length ? `${label} #${idParts.join('#')}` : label;
+};
+const formatMovementField = (movement, key) => {
+  if (key === 'reference') return getReferenceLabel(movement.reference);
+  if (key === 'type') return getMovementTypeLabel(movement.type);
+  return movement[key];
+};
 const handleSort = (key) => { if (sortKey.value === key) sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'; else { sortKey.value = key; sortOrder.value = 'asc'; } };
 const setDateRange = (r) => { const end = new Date(); let start = new Date(); if (r === 'week') start.setDate(end.getDate() - 7); else start.setMonth(end.getMonth() - 1); endDate.value = getLocalDateISO(end); startDate.value = getLocalDateISO(start); };
 

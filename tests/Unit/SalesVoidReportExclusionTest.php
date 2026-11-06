@@ -73,6 +73,7 @@ final class SalesVoidReportExclusionTest extends TestCase
             20, 5, '2026-10-08 10:00:00', '2026-10-08', 'paid', 6100, 0, 8, 1
         )");
         $db->exec('ALTER TABLE sales ADD COLUMN net_total_amount REAL NULL');
+        $db->exec('ALTER TABLE sales ADD COLUMN approved_at TEXT NULL');
         $db->exec("INSERT INTO returns VALUES (
             30, 5, 'sale', '2026-10-09 11:00:00', '2026-10-09', 'completed',
             20, 900, 0, 8, 2
@@ -173,6 +174,7 @@ final class SalesVoidReportExclusionTest extends TestCase
             (10, 5, '2026-10-01 10:00:00', '2026-10-01', 'pending_payment', 100, 0),
             (11, 5, '2026-10-01 11:00:00', '2026-10-01', 'canceled', 100, 0)");
         $db->exec('ALTER TABLE sales ADD COLUMN net_total_amount REAL NULL');
+            $db->exec('ALTER TABLE sales ADD COLUMN approved_at TEXT NULL');
         $db->exec('INSERT INTO sales_items VALUES
             (1, 10, 5, 1, 1, 1, 10),
             (2, 11, 5, 1, 1, 1, 10)');

@@ -429,7 +429,9 @@ class PurchaseService
         )->execute([
             $this->tenantId, $productId, $unitId, $branchFrom, $branchTo, $quantity,
             $unitCost, $totalCost, $type, $batchNumber, $expiryDate, $serial,
-            'purchase', $purchaseId, $notes, $this->userId,
+            'purchase', $purchaseId,
+            InventoryMovementNotes::purchase($purchaseId, $notes, $type),
+            $this->userId,
         ]);
 
         $this->db->prepare(

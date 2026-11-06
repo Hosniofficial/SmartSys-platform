@@ -819,8 +819,8 @@ class SalesService
                              tenant_id, product_id, unit_id,
                              branch_from, branch_to,
                              quantity, unit_cost, total_cost, movement_type, reference_type, reference_id,
-                             user_id, movement_date, batch_number, expiry_date
-                         ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 'sale_cancel', 'sale', ?, ?, NOW(), ?, ?)"
+                             user_id, movement_date, batch_number, expiry_date, notes
+                         ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 'sale_cancel', 'sale', ?, ?, NOW(), ?, ?, ?)"
                     )->execute([
                         $tenantId,
                         $item['product_id'],
@@ -833,6 +833,7 @@ class SalesService
                         $this->userId,
                         $item['batch_number'] ?? null,
                         $item['expiry_date']  ?? null,
+                        InventoryMovementNotes::saleCancellation((int) $saleId),
                     ]);
 
                     if (!empty($item['has_serial_number']) && !empty($item['serial'])) {

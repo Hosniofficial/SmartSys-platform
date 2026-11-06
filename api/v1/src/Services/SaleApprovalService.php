@@ -200,8 +200,8 @@ class SaleApprovalService
                     quantity, unit_cost, total_cost,
                     movement_type, reference_type, reference_id,
                     user_id, movement_date,
-                    batch_number, expiry_date, serial
-                ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'out', 'sale', ?, ?, NOW(), ?, ?, ?)
+                    batch_number, expiry_date, serial, notes
+                ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'out', 'sale', ?, ?, NOW(), ?, ?, ?, ?)
             ")->execute([
                 $tenantId,
                 $item['product_id'],
@@ -215,6 +215,7 @@ class SaleApprovalService
                 $item['batch_number'] ?? null,
                 $item['expiry_date']  ?? null,
                 $item['serial']       ?? null,
+                InventoryMovementNotes::sale((int) $saleId),
             ]);
 
             // تحديث حالة الأرقام السلسلية (in_stock → sold)

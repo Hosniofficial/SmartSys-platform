@@ -33,6 +33,32 @@ final class PosPerformanceBranchFilterTest extends TestCase
         self::assertEquals(1500, $body['data']['data'][0]['total_sales']);
     }
 
+    public function testPosPerformanceUsesApprovalDateForApprovedInvoices(): void
+    {
+        $db = $this->database();
+        $db->exec("INSERT INTO sales (
+            id, tenant_id, user_id, branch_id, session_id, created_at,
+            total_amount, status, approved_at
+        ) VALUES (6, 3, 4, 4, 12, '2026-09-27 16:00:00', 1300, 'paid', '2026-09-28 09:00:00')");
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/v1/analytics/pos-performance')
+            ->withAttribute('tenant_id', 3)
+            ->withQueryParams([
+                'start_date' => '2026-09-28',
+                'end_date' => '2026-09-28',
+                'branch_id' => '4',
+                'session_id' => '12',
+            ]);
+
+        $response = (new PosAnalyticsHandler($db))->getPosPerformance($request, new Response());
+        $body = json_decode((string) $response->getBody(), true);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame(2, $body['data']['data'][0]['orders_count']);
+        self::assertEquals(2800, $body['data']['data'][0]['total_sales']);
+    }
+
     public function testMalformedBranchFilterIsRejectedInsteadOfWideningScope(): void
     {
         $request = (new ServerRequestFactory())
@@ -94,6 +120,7 @@ final class PosPerformanceBranchFilterTest extends TestCase
             (1, 3, 1, 'sale', 'approved', '2026-09-28 17:00:00', 900),
             (2, 3, 1, 'sale', 'cancelled', '2026-09-28 17:30:00', 300)");
         $db->exec('ALTER TABLE sales ADD COLUMN net_total_amount REAL NULL');
+        $db->exec('ALTER TABLE sales ADD COLUMN approved_at TEXT NULL');
 
         return $db;
     }

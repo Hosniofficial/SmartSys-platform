@@ -8,6 +8,7 @@ use PDO;
 use PDOException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Services\InventoryMovementNotes;
 use App\Services\MonologHandler;
 
 /**
@@ -31,6 +32,9 @@ class BranchInventoryReportHandler extends BaseHandler
             return 'sale_cancel';
         }
         $ref = strtolower($referenceType);
+        if ($ref === 'opening_balance_reversal') {
+            return $ref;
+        }
         if (in_array($ref, ['purchase', 'sale', 'return'], true)) {
             return $ref;
         }
@@ -38,6 +42,56 @@ class BranchInventoryReportHandler extends BaseHandler
             return 'adjustment';
         }
         return $ref ?: $movementType;
+    }
+
+    private function normalizeMovementNote(
+        ?string $note,
+        string $referenceType,
+        string $movementType,
+        ?int $referenceId,
+        string $productName
+    ): string {
+        $note = trim((string) $note);
+        $reference = $referenceId !== null ? ' #' . $referenceId : '';
+
+        if ($note === '' || $note === 'Return stock movement') {
+            $type = strtolower($referenceType);
+            if ($type === 'sale') {
+                if ($referenceId === null) {
+                    return 'حركة مخزون لفاتورة مبيعات';
+                }
+
+                return strtolower($movementType) === 'sale_cancel'
+                    ? InventoryMovementNotes::saleCancellation($referenceId)
+                    : InventoryMovementNotes::sale($referenceId);
+            }
+            if ($type === 'purchase') {
+                return $referenceId === null
+                    ? 'حركة مخزون لفاتورة مشتريات'
+                    : InventoryMovementNotes::purchase(
+                        $referenceId,
+                        null,
+                        strtolower($movementType) === 'out' ? 'out' : 'in'
+                    );
+            }
+            if ($type === 'return') {
+                return 'حركة مخزون ناتجة عن مرتجع' . $reference;
+            }
+            if ($type === 'opening_balance_reversal') {
+                return InventoryMovementNotes::openingBalanceReversal();
+            }
+            if (strpos($movementType, 'opening_balance') === 0 || $movementType === 'initial_stock') {
+                return 'رصيد افتتاحي للمنتج: ' . $productName;
+            }
+
+            return 'حركة مخزون للمنتج: ' . $productName;
+        }
+
+        if (preg_match('/^Opening balance commit @ (.+)$/', $note, $matches) === 1) {
+            return 'ترحيل رصيد افتتاحي بتاريخ ' . $matches[1];
+        }
+
+        return $note;
     }
 
     /** Build filtered movements, running balances, opening balances, and stock valuation. */
@@ -107,9 +161,9 @@ class BranchInventoryReportHandler extends BaseHandler
 
         $obSql = "SELECT it.product_id,
                                                  COALESCE(SUM(CASE
-                                                     WHEN it.movement_type = 'sale_cancel' THEN it.quantity
-                           WHEN it.movement_type LIKE '%in%'  THEN it.quantity
-                           WHEN it.movement_type LIKE '%out%' THEN -it.quantity
+                                                     WHEN it.movement_type = 'sale_cancel' THEN ABS(it.quantity)
+                           WHEN it.movement_type LIKE '%in%'  THEN ABS(it.quantity)
+                           WHEN it.movement_type LIKE '%out%' THEN -ABS(it.quantity)
                            ELSE 0 END), 0) AS opening_balance
                   FROM inventory_transactions it
                   WHERE " . implode(' AND ', $openingWhere) . "
@@ -132,8 +186,10 @@ class BranchInventoryReportHandler extends BaseHandler
             $isIn  = (string) $r['movement_type'] === 'sale_cancel'
                 || strpos((string) $r['movement_type'], 'in') !== false;
             $isOut = strpos((string) $r['movement_type'], 'out') !== false;
-            $inQty  = $isIn ? (float) $r['quantity'] : 0.0;
-            $outQty = $isOut ? (float) $r['quantity'] : 0.0;
+            // Movement type determines direction; legacy reversal rows may store a signed quantity.
+            $quantity = abs((float) $r['quantity']);
+            $inQty  = $isIn ? $quantity : 0.0;
+            $outQty = $isOut ? $quantity : 0.0;
             $movementProductId = (int) $r['product_id'];
             $balancesByProduct[$movementProductId] = ($balancesByProduct[$movementProductId] ?? 0.0) + $inQty - $outQty;
             $productBalance = $balancesByProduct[$movementProductId];
@@ -154,7 +210,13 @@ class BranchInventoryReportHandler extends BaseHandler
                 'in'        => $inQty,
                 'out'       => $outQty,
                 'balance'   => $productBalance,
-                'notes'     => $r['notes'],
+                'notes'     => $this->normalizeMovementNote(
+                    isset($r['notes']) ? (string) $r['notes'] : null,
+                    (string) $r['reference_type'],
+                    (string) $r['movement_type'],
+                    isset($r['reference_id']) ? (int) $r['reference_id'] : null,
+                    (string) $r['product']
+                ),
                 'cost'      => (float) $r['cost'],
             ];
         }

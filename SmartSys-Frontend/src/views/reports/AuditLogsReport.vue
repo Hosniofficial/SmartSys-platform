@@ -128,7 +128,7 @@
            </h3>
            <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              <span class="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-tighter">TOTAL LOGS: {{ total }}</span>
+              <span class="text-[10px] font-bold text-slate-400 font-mono tracking-tighter">إجمالي السجلات: {{ total }}</span>
            </div>
         </div>
 
@@ -174,8 +174,8 @@
                 </td>
                 <td class="px-4 py-4">
                    <div class="flex flex-col gap-0.5">
-                      <span class="text-xs font-bold text-slate-900 uppercase tracking-tighter">{{ log.module }}</span>
-                      <span class="text-[9px] text-slate-400 font-mono">{{ log.recordId ? 'UID: ' + log.recordId : '' }}</span>
+                      <span class="text-xs font-bold text-slate-900 uppercase tracking-tighter">{{ getModuleLabel(log.module) }}</span>
+                      <span class="text-[9px] text-slate-400 font-mono">{{ log.recordId ? 'المعرف: ' + log.recordId : '' }}</span>
                    </div>
                 </td>
                 <td class="px-8 py-4 text-center">
@@ -235,7 +235,7 @@
             { l: 'المستخدم المسئول', v: selectedLog?.userName || 'النظام' },
             { l: 'نوع العملية', v: getActionTypeLabel(selectedLog?.action), b: getActionTypeClass(selectedLog?.action) },
             { l: 'عنوان الـ IP', v: selectedLog?.ipAddress || '-', m: true },
-            { l: 'الوحدة المستهدفة', v: selectedLog?.module, u: true }
+            { l: 'الوحدة المستهدفة', v: getModuleLabel(selectedLog?.module), u: true }
           ]" :key="info.l" class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-center space-y-1 shadow-inner">
             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ info.l }}</p>
             <span v-if="info.b" :class="[info.b]" class="px-2 py-0.5 rounded text-[9px] font-bold border w-fit">{{ info.v }}</span>
@@ -479,6 +479,7 @@ const getActionTypeLabel = (action) => ({
   'purchase_payment_added': 'إضافة دفعة مشتريات',
   'purchase_payment_updated': 'تعديل دفعة مشتريات',
   'purchase_payment_deleted': 'حذف دفعة مشتريات',
+  'purchase_cancelled': 'إلغاء فاتورة مشتريات',
 
   // Sales
   'sale_created': 'إنشاء فاتورة مبيعات',
@@ -487,13 +488,76 @@ const getActionTypeLabel = (action) => ({
   'sale_payment_added': 'إضافة دفعة مبيعات',
   'sale_payment_updated': 'تعديل دفعة مبيعات',
   'sale_payment_deleted': 'حذف دفعة مبيعات',
+  'sale_status_updated': 'تحديث حالة فاتورة مبيعات',
+  'sale_approved': 'اعتماد فاتورة مبيعات',
+  'sale_rejected': 'رفض فاتورة مبيعات',
+  'sale_payment_duplicate_retry_blocked': 'منع تكرار دفعة مبيعات',
+
+  // Returns, contacts, and products
+  'return_created': 'إنشاء مرتجع',
+  'customer_created': 'إضافة عميل',
+  'customer_updated': 'تعديل بيانات عميل',
+  'customer_deleted': 'حذف عميل',
+  'supplier_created': 'إضافة مورد',
+  'supplier_updated': 'تعديل بيانات مورد',
+  'supplier_deleted': 'حذف مورد',
+  'create_cash_supplier': 'إنشاء مورد نقدي',
+  'supplier_payment_recorded': 'تسجيل دفعة مورد',
+  'product_created': 'إضافة منتج',
+  'product_updated': 'تعديل منتج',
+  'product_deleted': 'حذف منتج',
 
   // Inventory
   'stock_adjusted': 'تعديل المخزون',
   'stock_transferred': 'تحويل مخزون',
-  'stock_counted': 'جرد مخزون'
+  'stock_counted': 'جرد مخزون',
+  'pos_session_opened': 'فتح وردية نقطة بيع',
+  'pos_session_closed': 'إغلاق وردية نقطة بيع',
+  'owner_contribution_recorded': 'تسجيل مساهمة مالك',
+  'owner_contribution_updated': 'تعديل مساهمة مالك',
+  'owner_contribution_voided': 'إلغاء مساهمة مالك'
+}[action] || getGenericActionLabel(action));
 
-}[action] || action);
+const getGenericActionLabel = (action) => {
+  const value = String(action || '').toLowerCase();
+  if (value.endsWith('_created')) return 'إنشاء سجل';
+  if (value.endsWith('_updated')) return 'تعديل سجل';
+  if (value.endsWith('_deleted')) return 'حذف سجل';
+  if (value.endsWith('_approved')) return 'اعتماد سجل';
+  if (value.endsWith('_rejected')) return 'رفض سجل';
+  if (value.endsWith('_cancelled') || value.endsWith('_canceled')) return 'إلغاء سجل';
+  if (value.endsWith('_opened')) return 'فتح سجل';
+  if (value.endsWith('_closed')) return 'إغلاق سجل';
+  if (value.endsWith('_added')) return 'إضافة سجل';
+  if (value.endsWith('_recorded')) return 'تسجيل عملية';
+  if (value === 'login') return 'تسجيل الدخول';
+  if (value === 'logout') return 'تسجيل الخروج';
+  return 'عملية أخرى';
+};
+
+const getModuleLabel = (module) => ({
+  sale: 'المبيعات',
+  sales: 'المبيعات',
+  purchase: 'المشتريات',
+  purchases: 'المشتريات',
+  return: 'المرتجعات',
+  returns: 'المرتجعات',
+  customer: 'العملاء',
+  customers: 'العملاء',
+  supplier: 'الموردون',
+  suppliers: 'الموردون',
+  product: 'المنتجات',
+  products: 'المنتجات',
+  inventory: 'المخزون',
+  branches: 'الفروع',
+  branch: 'الفروع',
+  cashier_sessions: 'ورديات الكاشير',
+  cash_voucher: 'سندات الصرف والقبض',
+  cash_vouchers: 'سندات الصرف والقبض',
+  settings: 'الإعدادات',
+  users: 'المستخدمون',
+  user: 'المستخدمون'
+}[String(module || '').toLowerCase()] || 'أخرى');
 
 const getActionTypeClass = (a) => ({ 
     create: 'bg-emerald-50 text-emerald-700 border-emerald-100', 

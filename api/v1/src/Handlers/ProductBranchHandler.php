@@ -387,7 +387,7 @@ class ProductBranchHandler extends BaseHandler
                 $openingUnitCost,
                 $openingValue,
                 (int) $opening['id'],
-                'عكس الرصيد الافتتاحي بعد التحقق من عدم وجود حركات لاحقة.',
+                \App\Services\InventoryMovementNotes::openingBalanceReversal(),
                 $userId,
                 $reversalJournalId,
             ]);

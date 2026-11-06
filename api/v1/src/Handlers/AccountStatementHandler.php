@@ -645,7 +645,7 @@ class AccountStatementHandler extends BaseHandler
         $sql = "
             SELECT 
                 s.id,
-                s.created_at AS date,
+                " . SaleWorkflowPolicy::REPORT_DATE_SQL . " AS date,
                 s.invoice_number,
                 s.status,
                 s.total_amount,
@@ -675,9 +675,9 @@ class AccountStatementHandler extends BaseHandler
                       AND ap.is_draft = 0 AND ap.status = 'completed'
                 ), 0) AS calculated_paid_amount,
                 -- Due date calculation (default to +30 days from creation)
-                DATE_ADD(s.created_at, INTERVAL 30 DAY) AS due_date,
+                DATE_ADD(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ", INTERVAL 30 DAY) AS due_date,
                 -- Calculate days overdue
-                DATEDIFF(CURDATE(), DATE_ADD(s.created_at, INTERVAL 30 DAY)) AS days_overdue,
+                DATEDIFF(CURDATE(), DATE_ADD(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ", INTERVAL 30 DAY)) AS days_overdue,
                 (
                     SELECT COUNT(*) 
                     FROM sales_items si 
@@ -695,11 +695,11 @@ class AccountStatementHandler extends BaseHandler
                 AND rca.tenant_id = s.tenant_id
             WHERE s.tenant_id = :tenant_id 
               AND s.customer_id = :customer_id
-              AND s.created_at >= :start_date AND s.created_at <= :end_date_full
+              AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= :start_date AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " <= :end_date_full
               AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
               {$branchFilterSql}
             GROUP BY s.id
-            ORDER BY s.created_at ASC, s.id ASC
+            ORDER BY " . SaleWorkflowPolicy::REPORT_DATE_SQL . " ASC, s.id ASC
         ";
 
         $stmt = $this->db->prepare($sql);
@@ -789,7 +789,7 @@ class AccountStatementHandler extends BaseHandler
         $sqlSales = "
             SELECT 
                 s.id,
-                s.created_at AS date,
+                " . SaleWorkflowPolicy::REPORT_DATE_SQL . " AS date,
                 s.invoice_number,
                 s.status,
                 s.total_amount,
@@ -828,12 +828,12 @@ class AccountStatementHandler extends BaseHandler
                 AND rca.tenant_id = s.tenant_id
             WHERE s.tenant_id = :tenant_id 
               AND s.customer_id = :customer_id
-              AND s.created_at >= :start_date AND s.created_at <= :end_date_full
+              AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= :start_date AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " <= :end_date_full
               AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
               {$costCenterFilterSql}
               {$branchFilterSql}
             GROUP BY s.id
-            ORDER BY s.created_at ASC, s.id ASC
+            ORDER BY " . SaleWorkflowPolicy::REPORT_DATE_SQL . " ASC, s.id ASC
         ";
         $stmtSales = $this->db->prepare($sqlSales);
         $salesParams = [

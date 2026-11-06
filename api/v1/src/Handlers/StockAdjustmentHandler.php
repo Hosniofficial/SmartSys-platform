@@ -85,7 +85,11 @@ class StockAdjustmentHandler extends BaseHandler
         )->execute([
             $tenantId, $productId, $unitId, $branchFrom, $branchTo,
             abs($quantity), $unitCost, $totalCost, $movement,
-            $batchNumber, $expiryDate, $serial, $notes, $userId,
+            $batchNumber,
+            $expiryDate,
+            $serial,
+            \App\Services\InventoryMovementNotes::adjustment($movement, $notes),
+            $userId,
         ]);
         return (int) $this->db->lastInsertId();
     }

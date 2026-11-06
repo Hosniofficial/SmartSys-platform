@@ -193,7 +193,7 @@ class StockTransferHandler extends BaseHandler
                 $data['from_branch'], $data['to_branch'], 'transfer_out',
                 $data['quantity'], $unitCost, $totalCost,
                 $batchNumber, $expiryDate, $serial,
-                'نقل إلى فرع آخر: ' . ($data['notes'] ?? ''),
+                \App\Services\InventoryMovementNotes::transfer('out', $data['notes'] ?? null),
                 $userId, $transferId,
             ]);
             $transferOutId = (int) $this->db->lastInsertId();
@@ -203,7 +203,7 @@ class StockTransferHandler extends BaseHandler
                 $data['from_branch'], $data['to_branch'], 'transfer_in',
                 $data['quantity'], $unitCost, $totalCost,
                 $batchNumber, $expiryDate, $serial,
-                'نقل من فرع آخر: ' . ($data['notes'] ?? ''),
+                \App\Services\InventoryMovementNotes::transfer('in', $data['notes'] ?? null),
                 $userId, $transferId,
             ]);
             $transferInId = (int) $this->db->lastInsertId();

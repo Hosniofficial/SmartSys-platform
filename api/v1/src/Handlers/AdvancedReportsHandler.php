@@ -67,8 +67,8 @@ class AdvancedReportsHandler extends BaseHandler
                     COALESCE(SUM(COALESCE(s.net_total_amount, s.total_amount) + s.tax_amount), 0) AS grand_total
                 FROM sales s
                 WHERE s.tenant_id = :tenant_id
-                  AND s.created_at >= :from
-                  AND s.created_at <  :to_exclusive
+                  AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= :from
+                  AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " <  :to_exclusive
                   AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
                   {$salesBranchClause}
             ";
@@ -205,11 +205,11 @@ class AdvancedReportsHandler extends BaseHandler
 
                 $costing = new \App\Services\CostingService($this->db);
                 $stmt = $this->db->prepare("
-                    SELECT s.id, s.created_at
+                    SELECT s.id, " . SaleWorkflowPolicy::REPORT_DATE_SQL . " AS created_at
                     FROM sales s
                     WHERE s.tenant_id = :tenant_id
-                      AND s.created_at >= :from
-                      AND s.created_at < :to_exclusive
+                      AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= :from
+                      AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < :to_exclusive
                       AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
                       {$salesBranchClause}
                 ");

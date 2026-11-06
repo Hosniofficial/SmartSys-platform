@@ -141,12 +141,7 @@ class InventoryOpeningBalanceService
         $mappingValue = $mappingStmt->fetchColumn();
         $mappingId = ($mappingValue === false || $mappingValue === null) ? null : (int) $mappingValue;
 
-        $movementNote = match ($movementType) {
-            'initial_stock'          => "رصيد افتتاحي عند إنشاء المنتج: {$productName}",
-            'opening_balance_manual' => "رصيد افتتاحي يدوي: {$productName}",
-            'opening_balance_bulk'   => "رصيد افتتاحي دفعي: {$productName}",
-            default                  => "رصيد افتتاحي: {$productName}",
-        };
+        $movementNote = InventoryMovementNotes::openingBalance($movementType, $productName);
 
         $this->db->prepare("
             INSERT INTO inventory_transactions

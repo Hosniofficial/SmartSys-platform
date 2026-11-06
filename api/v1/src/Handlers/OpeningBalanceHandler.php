@@ -413,7 +413,7 @@ class OpeningBalanceHandler extends BaseHandler
         }
 
 
-        $batchNote = 'Opening balance commit @ ' . date('Y-m-d H:i:s');
+        $batchNote = 'تاريخ الترحيل: ' . date('Y-m-d H:i:s');
 
         $this->logger->info('Starting opening balance commit', [
             'tenant_id' => $tenantId,
@@ -579,6 +579,11 @@ class OpeningBalanceHandler extends BaseHandler
                 $qty = (float) $row['quantity'];
                 $cost = (float) $row['cost'];
                 $notes = trim((string) ($row['notes'] ?? ''));
+                $movementNote = \App\Services\InventoryMovementNotes::openingBalance(
+                    'opening_balance_bulk',
+                    (string) ($productNameMap[$productId] ?? "منتج #{$productId}"),
+                    $notes !== '' ? $notes : $batchNote
+                );
                 $lineTotalCost = $qty * $cost;
                 $batchNumber = $row['batch_number'] ?? null;
                 $expiryDate = $row['expiry_date'] ?? null;
@@ -605,7 +610,7 @@ class OpeningBalanceHandler extends BaseHandler
                     $expiryDate,
                     $serial,
                     $mappingId,
-                    $notes !== '' ? $notes : $batchNote,
+                    $movementNote,
                     $userId
                 ]);
                 $inventoryTransactionId = (int) $this->db->lastInsertId();

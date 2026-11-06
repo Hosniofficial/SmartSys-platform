@@ -311,7 +311,7 @@ class ReturnService
         )->execute([
             $this->tenantId, $productId, $unitId, $quantity, $unitCost, $totalCost,
             $movementType, $batchNumber, $expiryDate, $serial,
-            $returnId, 'Return stock movement', $userId, $branchFrom, $branchTo,
+            $returnId, InventoryMovementNotes::return($returnId, $returnType), $userId, $branchFrom, $branchTo,
         ]);
 
         $inventoryTransactionId = (int) $this->db->lastInsertId();

@@ -604,7 +604,7 @@ class AccountingReportsHandler extends BaseHandler
                     s.id            AS sale_id,
                     s.invoice_number,
                     s.sale_date,
-                    DATEDIFF(?, s.sale_date) AS days_outstanding,
+                    DATEDIFF(?, COALESCE(DATE(s.approved_at), s.sale_date)) AS days_outstanding,
                     c.id            AS customer_id,
                     c.name          AS customer_name,
                     s.net_total_amount,
@@ -616,7 +616,7 @@ class AccountingReportsHandler extends BaseHandler
                 LEFT JOIN return_credit_allocations rca ON rca.sale_id = s.id AND rca.tenant_id = s.tenant_id
                 WHERE s.tenant_id = ?
                   AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
-                  AND s.sale_date <= ?
+                  AND COALESCE(DATE(s.approved_at), s.sale_date) <= ?
                   {$branchClause}
                 GROUP BY s.id
                 HAVING (

@@ -83,9 +83,9 @@ class PosAnalyticsHandler extends BaseHandler
             $recentActivitiesQuery = "
                 (SELECT s.id, 'sale' COLLATE utf8mb4_unicode_ci as type, s.id as reference_id,
                         CAST(s.invoice_number AS CHAR) COLLATE utf8mb4_unicode_ci as reference_code,
-                        (COALESCE(s.net_total_amount, s.total_amount) + COALESCE(s.tax_amount, 0)) as amount, s.created_at,
+                        (COALESCE(s.net_total_amount, s.total_amount) + COALESCE(s.tax_amount, 0)) as amount, " . SaleWorkflowPolicy::REPORT_DATE_SQL . " AS created_at,
                         CONCAT('فاتورة مبيعات #', s.invoice_number) COLLATE utf8mb4_unicode_ci as description
-                 FROM sales s WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ?
+                 FROM sales s WHERE s.tenant_id = ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ?
                  {$activitySalesBranchFilter} {$activitySalesSessionFilter}
                  AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . "))
                 UNION ALL
@@ -153,19 +153,19 @@ class PosAnalyticsHandler extends BaseHandler
             $recentActivities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Report approved sales only; pending invoices have not affected inventory or accounting.
-            $stmt = $this->db->prepare("SELECT COALESCE(SUM(COALESCE(net_total_amount, total_amount) + COALESCE(tax_amount,0)),0) as total_sales, COUNT(*) as sales_count FROM sales s WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ? {$branchFilter} {$sessionFilter} AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")");
+            $stmt = $this->db->prepare("SELECT COALESCE(SUM(COALESCE(net_total_amount, total_amount) + COALESCE(tax_amount,0)),0) as total_sales, COUNT(*) as sales_count FROM sales s WHERE s.tenant_id = ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ? {$branchFilter} {$sessionFilter} AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")");
             $stmt->execute($queryParams);
             $salesData = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $stmt = $this->db->prepare("
-                SELECT DATE_FORMAT(s.created_at, '%H:00') AS hour,
+                SELECT DATE_FORMAT(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ", '%H:00') AS hour,
                        COALESCE(SUM(COALESCE(s.net_total_amount, s.total_amount) + COALESCE(s.tax_amount, 0)), 0) AS total_sales
                 FROM sales s
-                WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ?
+                WHERE s.tenant_id = ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ?
                   {$branchFilter} {$sessionFilter}
                   AND LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ")
-                GROUP BY DATE_FORMAT(s.created_at, '%H')
-                ORDER BY DATE_FORMAT(s.created_at, '%H')
+                GROUP BY DATE_FORMAT(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ", '%H')
+                ORDER BY DATE_FORMAT(" . SaleWorkflowPolicy::REPORT_DATE_SQL . ", '%H')
             ");
             $stmt->execute($queryParams);
             $hourlySales = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -237,7 +237,7 @@ class PosAnalyticsHandler extends BaseHandler
                 SELECT COALESCE(SUM(CASE WHEN {$invoiceOutstandingSql} > 0
                     THEN {$invoiceOutstandingSql} ELSE 0 END), 0)
                 FROM sales s
-                WHERE s.tenant_id = ? AND s.created_at >= ? AND s.created_at < ?
+                WHERE s.tenant_id = ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " >= ? AND " . SaleWorkflowPolicy::REPORT_DATE_SQL . " < ?
                   {$branchFilter} {$sessionFilter}
                   AND LOWER(COALESCE(s.status, '')) NOT IN (
                       'draft', 'pending', 'pending_approval', 'awaiting_approval',
@@ -289,11 +289,11 @@ class PosAnalyticsHandler extends BaseHandler
             $qp     = [$tenantId];
 
             if (!empty($params['start_date'])) {
-                $where[] = 's.created_at >= ?';
+                $where[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ?';
                 $qp[] = $params['start_date'];
             }
             if (!empty($params['end_date'])) {
-                $where[] = 's.created_at <= ?';
+                $where[] = SaleWorkflowPolicy::REPORT_DATE_SQL . ' <= ?';
                 $qp[] = $params['end_date'] . ' 23:59:59';
             }
 
@@ -337,8 +337,8 @@ class PosAnalyticsHandler extends BaseHandler
             $where = [
                 's.tenant_id = ?',
                 "LOWER(COALESCE(s.status, '')) NOT IN (" . SaleWorkflowPolicy::NON_REPORTABLE_STATUSES_SQL . ')',
-                's.created_at >= ?',
-                's.created_at < ?',
+                SaleWorkflowPolicy::REPORT_DATE_SQL . ' >= ?',
+                SaleWorkflowPolicy::REPORT_DATE_SQL . ' < ?',
             ];
             $queryParams = [$tenantId, $from, $toExclusive];
 

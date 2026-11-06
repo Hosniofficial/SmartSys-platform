@@ -383,12 +383,13 @@ class SaleCreationService
                     INSERT INTO inventory_transactions (
                         tenant_id, product_id, unit_id, branch_from, branch_to, quantity,
                         unit_cost, total_cost, movement_type, reference_type, reference_id,
-                        user_id, movement_date, batch_number, expiry_date, serial
-                    ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'out', 'sale', ?, ?, NOW(), ?, ?, ?)
+                        user_id, movement_date, batch_number, expiry_date, serial, notes
+                    ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'out', 'sale', ?, ?, NOW(), ?, ?, ?, ?)
                 ")->execute([
                     $tenantId, $productId, $item['unit_id'] ?? 1, $branchId,
                     $baseQuantity, $unitCost, $totalCost, $saleId, $this->userId,
                     $item['batch_number'] ?? null, $item['expiry_date'] ?? null, $item['serial'] ?? null,
+                    InventoryMovementNotes::sale((int) $saleId),
                 ]);
 
                 if ($notificationHandler !== null) {

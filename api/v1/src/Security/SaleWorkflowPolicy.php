@@ -11,6 +11,7 @@ final class SaleWorkflowPolicy
 {
     public const NON_REPORTABLE_STATUSES_SQL =
         "'draft', 'pending', 'pending_approval', 'awaiting_approval', 'rejected', 'canceled', 'cancelled', 'returned'";
+    public const REPORT_DATE_SQL = 'COALESCE(s.approved_at, s.created_at)';
 
     private const PAYABLE_STATUSES = ['pending_payment', 'partial', 'due'];
     private const EDITABLE_STATUSES = ['draft', 'pending_approval', 'rejected'];
